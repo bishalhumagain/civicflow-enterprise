@@ -15,12 +15,17 @@ builder.Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString = builder.Configuration.GetConnectionString("CivicFlow")
-                       ?? throw new InvalidOperationException(
-                           "Connection string 'CivicFlow' is not configured.");
+builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
+{
+    var configuration =
+        serviceProvider.GetRequiredService<IConfiguration>();
 
-builder.Services.AddDbContext<CivicFlowDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    var connectionString = configuration.GetConnectionString("CivicFlow")
+                           ?? throw new InvalidOperationException(
+                               "Connection string 'CivicFlow' is not configured.");
+
+    options.UseNpgsql(connectionString);
+});
 
 builder.Services.AddScoped<ICaseService, CaseService>();
 var app = builder.Build();
