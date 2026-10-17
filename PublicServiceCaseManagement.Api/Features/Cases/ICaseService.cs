@@ -14,10 +14,21 @@ public interface ICaseService
         Guid organizationId,
         Guid id,
         CancellationToken cancellationToken);
-    
+
     Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
         Guid organizationId,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
+
+    Task<Case?> ChangeStatusAsync(
+        Guid caseId,
+        Guid organizationId,
+        CaseStatus newStatus);
+
+    Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
+
 }

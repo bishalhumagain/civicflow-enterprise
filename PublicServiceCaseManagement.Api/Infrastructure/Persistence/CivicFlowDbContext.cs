@@ -7,7 +7,7 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
     : DbContext(options)
 {
     public DbSet<Case> Cases => Set<Case>();
-
+    public DbSet<CaseStatusHistory> CaseStatusHistories => Set<CaseStatusHistory>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Case>(entity =>
@@ -54,5 +54,41 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
 
             entity.HasIndex(c => new { c.OrganizationId, c.CreatedAt });
         });
+
+        modelBuilder.Entity<CaseStatusHistory>(entity =>
+        {
+            entity.ToTable("case_status_history");
+
+            entity.HasKey(h => h.Id);
+
+            entity.Property(h => h.OrganizationId)
+                .IsRequired();
+
+            entity.Property(h => h.PreviousStatus)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(h => h.NewStatus)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(h => h.ChangedAt)
+                .IsRequired();
+
+            entity.HasOne<Case>()
+                .WithMany()
+                .HasForeignKey(h => h.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(h => new
+            {
+                h.OrganizationId,
+                h.CaseId,
+                h.ChangedAt
+            });
+        });
+
     }
 }

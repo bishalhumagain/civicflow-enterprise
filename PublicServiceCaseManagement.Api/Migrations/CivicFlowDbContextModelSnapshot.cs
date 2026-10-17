@@ -73,6 +73,52 @@ namespace PublicServiceCaseManagement.Api.Migrations
 
                     b.ToTable("cases", (string)null);
                 });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("OrganizationId", "CaseId", "ChangedAt");
+
+                    b.ToTable("case_status_history", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

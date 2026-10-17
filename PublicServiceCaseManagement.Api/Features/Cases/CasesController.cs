@@ -1,4 +1,3 @@
-
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
@@ -74,41 +73,122 @@ public sealed class CasesController(
             existingCase.Priority,
             existingCase.CreatedAt));
     }
+
     [HttpGet]
-public async Task<ActionResult<PagedCasesResponse>> GetAll(
-    [FromQuery, Range(1, int.MaxValue)] int page = 1,
-    [FromQuery, Range(1, 100)] int pageSize = 20,
-    CancellationToken cancellationToken = default)
-{
-    if (!environment.IsDevelopment())
+    public async Task<ActionResult<PagedCasesResponse>> GetAll(
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        return NotFound();
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        var organizationId = Guid.Parse(
+            "11111111-1111-1111-1111-111111111111");
+
+        var result = await caseService.GetPageAsync(
+            organizationId,
+            page,
+            pageSize,
+            cancellationToken);
+
+        var response = new PagedCasesResponse(
+            result.Items.Select(c => new CreateCaseResponse(
+                c.Id,
+                c.ReferenceNumber,
+                c.Title,
+                c.Description,
+                c.Status,
+                c.Priority,
+                c.CreatedAt)).ToList(),
+            page,
+            pageSize,
+            result.TotalCount,
+            (int)Math.Ceiling(result.TotalCount / (double)pageSize));
+
+        return Ok(response);
     }
 
-    var organizationId = Guid.Parse(
-        "11111111-1111-1111-1111-111111111111");
+    [HttpPatch("{id:guid}/status")]
+    public async Task<IActionResult> ChangeStatus(
+        Guid id,
+        [FromBody] ChangeCaseStatusRequest request)
+    {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
 
-    var result = await caseService.GetPageAsync(
-        organizationId,
-        page,
-        pageSize,
-        cancellationToken);
+        var organizationId =
+            Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-    var response = new PagedCasesResponse(
-        result.Items.Select(c => new CreateCaseResponse(
-            c.Id,
-            c.ReferenceNumber,
-            c.Title,
-            c.Description,
-            c.Status,
-            c.Priority,
-            c.CreatedAt)).ToList(),
-        page,
-        pageSize,
-        result.TotalCount,
-        (int)Math.Ceiling(result.TotalCount / (double)pageSize));
+        try
+        {
+            var caseEntity = await caseService.ChangeStatusAsync(
+                id,
+                organizationId,
+                request.NewStatus);
 
-    return Ok(response);
+            if (caseEntity is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(new ChangeCaseStatusResponse(
+                caseEntity.Id,
+                caseEntity.ReferenceNumber,
+                caseEntity.Status,
+                caseEntity.UpdatedAt));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new { error = "The requested status is invalid." });
+        }
+    }
+
+    [HttpGet("{id:guid}/history")]
+    public async Task<IActionResult> GetStatusHistory(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        var organizationId = Guid.Parse(
+            "11111111-1111-1111-1111-111111111111");
+
+        var existingCase = await caseService.GetByIdAsync(
+            organizationId,
+            id,
+            cancellationToken);
+
+        if (existingCase is null)
+        {
+            return NotFound();
+        }
+
+        var history = await caseService.GetStatusHistoryAsync(
+            id,
+            organizationId,
+            cancellationToken);
+
+        var response = history.Select(item => new
+        {
+            item.Id,
+            item.PreviousStatus,
+            item.NewStatus,
+            item.ChangedAt,
+            item.ChangedByUserId
+        });
+
+        return Ok(response);
+    }
 }
-}
-
