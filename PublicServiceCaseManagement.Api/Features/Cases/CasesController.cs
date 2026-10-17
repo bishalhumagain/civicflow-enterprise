@@ -1,5 +1,4 @@
 
-using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
@@ -76,40 +75,40 @@ public sealed class CasesController(
             existingCase.CreatedAt));
     }
     [HttpGet]
-    public async Task<ActionResult<PagedCasesResponse>> GetAll(
-        [FromQuery, Range(1, int.MaxValue)] int page = 1,
-        [FromQuery, Range(1, 100)] int pageSize = 20,
-        CancellationToken cancellationToken = default)
+public async Task<ActionResult<PagedCasesResponse>> GetAll(
+    [FromQuery, Range(1, int.MaxValue)] int page = 1,
+    [FromQuery, Range(1, 100)] int pageSize = 20,
+    CancellationToken cancellationToken = default)
+{
+    if (!environment.IsDevelopment())
     {
-        if (!environment.IsDevelopment())
-        {
-            return NotFound();
-        }
-
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
-
-        var result = await caseService.GetPageAsync(
-            organizationId,
-            page,
-            pageSize,
-            cancellationToken);
-
-        var response = new PagedCasesResponse(
-            result.Items.Select(c => new CreateCaseResponse(
-                c.Id,
-                c.ReferenceNumber,
-                c.Title,
-                c.Description,
-                c.Status,
-                c.Priority,
-                c.CreatedAt)).ToList(),
-            page,
-            pageSize,
-            result.TotalCount,
-            (int)Math.Ceiling(result.TotalCount / (double)pageSize));
-
-        return Ok(response);
+        return NotFound();
     }
+
+    var organizationId = Guid.Parse(
+        "11111111-1111-1111-1111-111111111111");
+
+    var result = await caseService.GetPageAsync(
+        organizationId,
+        page,
+        pageSize,
+        cancellationToken);
+
+    var response = new PagedCasesResponse(
+        result.Items.Select(c => new CreateCaseResponse(
+            c.Id,
+            c.ReferenceNumber,
+            c.Title,
+            c.Description,
+            c.Status,
+            c.Priority,
+            c.CreatedAt)).ToList(),
+        page,
+        pageSize,
+        result.TotalCount,
+        (int)Math.Ceiling(result.TotalCount / (double)pageSize));
+
+    return Ok(response);
+}
 }
 
