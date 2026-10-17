@@ -1,0 +1,23 @@
+using PublicServiceCaseManagement.Api.Domain.Cases;
+
+namespace PublicServiceCaseManagement.Api.Features.Cases;
+
+public interface ICaseService
+{
+    Task<Case> CreateAsync(
+        Guid organizationId,
+        string title,
+        string description,
+        CancellationToken cancellationToken);
+
+    Task<Case?> GetByIdAsync(
+        Guid organizationId,
+        Guid id,
+        CancellationToken cancellationToken);
+    
+    Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
+        Guid organizationId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+}

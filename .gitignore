@@ -1,0 +1,18 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# .NET build output
+**/bin/
+**/obj/
+
+# IDE and operating system files
+.DS_Store
+.idea/
+.vs/
+*.user
+*.suo
+
+# Local development settings
+appsettings.Development.json
