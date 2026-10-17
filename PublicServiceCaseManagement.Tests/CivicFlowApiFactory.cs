@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -15,6 +16,16 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureAppConfiguration((_, configuration) =>
+        {
+            configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:CivicFlow"] =
+                        "Host=localhost;Database=civicflow_tests;Username=test;Password=test"
+                });
+        });
+
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<
