@@ -30,5 +30,10 @@ public interface ICaseService
         Guid caseId,
         Guid organizationId,
         CancellationToken cancellationToken);
+    Task<Case?> AssignAsync(
+        Guid caseId,
+        Guid organizationId,
+        Guid staffMemberId,
+        CancellationToken cancellationToken);
 
 }

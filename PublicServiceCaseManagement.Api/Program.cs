@@ -2,6 +2,7 @@
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using System.Text.Json.Serialization;
 using PublicServiceCaseManagement.Api.Features.Cases;
+using PublicServiceCaseManagement.Api.Features.Staff;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,8 @@ builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
 });
 
 builder.Services.AddScoped<ICaseService, CaseService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

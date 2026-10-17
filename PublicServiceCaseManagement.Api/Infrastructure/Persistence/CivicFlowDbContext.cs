@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Staff;
 
 namespace PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
@@ -8,6 +9,9 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
 {
     public DbSet<Case> Cases => Set<Case>();
     public DbSet<CaseStatusHistory> CaseStatusHistories => Set<CaseStatusHistory>();
+    public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
+    public DbSet<CaseAssignmentHistory> CaseAssignmentHistories =>
+        Set<CaseAssignmentHistory>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Case>(entity =>
@@ -40,6 +44,13 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 .HasConversion<string>()
                 .HasMaxLength(20)
                 .IsRequired();
+            entity.Property(c => c.AssignedToStaffMemberId);
+
+            entity.HasIndex(c => new
+            {
+                c.OrganizationId,
+                c.AssignedToStaffMemberId
+            });
 
             entity.Property(c => c.CreatedAt)
                 .IsRequired();
@@ -89,6 +100,65 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 h.ChangedAt
             });
         });
+        
+        modelBuilder.Entity<StaffMember>(entity =>
+        {
+            entity.ToTable("staff_members");
+
+            entity.HasKey(s => s.Id);
+
+            entity.Property(s => s.OrganizationId)
+                .IsRequired();
+
+            entity.Property(s => s.FullName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(s => s.Email)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(s => s.IsActive)
+                .IsRequired();
+
+            entity.Property(s => s.CreatedAt)
+                .IsRequired();
+
+            entity.Property(s => s.UpdatedAt)
+                .IsRequired();
+
+            entity.HasIndex(s => new { s.OrganizationId, s.Email })
+                .IsUnique();
+
+            entity.HasIndex(s => new { s.OrganizationId, s.IsActive });
+        });
+        
+        modelBuilder.Entity<CaseAssignmentHistory>(entity =>
+        {
+            entity.ToTable("case_assignment_history");
+
+            entity.HasKey(h => h.Id);
+
+            entity.Property(h => h.OrganizationId)
+                .IsRequired();
+
+            entity.Property(h => h.AssignedAt)
+                .IsRequired();
+
+            entity.HasOne<Case>()
+                .WithMany()
+                .HasForeignKey(h => h.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(h => new
+            {
+                h.OrganizationId,
+                h.CaseId,
+                h.AssignedAt
+            });
+        });
+
+
 
     }
 }

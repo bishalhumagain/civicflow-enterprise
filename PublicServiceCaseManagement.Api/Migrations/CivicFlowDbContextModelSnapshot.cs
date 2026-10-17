@@ -28,6 +28,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AssignedToStaffMemberId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -64,6 +67,8 @@ namespace PublicServiceCaseManagement.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrganizationId", "AssignedToStaffMemberId");
+
                     b.HasIndex("OrganizationId", "CreatedAt");
 
                     b.HasIndex("OrganizationId", "ReferenceNumber")
@@ -72,6 +77,36 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasIndex("OrganizationId", "Status");
 
                     b.ToTable("cases", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseAssignmentHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NewStaffMemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PreviousStaffMemberId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("OrganizationId", "CaseId", "AssignedAt");
+
+                    b.ToTable("case_assignment_history", (string)null);
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
@@ -109,6 +144,53 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasIndex("OrganizationId", "CaseId", "ChangedAt");
 
                     b.ToTable("case_status_history", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Staff.StaffMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "Email")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "IsActive");
+
+                    b.ToTable("staff_members", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseAssignmentHistory", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>

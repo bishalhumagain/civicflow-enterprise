@@ -191,4 +191,51 @@ public sealed class CasesController(
 
         return Ok(response);
     }
+    
+    [HttpPatch("{id:guid}/assignment")]
+    public async Task<IActionResult> Assign(
+        Guid id,
+        [FromBody] AssignCaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        var organizationId =
+            Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        try
+        {
+            var caseEntity = await caseService.AssignAsync(
+                id,
+                organizationId,
+                request.StaffMemberId,
+                cancellationToken);
+
+            if (caseEntity is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(new
+            {
+                caseEntity.Id,
+                caseEntity.ReferenceNumber,
+                caseEntity.AssignedToStaffMemberId,
+                caseEntity.UpdatedAt
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
+    
 }

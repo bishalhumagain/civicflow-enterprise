@@ -38,6 +38,7 @@ public sealed class Case
     public CaseStatus Status { get; private set; }
 
     public CasePriority Priority { get; private set; }
+    public Guid? AssignedToStaffMemberId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -158,6 +159,28 @@ public sealed class Case
         }
 
         Status = newStatus;
+        UpdatedAt = now;
+    }
+
+    public void AssignTo(
+        Guid staffMemberId,
+        DateTimeOffset now)
+    {
+        EnsureCaseIsEditable();
+
+        if (staffMemberId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Staff member ID is required.",
+                nameof(staffMemberId));
+        }
+
+        if (AssignedToStaffMemberId == staffMemberId)
+        {
+            return;
+        }
+
+        AssignedToStaffMemberId = staffMemberId;
         UpdatedAt = now;
     }
 

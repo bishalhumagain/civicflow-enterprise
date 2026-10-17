@@ -103,6 +103,61 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
         return caseEntity;
     }
 
+    public async Task<Case?> AssignAsync(
+        Guid caseId,
+        Guid organizationId,
+        Guid staffMemberId,
+        CancellationToken cancellationToken)
+    {
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(
+                c => c.Id == caseId &&
+                     c.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (caseEntity is null)
+        {
+            return null;
+        }
+
+        var staffMember = await dbContext.StaffMembers
+            .SingleOrDefaultAsync(
+                s => s.Id == staffMemberId &&
+                     s.OrganizationId == organizationId &&
+                     s.IsActive,
+                cancellationToken);
+
+        if (staffMember is null)
+        {
+            throw new InvalidOperationException(
+                "The staff member does not exist, is inactive, or belongs to another organization.");
+        }
+
+        var previousStaffMemberId = caseEntity.AssignedToStaffMemberId;
+
+        var assignedAt = DateTimeOffset.UtcNow;
+
+        caseEntity.AssignTo(staffMember.Id, assignedAt);
+
+        if (previousStaffMemberId == staffMember.Id)
+        {
+            return caseEntity;
+        }
+
+        var history = CaseAssignmentHistory.Create(
+            caseEntity.Id,
+            caseEntity.OrganizationId,
+            previousStaffMemberId,
+            staffMember.Id,
+            assignedAt);
+
+        dbContext.CaseAssignmentHistories.Add(history);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return caseEntity;
+    }
+
     public async Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
         Guid caseId,
         Guid organizationId,
