@@ -190,6 +190,42 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "OrganizationId")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "IsActive", "Role");
+
+                    b.ToTable("organization_memberships", (string)null);
+                });
+
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Staff.StaffMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -228,6 +264,46 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.ToTable("staff_members", (string)null);
                 });
 
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Users.ApplicationUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("PlatformRole")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique();
+
+                    b.ToTable("application_users", (string)null);
+                });
+
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.Case", b =>
                 {
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
@@ -263,6 +339,21 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationMembership", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Users.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
