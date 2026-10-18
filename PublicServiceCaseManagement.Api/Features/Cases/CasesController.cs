@@ -1,6 +1,8 @@
-using PublicServiceCaseManagement.Api.Domain.Cases;
+
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
@@ -8,7 +10,8 @@ namespace PublicServiceCaseManagement.Api.Features.Cases;
 [Route("api/cases")]
 public sealed class CasesController(
     ICaseService caseService,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<CreateCaseResponse>> Create(
@@ -16,15 +19,10 @@ public sealed class CasesController(
         CancellationToken cancellationToken)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
-
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
 
         var newCase = await caseService.CreateAsync(
-            organizationId,
+            organizationContext.OrganizationId,
             request.Title,
             request.Description,
             cancellationToken);
@@ -47,22 +45,15 @@ public sealed class CasesController(
         CancellationToken cancellationToken)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
-
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
 
         var existingCase = await caseService.GetByIdAsync(
-            organizationId,
+            organizationContext.OrganizationId,
             id,
             cancellationToken);
 
         if (existingCase is null)
-        {
             return NotFound();
-        }
 
         return Ok(new CreateCaseResponse(
             existingCase.Id,
@@ -81,15 +72,10 @@ public sealed class CasesController(
         CancellationToken cancellationToken = default)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
-
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
 
         var result = await caseService.GetPageAsync(
-            organizationId,
+            organizationContext.OrganizationId,
             page,
             pageSize,
             cancellationToken);
@@ -117,24 +103,17 @@ public sealed class CasesController(
         [FromBody] ChangeCaseStatusRequest request)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
-
-        var organizationId =
-            Guid.Parse("11111111-1111-1111-1111-111111111111");
 
         try
         {
             var caseEntity = await caseService.ChangeStatusAsync(
                 id,
-                organizationId,
+                organizationContext.OrganizationId,
                 request.NewStatus);
 
             if (caseEntity is null)
-            {
                 return NotFound();
-            }
 
             return Ok(new ChangeCaseStatusResponse(
                 caseEntity.Id,
@@ -158,12 +137,9 @@ public sealed class CasesController(
         CancellationToken cancellationToken)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
 
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
+        var organizationId = organizationContext.OrganizationId;
 
         var existingCase = await caseService.GetByIdAsync(
             organizationId,
@@ -171,27 +147,23 @@ public sealed class CasesController(
             cancellationToken);
 
         if (existingCase is null)
-        {
             return NotFound();
-        }
 
         var history = await caseService.GetStatusHistoryAsync(
             id,
             organizationId,
             cancellationToken);
 
-        var response = history.Select(item => new
+        return Ok(history.Select(item => new
         {
             item.Id,
             item.PreviousStatus,
             item.NewStatus,
             item.ChangedAt,
             item.ChangedByUserId
-        });
-
-        return Ok(response);
+        }));
     }
-    
+
     [HttpPatch("{id:guid}/assignment")]
     public async Task<IActionResult> Assign(
         Guid id,
@@ -199,25 +171,18 @@ public sealed class CasesController(
         CancellationToken cancellationToken)
     {
         if (!environment.IsDevelopment())
-        {
             return NotFound();
-        }
-
-        var organizationId =
-            Guid.Parse("11111111-1111-1111-1111-111111111111");
 
         try
         {
             var caseEntity = await caseService.AssignAsync(
                 id,
-                organizationId,
+                organizationContext.OrganizationId,
                 request.StaffMemberId,
                 cancellationToken);
 
             if (caseEntity is null)
-            {
                 return NotFound();
-            }
 
             return Ok(new
             {
@@ -245,8 +210,7 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
+        var organizationId = organizationContext.OrganizationId;
 
         var existingCase = await caseService.GetByIdAsync(
             organizationId,
@@ -261,16 +225,12 @@ public sealed class CasesController(
             organizationId,
             cancellationToken);
 
-        var response = history.Select(item => new
+        return Ok(history.Select(item => new
         {
             item.Id,
             item.PreviousStaffMemberId,
             item.NewStaffMemberId,
             item.AssignedAt
-        });
-
-        return Ok(response);
+        }));
     }
-
-    
 }

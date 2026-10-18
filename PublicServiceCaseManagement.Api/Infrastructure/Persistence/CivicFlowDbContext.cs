@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 
 namespace PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CaseAssignmentHistory> CaseAssignmentHistories =>
         Set<CaseAssignmentHistory>();
+    public DbSet<Organization> Organizations => Set<Organization>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Case>(entity =>
@@ -64,6 +66,10 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
             entity.HasIndex(c => new { c.OrganizationId, c.Status });
 
             entity.HasIndex(c => new { c.OrganizationId, c.CreatedAt });
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(c => c.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CaseStatusHistory>(entity =>
@@ -92,6 +98,10 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 .WithMany()
                 .HasForeignKey(h => h.CaseId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(h => h.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasIndex(h => new
             {
@@ -100,7 +110,7 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 h.ChangedAt
             });
         });
-        
+
         modelBuilder.Entity<StaffMember>(entity =>
         {
             entity.ToTable("staff_members");
@@ -131,8 +141,12 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 .IsUnique();
 
             entity.HasIndex(s => new { s.OrganizationId, s.IsActive });
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(s => s.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
-        
+
         modelBuilder.Entity<CaseAssignmentHistory>(entity =>
         {
             entity.ToTable("case_assignment_history");
@@ -149,13 +163,54 @@ public sealed class CivicFlowDbContext(DbContextOptions<CivicFlowDbContext> opti
                 .WithMany()
                 .HasForeignKey(h => h.CaseId)
                 .OnDelete(DeleteBehavior.Restrict);
-
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(h => h.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(h => new
             {
                 h.OrganizationId,
                 h.CaseId,
                 h.AssignedAt
             });
+        });
+        modelBuilder.Entity<Organization>(entity =>
+        {
+            entity.ToTable("organizations");
+
+            entity.HasKey(o => o.Id);
+
+            entity.Property(o => o.Name)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(o => o.Code)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(o => o.IsActive)
+                .IsRequired();
+
+            entity.Property(o => o.CreatedAt)
+                .IsRequired();
+
+            entity.Property(o => o.UpdatedAt)
+                .IsRequired();
+
+            entity.HasIndex(o => o.Code)
+                .IsUnique();
+            entity.HasData(new
+            {
+                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Name = "CivicFlow Development Organization",
+                Code = "CIVICFLOW-DEV",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.Parse(
+                    "2026-01-01T00:00:00+00:00"),
+                UpdatedAt = DateTimeOffset.Parse(
+                    "2026-01-01T00:00:00+00:00")
+            });
+
         });
 
 

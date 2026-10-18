@@ -1,5 +1,6 @@
 
 using Microsoft.AspNetCore.Mvc;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
@@ -7,7 +8,8 @@ namespace PublicServiceCaseManagement.Api.Features.Staff;
 [Route("api/staff")]
 public sealed class StaffController(
     IStaffService staffService,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
@@ -17,13 +19,10 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
-
         try
         {
             var staffMember = await staffService.CreateAsync(
-                organizationId,
+                organizationContext.OrganizationId,
                 request.FullName,
                 request.Email,
                 cancellationToken);
@@ -58,11 +57,8 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
-
         var staffMembers = await staffService.GetAllAsync(
-            organizationId,
+            organizationContext.OrganizationId,
             isActive,
             cancellationToken);
 
@@ -97,11 +93,8 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = Guid.Parse(
-            "11111111-1111-1111-1111-111111111111");
-
         var staffMember = await staffService.SetActiveStatusAsync(
-            organizationId,
+            organizationContext.OrganizationId,
             id,
             isActive,
             cancellationToken);
