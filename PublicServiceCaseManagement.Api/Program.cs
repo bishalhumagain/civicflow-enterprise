@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Staff;
+using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +35,7 @@ builder.Services.AddScoped<ICaseService, CaseService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<ICurrentOrganizationContext, DevelopmentCurrentOrganizationContext>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

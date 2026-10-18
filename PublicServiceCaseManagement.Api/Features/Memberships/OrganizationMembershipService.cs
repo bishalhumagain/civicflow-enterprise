@@ -1,0 +1,160 @@
+
+using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+
+namespace PublicServiceCaseManagement.Api.Features.Memberships;
+
+public sealed class OrganizationMembershipService(
+    CivicFlowDbContext dbContext) : IOrganizationMembershipService
+{
+    public async Task<OrganizationMembership> CreateAsync(
+        Guid userId,
+        Guid organizationId,
+        OrganizationRole role,
+        CancellationToken cancellationToken)
+    {
+        var userExists = await dbContext.ApplicationUsers
+            .AnyAsync(
+                user => user.Id == userId,
+                cancellationToken);
+
+        if (!userExists)
+        {
+            throw new KeyNotFoundException(
+                "The application user does not exist.");
+        }
+
+        var organizationExists = await dbContext.Organizations
+            .AnyAsync(
+                organization => organization.Id == organizationId,
+                cancellationToken);
+
+        if (!organizationExists)
+        {
+            throw new KeyNotFoundException(
+                "The organization does not exist.");
+        }
+
+        var membershipExists = await dbContext.OrganizationMemberships
+            .AnyAsync(
+                membership =>
+                    membership.UserId == userId &&
+                    membership.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (membershipExists)
+        {
+            throw new InvalidOperationException(
+                "This user already has a membership in the organization.");
+        }
+
+        var membership = OrganizationMembership.Create(
+            userId,
+            organizationId,
+            role,
+            DateTimeOffset.UtcNow);
+
+        dbContext.OrganizationMemberships.Add(membership);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return membership;
+    }
+
+    public async Task<IReadOnlyList<OrganizationMembership>> GetAllAsync(
+        Guid organizationId,
+        bool? isActive,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.OrganizationMemberships
+            .AsNoTracking()
+            .Where(
+                membership =>
+                    membership.OrganizationId == organizationId);
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(
+                membership => membership.IsActive == isActive.Value);
+        }
+
+        return await query
+            .OrderBy(membership => membership.CreatedAt)
+            .ThenBy(membership => membership.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<OrganizationMembership?> GetByIdAsync(
+        Guid organizationId,
+        Guid membershipId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.OrganizationMemberships
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                membership =>
+                    membership.Id == membershipId &&
+                    membership.OrganizationId == organizationId,
+                cancellationToken);
+    }
+
+    public async Task<OrganizationMembership?> ChangeRoleAsync(
+        Guid organizationId,
+        Guid membershipId,
+        OrganizationRole role,
+        CancellationToken cancellationToken)
+    {
+        var membership = await dbContext.OrganizationMemberships
+            .SingleOrDefaultAsync(
+                item =>
+                    item.Id == membershipId &&
+                    item.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (membership is null)
+        {
+            return null;
+        }
+
+        membership.ChangeRole(role, DateTimeOffset.UtcNow);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return membership;
+    }
+
+    public async Task<OrganizationMembership?> SetActiveStatusAsync(
+        Guid organizationId,
+        Guid membershipId,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        var membership = await dbContext.OrganizationMemberships
+            .SingleOrDefaultAsync(
+                item =>
+                    item.Id == membershipId &&
+                    item.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (membership is null)
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (isActive)
+        {
+            membership.Reactivate(now);
+        }
+        else
+        {
+            membership.Deactivate(now);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return membership;
+    }
+}
