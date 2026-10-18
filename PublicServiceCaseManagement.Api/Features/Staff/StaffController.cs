@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Mvc;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
@@ -35,7 +36,8 @@ public sealed class StaffController(
                     staffMember.FullName,
                     staffMember.Email,
                     staffMember.IsActive,
-                    staffMember.CreatedAt
+                    staffMember.CreatedAt,
+                    staffMember.UpdatedAt
                 });
         }
         catch (ArgumentException exception)
@@ -46,5 +48,75 @@ public sealed class StaffController(
         {
             return Conflict(new { error = exception.Message });
         }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] bool? isActive,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        var organizationId = Guid.Parse(
+            "11111111-1111-1111-1111-111111111111");
+
+        var staffMembers = await staffService.GetAllAsync(
+            organizationId,
+            isActive,
+            cancellationToken);
+
+        return Ok(staffMembers.Select(staff => new
+        {
+            staff.Id,
+            staff.FullName,
+            staff.Email,
+            staff.IsActive,
+            staff.CreatedAt,
+            staff.UpdatedAt
+        }));
+    }
+
+    [HttpPatch("{id:guid}/deactivate")]
+    public Task<IActionResult> Deactivate(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        SetActiveStatus(id, false, cancellationToken);
+
+    [HttpPatch("{id:guid}/reactivate")]
+    public Task<IActionResult> Reactivate(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        SetActiveStatus(id, true, cancellationToken);
+
+    private async Task<IActionResult> SetActiveStatus(
+        Guid id,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        var organizationId = Guid.Parse(
+            "11111111-1111-1111-1111-111111111111");
+
+        var staffMember = await staffService.SetActiveStatusAsync(
+            organizationId,
+            id,
+            isActive,
+            cancellationToken);
+
+        if (staffMember is null)
+            return NotFound();
+
+        return Ok(new
+        {
+            staffMember.Id,
+            staffMember.FullName,
+            staffMember.Email,
+            staffMember.IsActive,
+            staffMember.CreatedAt,
+            staffMember.UpdatedAt
+        });
     }
 }

@@ -9,4 +9,15 @@ public interface IStaffService
         string fullName,
         string email,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<StaffMember>> GetAllAsync(
+        Guid organizationId,
+        bool? isActive,
+        CancellationToken cancellationToken);
+
+    Task<StaffMember?> SetActiveStatusAsync(
+        Guid organizationId,
+        Guid staffMemberId,
+        bool isActive,
+        CancellationToken cancellationToken);
 }

@@ -1,3 +1,4 @@
+
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -34,6 +35,59 @@ public sealed class StaffService(CivicFlowDbContext dbContext)
             DateTimeOffset.UtcNow);
 
         dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return staffMember;
+    }
+
+    public async Task<IReadOnlyList<StaffMember>> GetAllAsync(
+        Guid organizationId,
+        bool? isActive,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.StaffMembers
+            .AsNoTracking()
+            .Where(staff => staff.OrganizationId == organizationId);
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(staff => staff.IsActive == isActive.Value);
+        }
+
+        return await query
+            .OrderBy(staff => staff.FullName)
+            .ThenBy(staff => staff.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<StaffMember?> SetActiveStatusAsync(
+        Guid organizationId,
+        Guid staffMemberId,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        var staffMember = await dbContext.StaffMembers
+            .SingleOrDefaultAsync(
+                staff => staff.Id == staffMemberId &&
+                         staff.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (staffMember is null)
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (isActive)
+        {
+            staffMember.Reactivate(now);
+        }
+        else
+        {
+            staffMember.Deactivate(now);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return staffMember;
