@@ -172,4 +172,27 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
             .ThenBy(history => history.Id)
             .ToListAsync(cancellationToken);
     }
+    public async Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var caseExists = await dbContext.Cases
+            .AnyAsync(
+                c => c.Id == caseId &&
+                     c.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (!caseExists)
+            return Array.Empty<CaseAssignmentHistory>();
+
+        return await dbContext.CaseAssignmentHistories
+            .AsNoTracking()
+            .Where(h => h.CaseId == caseId &&
+                        h.OrganizationId == organizationId)
+            .OrderBy(h => h.AssignedAt)
+            .ThenBy(h => h.Id)
+            .ToListAsync(cancellationToken);
+
+    }
 }

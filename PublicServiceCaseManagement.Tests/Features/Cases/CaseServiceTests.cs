@@ -1,6 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
@@ -10,6 +11,9 @@ public sealed class CaseServiceTests
 {
     private static readonly Guid OrganizationId =
         Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    private static readonly Guid OtherOrganizationId =
+        Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     private static readonly DateTimeOffset Now =
         new(2026, 10, 17, 8, 0, 0, TimeSpan.Zero);
@@ -23,12 +27,21 @@ public sealed class CaseServiceTests
         return new CivicFlowDbContext(options);
     }
 
-    private static Case CreateCase() =>
+    private static Case CreateCase(Guid? organizationId = null) =>
         Case.Create(
-            OrganizationId,
-            "CF-12345678",
+            organizationId ?? OrganizationId,
+            $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
             "Damaged streetlight",
             "A streetlight near the public park is damaged.",
+            Now);
+
+    private static StaffMember CreateStaffMember(
+        Guid? organizationId = null,
+        string? email = null) =>
+        StaffMember.Create(
+            organizationId ?? OrganizationId,
+            "Test Officer",
+            email ?? $"officer-{Guid.NewGuid():N}@example.com",
             Now);
 
     [Fact]
@@ -106,7 +119,6 @@ public sealed class CaseServiceTests
         await using var dbContext = CreateDbContext();
 
         var caseEntity = CreateCase();
-
         caseEntity.ChangeStatus(CaseStatus.UnderReview, Now);
 
         dbContext.Cases.Add(caseEntity);
@@ -124,4 +136,191 @@ public sealed class CaseServiceTests
         Assert.Empty(await dbContext.CaseStatusHistories.ToListAsync());
     }
 
+    [Fact]
+    public async Task AssignAsync_WhenStaffMemberIsAssigned_SavesAssignmentAndHistory()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var staffMember = CreateStaffMember();
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        var result = await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(staffMember.Id, result.AssignedToStaffMemberId);
+
+        var history = await dbContext.CaseAssignmentHistories
+            .AsNoTracking()
+            .SingleAsync();
+
+        Assert.Equal(caseEntity.Id, history.CaseId);
+        Assert.Equal(OrganizationId, history.OrganizationId);
+        Assert.Null(history.PreviousStaffMemberId);
+        Assert.Equal(staffMember.Id, history.NewStaffMemberId);
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenReassigned_CreatesHistoryWithPreviousAndNewAssignees()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var firstStaffMember = CreateStaffMember();
+        var secondStaffMember = CreateStaffMember();
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.AddRange(firstStaffMember, secondStaffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            firstStaffMember.Id,
+            CancellationToken.None);
+
+        var result = await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            secondStaffMember.Id,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(secondStaffMember.Id, result.AssignedToStaffMemberId);
+
+        var history = await dbContext.CaseAssignmentHistories
+            .AsNoTracking()
+            .OrderBy(h => h.AssignedAt)
+            .ThenBy(h => h.Id)
+            .ToListAsync();
+
+        Assert.Equal(2, history.Count);
+
+        Assert.Null(history[0].PreviousStaffMemberId);
+        Assert.Equal(firstStaffMember.Id, history[0].NewStaffMemberId);
+
+        Assert.Equal(firstStaffMember.Id, history[1].PreviousStaffMemberId);
+        Assert.Equal(secondStaffMember.Id, history[1].NewStaffMemberId);
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenSameStaffMemberIsAssignedAgain_DoesNotDuplicateHistory()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var staffMember = CreateStaffMember();
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None);
+
+        await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None);
+
+        var history = await dbContext.CaseAssignmentHistories
+            .AsNoTracking()
+            .ToListAsync();
+
+        Assert.Single(history);
+        Assert.Equal(staffMember.Id, caseEntity.AssignedToStaffMemberId);
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenStaffMemberIsInactive_ThrowsAndDoesNotCreateHistory()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var staffMember = CreateStaffMember();
+        staffMember.Deactivate(Now);
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.AssignAsync(
+                caseEntity.Id,
+                OrganizationId,
+                staffMember.Id,
+                CancellationToken.None));
+
+        Assert.Null(caseEntity.AssignedToStaffMemberId);
+        Assert.Empty(await dbContext.CaseAssignmentHistories.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenStaffMemberBelongsToAnotherOrganization_Throws()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var staffMember = CreateStaffMember(OtherOrganizationId);
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.AssignAsync(
+                caseEntity.Id,
+                OrganizationId,
+                staffMember.Id,
+                CancellationToken.None));
+
+        Assert.Null(caseEntity.AssignedToStaffMemberId);
+        Assert.Empty(await dbContext.CaseAssignmentHistories.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenCaseBelongsToAnotherOrganization_ReturnsNull()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase(OtherOrganizationId);
+        var staffMember = CreateStaffMember(OtherOrganizationId);
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext);
+
+        var result = await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Null(caseEntity.AssignedToStaffMemberId);
+        Assert.Empty(await dbContext.CaseAssignmentHistories.ToListAsync());
+    }
 }

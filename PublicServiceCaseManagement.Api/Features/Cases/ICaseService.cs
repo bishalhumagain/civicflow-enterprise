@@ -35,5 +35,8 @@ public interface ICaseService
         Guid organizationId,
         Guid staffMemberId,
         CancellationToken cancellationToken);
-
+    Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
 }

@@ -237,5 +237,40 @@ public sealed class CasesController(
         }
     }
 
+    [HttpGet("{id:guid}/assignment-history")]
+    public async Task<IActionResult> GetAssignmentHistory(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        var organizationId = Guid.Parse(
+            "11111111-1111-1111-1111-111111111111");
+
+        var existingCase = await caseService.GetByIdAsync(
+            organizationId,
+            id,
+            cancellationToken);
+
+        if (existingCase is null)
+            return NotFound();
+
+        var history = await caseService.GetAssignmentHistoryAsync(
+            id,
+            organizationId,
+            cancellationToken);
+
+        var response = history.Select(item => new
+        {
+            item.Id,
+            item.PreviousStaffMemberId,
+            item.NewStaffMemberId,
+            item.AssignedAt
+        });
+
+        return Ok(response);
+    }
+
     
 }
