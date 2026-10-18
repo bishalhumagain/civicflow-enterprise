@@ -14,6 +14,8 @@ public sealed class TestAuthenticationHandler(
         options, logger, encoder)
 {
     public const string SchemeName = "CivicFlowTest";
+    public const string Issuer = "http://localhost:8080/realms/civicflow";
+    public const string Subject = "civicflow-integration-test-user";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -31,8 +33,10 @@ public sealed class TestAuthenticationHandler(
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, "civicflow-test-user"),
-            new Claim(ClaimTypes.Name, "CivicFlow Test User")
+            new Claim(ClaimTypes.NameIdentifier, Subject),
+            new Claim(ClaimTypes.Name, "CivicFlow Integration Test User"),
+            new Claim("iss", Issuer),
+            new Claim("sub", Subject)
         };
 
         var identity = new ClaimsIdentity(claims, SchemeName);
