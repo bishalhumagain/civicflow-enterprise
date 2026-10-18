@@ -1,3 +1,5 @@
+
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +30,23 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                    TestAuthenticationHandler.SchemeName,
+                    _ => { });
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(
+                options =>
+                {
+                    options.DefaultAuthenticateScheme =
+                        TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme =
+                        TestAuthenticationHandler.SchemeName;
+                    options.DefaultForbidScheme =
+                        TestAuthenticationHandler.SchemeName;
+                    options.DefaultScheme =
+                        TestAuthenticationHandler.SchemeName;
+                });
+
             services.RemoveAll<
                 IDbContextOptionsConfiguration<CivicFlowDbContext>>();
 
