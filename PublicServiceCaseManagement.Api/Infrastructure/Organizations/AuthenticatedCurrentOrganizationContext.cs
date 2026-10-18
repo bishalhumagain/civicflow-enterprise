@@ -1,3 +1,6 @@
+using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Users;
+
 namespace PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 public sealed class AuthenticatedCurrentOrganizationContext(
@@ -5,8 +8,14 @@ public sealed class AuthenticatedCurrentOrganizationContext(
     : ICurrentOrganizationContext
 {
     public Task<Guid?> GetOrganizationIdAsync(
-        CancellationToken cancellationToken = default)
-    {
-        return resolver.ResolveAsync(cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        resolver.ResolveAsync(cancellationToken);
+
+    public Task<OrganizationRole?> GetOrganizationRoleAsync(
+        CancellationToken cancellationToken = default) =>
+        resolver.ResolveRoleAsync(cancellationToken);
+
+    public Task<PlatformRole?> GetPlatformRoleAsync(
+        CancellationToken cancellationToken = default) =>
+        resolver.ResolvePlatformRoleAsync(cancellationToken);
 }

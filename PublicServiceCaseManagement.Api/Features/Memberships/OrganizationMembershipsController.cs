@@ -1,6 +1,8 @@
 
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
@@ -8,7 +10,8 @@ namespace PublicServiceCaseManagement.Api.Features.Memberships;
 [Route("api/organizations/{organizationId:guid}/memberships")]
 public sealed class OrganizationMembershipsController(
     IOrganizationMembershipService membershipService,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<OrganizationMembershipResponse>> Create(
@@ -18,6 +21,10 @@ public sealed class OrganizationMembershipsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await CanAdministerOrganizationAsync(
+                organizationId, cancellationToken))
+            return Forbid();
 
         if (!TryParseRole(request.Role, out var role))
             return BadRequest(new { error = "The organization role is invalid." });
@@ -30,12 +37,10 @@ public sealed class OrganizationMembershipsController(
                 role,
                 cancellationToken);
 
-            var response = ToResponse(membership);
-
             return CreatedAtAction(
                 nameof(GetById),
                 new { organizationId, membershipId = membership.Id },
-                response);
+                ToResponse(membership));
         }
         catch (KeyNotFoundException exception)
         {
@@ -60,6 +65,10 @@ public sealed class OrganizationMembershipsController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await CanAdministerOrganizationAsync(
+                organizationId, cancellationToken))
+            return Forbid();
+
         var memberships = await membershipService.GetAllAsync(
             organizationId,
             isActive,
@@ -76,6 +85,10 @@ public sealed class OrganizationMembershipsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await CanAdministerOrganizationAsync(
+                organizationId, cancellationToken))
+            return Forbid();
 
         var membership = await membershipService.GetByIdAsync(
             organizationId,
@@ -97,6 +110,10 @@ public sealed class OrganizationMembershipsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await CanAdministerOrganizationAsync(
+                organizationId, cancellationToken))
+            return Forbid();
 
         if (!TryParseRole(request.Role, out var role))
             return BadRequest(new { error = "The organization role is invalid." });
@@ -125,22 +142,14 @@ public sealed class OrganizationMembershipsController(
         Guid organizationId,
         Guid membershipId,
         CancellationToken cancellationToken) =>
-        SetActiveStatus(
-            organizationId,
-            membershipId,
-            false,
-            cancellationToken);
+        SetActiveStatus(organizationId, membershipId, false, cancellationToken);
 
     [HttpPatch("{membershipId:guid}/reactivate")]
     public Task<ActionResult<OrganizationMembershipResponse>> Reactivate(
         Guid organizationId,
         Guid membershipId,
         CancellationToken cancellationToken) =>
-        SetActiveStatus(
-            organizationId,
-            membershipId,
-            true,
-            cancellationToken);
+        SetActiveStatus(organizationId, membershipId, true, cancellationToken);
 
     private async Task<ActionResult<OrganizationMembershipResponse>> SetActiveStatus(
         Guid organizationId,
@@ -150,6 +159,10 @@ public sealed class OrganizationMembershipsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await CanAdministerOrganizationAsync(
+                organizationId, cancellationToken))
+            return Forbid();
 
         var membership = await membershipService.SetActiveStatusAsync(
             organizationId,
@@ -163,9 +176,29 @@ public sealed class OrganizationMembershipsController(
         return Ok(ToResponse(membership));
     }
 
-    private static bool TryParseRole(
-        string? value,
-        out OrganizationRole role)
+    private async Task<bool> CanAdministerOrganizationAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var platformRole = await organizationContext.GetPlatformRoleAsync(
+            cancellationToken);
+
+        if (platformRole == PlatformRole.SuperAdmin)
+            return true;
+
+        var currentOrganizationId =
+            await organizationContext.GetOrganizationIdAsync(cancellationToken);
+
+        if (currentOrganizationId != organizationId)
+            return false;
+
+        var organizationRole =
+            await organizationContext.GetOrganizationRoleAsync(cancellationToken);
+
+        return organizationRole == OrganizationRole.OrganizationAdmin;
+    }
+
+    private static bool TryParseRole(string? value, out OrganizationRole role)
     {
         role = default;
 

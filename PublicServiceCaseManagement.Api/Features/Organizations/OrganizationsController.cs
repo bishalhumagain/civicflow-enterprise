@@ -1,5 +1,7 @@
 
 using Microsoft.AspNetCore.Mvc;
+using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 
@@ -7,7 +9,8 @@ namespace PublicServiceCaseManagement.Api.Features.Organizations;
 [Route("api/organizations")]
 public sealed class OrganizationsController(
     IOrganizationService organizationService,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<OrganizationResponse>> Create(
@@ -17,6 +20,9 @@ public sealed class OrganizationsController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
         try
         {
             var organization = await organizationService.CreateAsync(
@@ -24,11 +30,9 @@ public sealed class OrganizationsController(
                 request.Code,
                 cancellationToken);
 
-            var response = ToResponse(organization);
-
             return Created(
                 $"/api/organizations/{organization.Id}",
-                response);
+                ToResponse(organization));
         }
         catch (ArgumentException exception)
         {
@@ -47,6 +51,9 @@ public sealed class OrganizationsController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
         var organizations = await organizationService.GetAllAsync(
             cancellationToken);
 
@@ -60,6 +67,9 @@ public sealed class OrganizationsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
 
         var organization = await organizationService.GetByIdAsync(
             id,
@@ -79,6 +89,9 @@ public sealed class OrganizationsController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
 
         try
         {
@@ -123,6 +136,9 @@ public sealed class OrganizationsController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
         var organization = await organizationService.SetActiveStatusAsync(
             id,
             isActive,
@@ -132,6 +148,15 @@ public sealed class OrganizationsController(
             return NotFound();
 
         return Ok(ToResponse(organization));
+    }
+
+    private async Task<bool> IsPlatformSuperAdminAsync(
+        CancellationToken cancellationToken)
+    {
+        var role = await organizationContext.GetPlatformRoleAsync(
+            cancellationToken);
+
+        return role == PlatformRole.SuperAdmin;
     }
 
     private static OrganizationResponse ToResponse(

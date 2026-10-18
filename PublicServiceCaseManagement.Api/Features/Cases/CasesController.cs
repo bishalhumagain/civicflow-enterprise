@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
@@ -20,6 +21,9 @@ public sealed class CasesController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
@@ -124,6 +128,9 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
 
@@ -202,6 +209,9 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
 
@@ -271,5 +281,15 @@ public sealed class CasesController(
             item.NewStaffMemberId,
             item.AssignedAt
         }));
+    }
+
+    private async Task<bool> CanManageCasesAsync(
+        CancellationToken cancellationToken)
+    {
+        var role = await organizationContext.GetOrganizationRoleAsync(
+            cancellationToken);
+
+        return role is OrganizationRole.CaseWorker
+            or OrganizationRole.OrganizationAdmin;
     }
 }

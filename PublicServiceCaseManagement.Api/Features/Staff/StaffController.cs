@@ -1,5 +1,6 @@
 
 using Microsoft.AspNetCore.Mvc;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
@@ -18,6 +19,9 @@ public sealed class StaffController(
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        if (!await IsOrganizationAdminAsync(cancellationToken))
+            return Forbid();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
@@ -105,6 +109,9 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        if (!await IsOrganizationAdminAsync(cancellationToken))
+            return Forbid();
+
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
 
@@ -129,5 +136,14 @@ public sealed class StaffController(
             staffMember.CreatedAt,
             staffMember.UpdatedAt
         });
+    }
+
+    private async Task<bool> IsOrganizationAdminAsync(
+        CancellationToken cancellationToken)
+    {
+        var role = await organizationContext.GetOrganizationRoleAsync(
+            cancellationToken);
+
+        return role is OrganizationRole.OrganizationAdmin;
     }
 }

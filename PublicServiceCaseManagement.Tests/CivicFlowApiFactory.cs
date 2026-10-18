@@ -48,22 +48,14 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(
                 options =>
                 {
-                    options.DefaultAuthenticateScheme =
-                        TestAuthenticationHandler.SchemeName;
-                    options.DefaultChallengeScheme =
-                        TestAuthenticationHandler.SchemeName;
-                    options.DefaultForbidScheme =
-                        TestAuthenticationHandler.SchemeName;
-                    options.DefaultScheme =
-                        TestAuthenticationHandler.SchemeName;
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultScheme = TestAuthenticationHandler.SchemeName;
                 });
 
-            services.RemoveAll<
-                IDbContextOptionsConfiguration<CivicFlowDbContext>>();
-
-            services.RemoveAll<
-                DbContextOptions<CivicFlowDbContext>>();
-
+            services.RemoveAll<IDbContextOptionsConfiguration<CivicFlowDbContext>>();
+            services.RemoveAll<DbContextOptions<CivicFlowDbContext>>();
             services.RemoveAll<CivicFlowDbContext>();
 
             services.AddDbContext<CivicFlowDbContext>(options =>
@@ -80,7 +72,9 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         });
     }
 
-    public async Task<Guid> SeedAuthenticatedOrganizationAsync()
+    public async Task<Guid> SeedAuthenticatedOrganizationAsync(
+        OrganizationRole role = OrganizationRole.CaseWorker,
+        PlatformRole platformRole = PlatformRole.None)
     {
         using var scope = Services.CreateScope();
 
@@ -101,6 +95,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             TestAuthenticationHandler.Subject,
             now);
 
+        user.SetPlatformRole(platformRole, now);
+
         var organization = Organization.Create(
             "Integration Test Organization",
             $"INT-{Guid.NewGuid():N}",
@@ -109,13 +105,66 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var membership = OrganizationMembership.Create(
             user.Id,
             organization.Id,
-            OrganizationRole.CaseWorker,
+            role,
             now);
 
         dbContext.ApplicationUsers.Add(user);
         dbContext.Organizations.Add(organization);
         dbContext.OrganizationMemberships.Add(membership);
 
+        await dbContext.SaveChangesAsync();
+
+        return organization.Id;
+    }
+
+    public async Task<Guid> SeedAdditionalOrganizationForAuthenticatedUserAsync(
+        OrganizationRole role = OrganizationRole.OrganizationAdmin)
+    {
+        using var scope = Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        var user = await dbContext.ApplicationUsers.SingleAsync(
+            user =>
+                user.ExternalIdentityIssuer == TestAuthenticationHandler.Issuer &&
+                user.ExternalIdentitySubject == TestAuthenticationHandler.Subject);
+
+        var now = DateTimeOffset.UtcNow;
+
+        var organization = Organization.Create(
+            "Second Integration Test Organization",
+            $"INT-{Guid.NewGuid():N}",
+            now);
+
+        var membership = OrganizationMembership.Create(
+            user.Id,
+            organization.Id,
+            role,
+            now);
+
+        dbContext.Organizations.Add(organization);
+        dbContext.OrganizationMemberships.Add(membership);
+
+        await dbContext.SaveChangesAsync();
+
+        return organization.Id;
+    }
+    public async Task<Guid> SeedOrganizationWithoutMembershipAsync()
+    {
+        using var scope = Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var organization = Organization.Create(
+            "Organization Without Membership",
+            $"NOM-{Guid.NewGuid():N}",
+            now);
+
+        dbContext.Organizations.Add(organization);
         await dbContext.SaveChangesAsync();
 
         return organization.Id;
