@@ -2,5 +2,6 @@ namespace PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 public interface ICurrentOrganizationContext
 {
-    Guid OrganizationId { get; }
+    Task<Guid?> GetOrganizationIdAsync(
+        CancellationToken cancellationToken = default);
 }

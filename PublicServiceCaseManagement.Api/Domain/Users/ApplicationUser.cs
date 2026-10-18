@@ -1,3 +1,4 @@
+
 namespace PublicServiceCaseManagement.Api.Domain.Users;
 
 public sealed class ApplicationUser
@@ -27,6 +28,10 @@ public sealed class ApplicationUser
     public string Email { get; private set; } = string.Empty;
 
     public string NormalizedEmail { get; private set; } = string.Empty;
+
+    public string? ExternalIdentityIssuer { get; private set; }
+
+    public string? ExternalIdentitySubject { get; private set; }
 
     public PlatformRole PlatformRole { get; private set; }
 
@@ -66,6 +71,55 @@ public sealed class ApplicationUser
             fullName.Trim(),
             email.Trim(),
             now);
+    }
+
+    public void LinkExternalIdentity(
+        string issuer,
+        string subject,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(issuer) ||
+            issuer.Trim().Length > 500 ||
+            !Uri.TryCreate(issuer.Trim(), UriKind.Absolute, out _))
+        {
+            throw new ArgumentException(
+                "A valid absolute identity issuer URL is required.",
+                nameof(issuer));
+        }
+
+        if (string.IsNullOrWhiteSpace(subject) ||
+            subject.Trim().Length > 255)
+        {
+            throw new ArgumentException(
+                "An identity subject is required and must not exceed 255 characters.",
+                nameof(subject));
+        }
+
+        var normalizedIssuer = issuer.Trim();
+        var normalizedSubject = subject.Trim();
+
+        if (ExternalIdentityIssuer is not null ||
+            ExternalIdentitySubject is not null)
+        {
+            if (string.Equals(
+                    ExternalIdentityIssuer,
+                    normalizedIssuer,
+                    StringComparison.Ordinal) &&
+                string.Equals(
+                    ExternalIdentitySubject,
+                    normalizedSubject,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                "This application user is already linked to an external identity.");
+        }
+
+        ExternalIdentityIssuer = normalizedIssuer;
+        ExternalIdentitySubject = normalizedSubject;
+        UpdatedAt = now;
     }
 
     public void SetPlatformRole(

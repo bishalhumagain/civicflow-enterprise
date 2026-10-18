@@ -278,6 +278,14 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .HasMaxLength(254)
                         .HasColumnType("character varying(254)");
 
+                    b.Property<string>("ExternalIdentityIssuer")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ExternalIdentitySubject")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -299,6 +307,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedEmail")
+                        .IsUnique();
+
+                    b.HasIndex("ExternalIdentityIssuer", "ExternalIdentitySubject")
                         .IsUnique();
 
                     b.ToTable("application_users", (string)null);

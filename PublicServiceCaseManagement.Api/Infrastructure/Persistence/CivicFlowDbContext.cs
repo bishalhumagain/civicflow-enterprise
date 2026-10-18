@@ -232,6 +232,18 @@ public sealed class CivicFlowDbContext(
                 .HasConversion<string>()
                 .HasMaxLength(30)
                 .IsRequired();
+            entity.Property(u => u.ExternalIdentityIssuer)
+                .HasMaxLength(500);
+
+            entity.Property(u => u.ExternalIdentitySubject)
+                .HasMaxLength(255);
+
+            entity.HasIndex(u => new
+                {
+                    u.ExternalIdentityIssuer,
+                    u.ExternalIdentitySubject
+                })
+                .IsUnique();
 
             entity.Property(u => u.CreatedAt)
                 .IsRequired();
@@ -262,6 +274,7 @@ public sealed class CivicFlowDbContext(
 
             entity.Property(m => m.IsActive)
                 .IsRequired();
+
 
             entity.Property(m => m.CreatedAt)
                 .IsRequired();

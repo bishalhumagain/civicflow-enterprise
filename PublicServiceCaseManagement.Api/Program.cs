@@ -37,6 +37,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false;
         options.Authority = authority;
         options.Audience = audience;
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
@@ -73,9 +74,27 @@ builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
 
 builder.Services.AddScoped<ICaseService, CaseService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
-builder.Services.AddScoped<ICurrentOrganizationContext, DevelopmentCurrentOrganizationContext>();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<
+    IAuthenticatedOrganizationResolver,
+    AuthenticatedOrganizationResolver>();
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<
+        ICurrentOrganizationContext,
+        DevelopmentCurrentOrganizationContext>();
+}
+else
+{
+    builder.Services.AddScoped<
+        ICurrentOrganizationContext,
+        AuthenticatedCurrentOrganizationContext>();
+}
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
+
 
 var app = builder.Build();
 

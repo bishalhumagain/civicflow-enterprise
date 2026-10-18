@@ -21,8 +21,14 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         var newCase = await caseService.CreateAsync(
-            organizationContext.OrganizationId,
+            organizationId.Value,
             request.Title,
             request.Description,
             cancellationToken);
@@ -47,8 +53,14 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         var existingCase = await caseService.GetByIdAsync(
-            organizationContext.OrganizationId,
+            organizationId.Value,
             id,
             cancellationToken);
 
@@ -74,8 +86,14 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         var result = await caseService.GetPageAsync(
-            organizationContext.OrganizationId,
+            organizationId.Value,
             page,
             pageSize,
             cancellationToken);
@@ -100,16 +118,23 @@ public sealed class CasesController(
     [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> ChangeStatus(
         Guid id,
-        [FromBody] ChangeCaseStatusRequest request)
+        [FromBody] ChangeCaseStatusRequest request,
+        CancellationToken cancellationToken)
     {
         if (!environment.IsDevelopment())
             return NotFound();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
 
         try
         {
             var caseEntity = await caseService.ChangeStatusAsync(
                 id,
-                organizationContext.OrganizationId,
+                organizationId.Value,
                 request.NewStatus);
 
             if (caseEntity is null)
@@ -139,10 +164,14 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = organizationContext.OrganizationId;
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
 
         var existingCase = await caseService.GetByIdAsync(
-            organizationId,
+            organizationId.Value,
             id,
             cancellationToken);
 
@@ -151,7 +180,7 @@ public sealed class CasesController(
 
         var history = await caseService.GetStatusHistoryAsync(
             id,
-            organizationId,
+            organizationId.Value,
             cancellationToken);
 
         return Ok(history.Select(item => new
@@ -173,11 +202,17 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         try
         {
             var caseEntity = await caseService.AssignAsync(
                 id,
-                organizationContext.OrganizationId,
+                organizationId.Value,
                 request.StaffMemberId,
                 cancellationToken);
 
@@ -210,10 +245,14 @@ public sealed class CasesController(
         if (!environment.IsDevelopment())
             return NotFound();
 
-        var organizationId = organizationContext.OrganizationId;
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
 
         var existingCase = await caseService.GetByIdAsync(
-            organizationId,
+            organizationId.Value,
             id,
             cancellationToken);
 
@@ -222,7 +261,7 @@ public sealed class CasesController(
 
         var history = await caseService.GetAssignmentHistoryAsync(
             id,
-            organizationId,
+            organizationId.Value,
             cancellationToken);
 
         return Ok(history.Select(item => new

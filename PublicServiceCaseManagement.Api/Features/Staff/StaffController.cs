@@ -19,10 +19,16 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         try
         {
             var staffMember = await staffService.CreateAsync(
-                organizationContext.OrganizationId,
+                organizationId.Value,
                 request.FullName,
                 request.Email,
                 cancellationToken);
@@ -57,8 +63,14 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         var staffMembers = await staffService.GetAllAsync(
-            organizationContext.OrganizationId,
+            organizationId.Value,
             isActive,
             cancellationToken);
 
@@ -93,8 +105,14 @@ public sealed class StaffController(
         if (!environment.IsDevelopment())
             return NotFound();
 
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
         var staffMember = await staffService.SetActiveStatusAsync(
-            organizationContext.OrganizationId,
+            organizationId.Value,
             id,
             isActive,
             cancellationToken);
