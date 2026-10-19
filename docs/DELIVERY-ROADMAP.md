@@ -19,7 +19,7 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 
 ### Implemented but limited
 
-- The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status history, submits assignments, browses the active staff directory, and uploads/downloads documents when configured with a valid authenticated session. Demo data remains available without live configuration.
+- The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration.
 - Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready.
 - Most automated API tests use EF Core InMemory and synthetic authentication. The live PostgreSQL/Keycloak checks are currently disposable manual probes rather than CI integration tests.
 
@@ -36,7 +36,7 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 
 Status: implemented for the current API workflow; browser verification remains.
 
-The API contracts support the core staff workflow and the frontend now provides explicit authenticated/unauthorized states, API error handling, case detail refresh, status history, assignment, document upload/download controls, paging, staff directory, and a separated non-submitting citizen intake foundation. Keep the UI small and operational; do not expand into reporting or visual polish.
+The API contracts support the core staff workflow and the frontend now provides explicit authenticated/unauthorized states, API error handling, case detail refresh, status and assignment history, assignment, document upload/download controls, paging, staff and membership administration views, and a separated non-submitting citizen intake foundation. Keep the UI small and operational; do not expand into reporting or visual polish.
 
 Acceptance:
 

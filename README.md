@@ -132,7 +132,7 @@ The application does not automatically run migrations at startup. Apply migratio
 
 ### Staff frontend
 
-The React dashboard supports a local demo fallback and a configured live API workflow. With `VITE_KEYCLOAK_*`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID` configured, staff can sign in with Authorization Code + PKCE, page/search/filter cases, open case details, create cases, change status, inspect status history, assign active staff members, browse the active staff directory, and upload or download validated supporting documents. The frontend does not bypass API authorization; denied API responses are shown as errors. Browser end-to-end behavior remains unverified.
+The React dashboard supports a local demo fallback and a configured live API workflow. With `VITE_KEYCLOAK_*`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID` configured, staff can sign in with Authorization Code + PKCE, page/search/filter cases, open case details, create cases, change status, inspect status and assignment history, assign active staff members, browse and administer staff records, and upload or download validated supporting documents. An organization administration view integrates the existing organization and membership endpoints; the API remains the authority and denied operations are shown as errors. Browser end-to-end behavior remains unverified.
 
 The dashboard also includes a separated public-intake foundation with accessible validation and an explicit unavailable state. It does not submit citizen requests: the API currently exposes no dedicated citizen intake contract, citizen-to-organization resolution policy, or citizen document authorization. This is intentionally not implemented by reusing staff endpoints.
 
