@@ -132,11 +132,11 @@ The application does not automatically run migrations at startup. Apply migratio
 
 ### Staff frontend
 
-The React dashboard supports a local demo fallback and a configured live API workflow. With `VITE_KEYCLOAK_*`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID` configured, staff can sign in with Authorization Code + PKCE, page/search/filter cases, open case details, create cases, change status, inspect status and assignment history, assign active staff members, browse and administer staff records, and upload or download validated supporting documents. An organization administration view integrates the existing organization and membership endpoints; the API remains the authority and denied operations are shown as errors. Browser end-to-end behavior remains unverified.
+The React dashboard provides a reviewer-facing staff interface backed by the configured API and Keycloak authentication. With `VITE_KEYCLOAK_AUTHORITY`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_REDIRECT_URI`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID` configured, staff can sign in with Authorization Code + PKCE, search and filter cases, open case details, create cases, change status, inspect status and assignment history, assign staff members, manage staff and organization memberships, and upload or download supporting documents where authorized. The API remains the authority for permissions. The current frontend does not populate fabricated demo cases: it displays configuration, authentication, loading, error, and empty states as appropriate. Full browser end-to-end behavior remains unverified.
 
 The dashboard also includes a separated public-intake foundation with accessible validation and an explicit unavailable state. It does not submit citizen requests: the API currently exposes no dedicated citizen intake contract, citizen-to-organization resolution policy, or citizen document authorization. This is intentionally not implemented by reusing staff endpoints.
 
-For local frontend development, copy the required values into an untracked `civicflow-web/.env.local` file: `VITE_KEYCLOAK_AUTHORITY`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_REDIRECT_URI`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID`. No client secret belongs in the frontend. Run `npm install` and `npm run dev` from `civicflow-web`; use the demo fallback when live Keycloak/API configuration is unavailable.
+For local frontend development, create `civicflow-web/.env.local` with `VITE_KEYCLOAK_AUTHORITY`, `VITE_KEYCLOAK_CLIENT_ID`, `VITE_KEYCLOAK_REDIRECT_URI`, `VITE_API_BASE_URL`, and `VITE_CIVICFLOW_ORGANIZATION_ID`. Use the Keycloak realm URL for the authority, the configured public client ID, a redirect URI registered in Keycloak, the API base URL, and the organization ID that matches an active membership for the signed-in user. Keep `.env.local` untracked and never put a client secret in frontend environment variables. From `civicflow-web`, run `npm install`, `npm run dev`, and open the local URL printed by Vite. Run `npm run lint` for linting and `npm run build` for TypeScript and production-build verification. Without the required live configuration, the dashboard explains the configuration or authentication state; it does not fall back to fabricated case data.
 
 ## Authorization model
 
@@ -337,7 +337,7 @@ Important files:
 - `PublicServiceCaseManagement.Api/Infrastructure/Authorization/BusinessEndpointAccess.cs` — explicit production endpoint gate.
 - `PublicServiceCaseManagement.Tests/CivicFlowApiFactory.cs` — explicit test identities, roles, memberships, and test environment.
 - `PublicServiceCaseManagement.Tests/ProductionAuthorizationIntegrationTests.cs` — production-environment guard behavior.
-- `civicflow-web/src/App.tsx` — reviewer-facing dashboard with live case workflow and explicit demo fallback.
+- `civicflow-web/src/App.tsx` — reviewer-facing dashboard with live API workflow and explicit configuration/authentication/empty states; no fabricated demo cases.
 - `civicflow-web/src/auth.ts` — optional browser Authorization Code + PKCE flow.
 - `civicflow-web/src/api.ts` — bearer-token API request helper.
 - `infra/keycloak/civicflow-realm.json` — disposable public-client realm fixture.
