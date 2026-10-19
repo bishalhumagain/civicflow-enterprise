@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
@@ -11,7 +12,7 @@ namespace PublicServiceCaseManagement.Api.Features.Staff;
 [Route("api/staff")]
 public sealed class StaffController(
     IStaffService staffService,
-    IHostEnvironment environment,
+    IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
@@ -19,7 +20,7 @@ public sealed class StaffController(
         [FromBody] CreateStaffMemberRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsOrganizationAdminAsync(cancellationToken))
@@ -66,7 +67,7 @@ public sealed class StaffController(
         [FromQuery] bool? isActive,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -108,7 +109,7 @@ public sealed class StaffController(
         bool isActive,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsOrganizationAdminAsync(cancellationToken))

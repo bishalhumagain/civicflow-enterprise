@@ -18,4 +18,8 @@ public sealed class AuthenticatedCurrentOrganizationContext(
     public Task<PlatformRole?> GetPlatformRoleAsync(
         CancellationToken cancellationToken = default) =>
         resolver.ResolvePlatformRoleAsync(cancellationToken);
+
+    public Task<Guid?> GetApplicationUserIdAsync(
+        CancellationToken cancellationToken = default) =>
+        resolver.ResolveApplicationUserIdAsync(cancellationToken);
 }

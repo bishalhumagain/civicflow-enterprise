@@ -17,6 +17,7 @@ public sealed class ApplicationUser
         Email = email;
         NormalizedEmail = email.ToUpperInvariant();
         PlatformRole = PlatformRole.None;
+        IsActive = true;
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -34,6 +35,8 @@ public sealed class ApplicationUser
     public string? ExternalIdentitySubject { get; private set; }
 
     public PlatformRole PlatformRole { get; private set; }
+
+    public bool IsActive { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -139,6 +142,28 @@ public sealed class ApplicationUser
         }
 
         PlatformRole = role;
+        UpdatedAt = now;
+    }
+
+    public void Deactivate(DateTimeOffset now)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        IsActive = false;
+        UpdatedAt = now;
+    }
+
+    public void Reactivate(DateTimeOffset now)
+    {
+        if (IsActive)
+        {
+            return;
+        }
+
+        IsActive = true;
         UpdatedAt = now;
     }
 }

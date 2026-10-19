@@ -88,6 +88,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.Property<DateTimeOffset>("AssignedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("AssignedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CaseId")
                         .HasColumnType("uuid");
 
@@ -295,6 +298,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");

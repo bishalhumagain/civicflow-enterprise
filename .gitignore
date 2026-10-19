@@ -19,3 +19,6 @@ appsettings.Development.json
 
 # Local document storage
 **/App_Data/
+
+# Local release artifacts and detached signatures
+/artifacts/

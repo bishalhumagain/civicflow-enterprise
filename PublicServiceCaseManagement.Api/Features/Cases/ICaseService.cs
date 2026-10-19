@@ -24,7 +24,8 @@ public interface ICaseService
     Task<Case?> ChangeStatusAsync(
         Guid caseId,
         Guid organizationId,
-        CaseStatus newStatus);
+        CaseStatus newStatus,
+        Guid? changedByUserId = null);
 
     Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
         Guid caseId,
@@ -34,7 +35,8 @@ public interface ICaseService
         Guid caseId,
         Guid organizationId,
         Guid staffMemberId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? assignedByUserId = null);
     Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
         Guid caseId,
         Guid organizationId,

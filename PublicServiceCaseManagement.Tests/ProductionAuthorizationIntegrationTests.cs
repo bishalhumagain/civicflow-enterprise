@@ -47,6 +47,25 @@ public sealed class ProductionAuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task Production_StaffClientBusinessRequest_RequiresExplicitEnablement()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            environmentName: "Production",
+            enableBusinessEndpoints: true);
+
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await client.GetAsync("/api/cases");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Production_HealthEndpoint_AllowsAnonymousAccess()
     {
         await using var factory = new CivicFlowApiFactory(

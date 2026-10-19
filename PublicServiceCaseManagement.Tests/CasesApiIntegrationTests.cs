@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
@@ -96,6 +97,20 @@ public class CasesApiIntegrationTests
         Assert.Equal(
             "UnderReview",
             historyEntry.GetProperty("newStatus").GetString());
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var applicationUserId = await dbContext.ApplicationUsers
+            .Where(user =>
+                user.ExternalIdentityIssuer == TestAuthenticationHandler.Issuer &&
+                user.ExternalIdentitySubject == TestAuthenticationHandler.Subject)
+            .Select(user => user.Id)
+            .SingleAsync();
+
+        Assert.Equal(
+            applicationUserId,
+            historyEntry.GetProperty("changedByUserId").GetGuid());
     }
 
     [Theory]

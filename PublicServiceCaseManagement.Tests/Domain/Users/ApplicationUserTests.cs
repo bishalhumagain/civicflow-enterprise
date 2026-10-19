@@ -22,6 +22,7 @@ public sealed class ApplicationUserTests
         Assert.Equal("Bishal@example.com", user.Email);
         Assert.Equal("BISHAL@EXAMPLE.COM", user.NormalizedEmail);
         Assert.Equal(PlatformRole.None, user.PlatformRole);
+        Assert.True(user.IsActive);
         Assert.Equal(Now, user.CreatedAt);
         Assert.Equal(Now, user.UpdatedAt);
     }
@@ -78,6 +79,27 @@ public sealed class ApplicationUserTests
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => user.SetPlatformRole((PlatformRole)999, Now));
+    }
+
+    [Fact]
+    public void DeactivateAndReactivate_UpdatesActiveStatusAndTimestamp()
+    {
+        var user = ApplicationUser.Create(
+            "Regular User",
+            "user@example.com",
+            Now);
+
+        var deactivatedAt = Now.AddMinutes(5);
+        user.Deactivate(deactivatedAt);
+
+        Assert.False(user.IsActive);
+        Assert.Equal(deactivatedAt, user.UpdatedAt);
+
+        var reactivatedAt = Now.AddMinutes(10);
+        user.Reactivate(reactivatedAt);
+
+        Assert.True(user.IsActive);
+        Assert.Equal(reactivatedAt, user.UpdatedAt);
     }
 
     [Fact]

@@ -9,6 +9,7 @@ using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
+using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using System.Text.Json.Serialization;
 
@@ -108,6 +109,7 @@ builder.Services.AddScoped<ICaseService, CaseService>();
 builder.Services.AddScoped<ICaseDocumentService, CaseDocumentService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
+builder.Services.AddSingleton<IBusinessEndpointAccess, BusinessEndpointAccess>();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<

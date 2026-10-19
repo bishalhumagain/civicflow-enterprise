@@ -12,7 +12,8 @@ public sealed class CaseAssignmentHistory
         Guid organizationId,
         Guid? previousStaffMemberId,
         Guid newStaffMemberId,
-        DateTimeOffset assignedAt)
+        DateTimeOffset assignedAt,
+        Guid? assignedByUserId)
     {
         Id = Guid.NewGuid();
         CaseId = caseId;
@@ -20,6 +21,7 @@ public sealed class CaseAssignmentHistory
         PreviousStaffMemberId = previousStaffMemberId;
         NewStaffMemberId = newStaffMemberId;
         AssignedAt = assignedAt;
+        AssignedByUserId = assignedByUserId;
     }
 
     public Guid Id { get; private set; }
@@ -34,12 +36,15 @@ public sealed class CaseAssignmentHistory
 
     public DateTimeOffset AssignedAt { get; private set; }
 
+    public Guid? AssignedByUserId { get; private set; }
+
     public static CaseAssignmentHistory Create(
         Guid caseId,
         Guid organizationId,
         Guid? previousStaffMemberId,
         Guid newStaffMemberId,
-        DateTimeOffset assignedAt)
+        DateTimeOffset assignedAt,
+        Guid? assignedByUserId = null)
     {
         if (caseId == Guid.Empty)
         {
@@ -74,6 +79,7 @@ public sealed class CaseAssignmentHistory
             organizationId,
             previousStaffMemberId,
             newStaffMemberId,
-            assignedAt);
+            assignedAt,
+            assignedByUserId);
     }
 }

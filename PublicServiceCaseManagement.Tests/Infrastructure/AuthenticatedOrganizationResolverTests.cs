@@ -84,6 +84,23 @@ public sealed class AuthenticatedOrganizationResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_WithInactiveApplicationUser_ReturnsNull()
+    {
+        var scenario = await CreateScenarioAsync();
+
+        await using var dbContext = scenario.DbContext;
+
+        var user = await dbContext.ApplicationUsers
+            .SingleAsync(item => item.Id == scenario.UserId);
+        user.Deactivate(Now.AddMinutes(1));
+        await dbContext.SaveChangesAsync();
+
+        var result = await scenario.Resolver.ResolveAsync();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task ResolveAsync_WithOrganizationWithoutMembership_ReturnsNull()
     {
         var scenario = await CreateScenarioAsync();
@@ -154,6 +171,24 @@ public sealed class AuthenticatedOrganizationResolverTests
         var scenario = await CreateScenarioAsync(linkIdentity: false);
 
         await using var dbContext = scenario.DbContext;
+
+        var result = await scenario.Resolver.ResolvePlatformRoleAsync();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolvePlatformRoleAsync_WithInactiveUser_ReturnsNull()
+    {
+        var scenario = await CreateScenarioAsync();
+
+        await using var dbContext = scenario.DbContext;
+
+        var user = await dbContext.ApplicationUsers
+            .SingleAsync(item => item.Id == scenario.UserId);
+        user.SetPlatformRole(PlatformRole.SuperAdmin, Now);
+        user.Deactivate(Now.AddMinutes(1));
+        await dbContext.SaveChangesAsync();
 
         var result = await scenario.Resolver.ResolvePlatformRoleAsync();
 

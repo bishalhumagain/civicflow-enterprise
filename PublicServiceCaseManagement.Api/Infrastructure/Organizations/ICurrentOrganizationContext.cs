@@ -13,4 +13,7 @@ public interface ICurrentOrganizationContext
 
     Task<PlatformRole?> GetPlatformRoleAsync(
         CancellationToken cancellationToken = default);
+
+    Task<Guid?> GetApplicationUserIdAsync(
+        CancellationToken cancellationToken = default);
 }

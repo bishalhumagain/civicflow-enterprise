@@ -246,6 +246,8 @@ public sealed class CivicFlowDbContext(
             entity.Property(h => h.AssignedAt)
                 .IsRequired();
 
+            entity.Property(h => h.AssignedByUserId);
+
             entity.HasOne<Case>()
                 .WithMany()
                 .HasForeignKey(h => h.CaseId)
@@ -286,6 +288,10 @@ public sealed class CivicFlowDbContext(
                 .HasConversion<string>()
                 .HasMaxLength(30)
                 .IsRequired();
+
+            entity.Property(u => u.IsActive)
+                .IsRequired();
+
             entity.Property(u => u.ExternalIdentityIssuer)
                 .HasMaxLength(500);
 

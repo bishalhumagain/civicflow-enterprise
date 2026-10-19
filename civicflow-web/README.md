@@ -1,75 +1,52 @@
-# React + TypeScript + Vite
+# CivicFlow web client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the React/TypeScript reviewer-facing dashboard shell for CivicFlow Enterprise.
 
-Currently, two official plugins are available:
+## Current status
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Implemented and verified:
 
-## React Compiler
+- Responsive organization workspace layout.
+- Case list with status filtering and selection.
+- Case detail, assignment, priority, activity, and summary-card presentation.
+- Explicit `DEMO MODE` indicator using local representative data.
+- TypeScript compilation, Vite production build, and ESLint validation.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Implemented locally without a third-party OIDC package:
 
-## Expanding the ESLint configuration
+- Authorization Code + PKCE redirect flow in `src/auth.ts`.
+- State and code-verifier validation using session storage.
+- In-memory access-token handling after callback.
+- Configurable bearer API request helper in `src/api.ts`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The OIDC flow becomes active only when the required Vite environment values are supplied.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Not yet implemented:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Connecting dashboard data to API calls.
+- Protected route handling and token lifecycle management.
+- Live document upload/download and server-side case mutations.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The demo data is intentionally visible as demo data. Do not add a hidden token, client secret, or unauthenticated production API path to make the screen appear live.
 
+Example local frontend configuration:
+
+```bash
+VITE_KEYCLOAK_AUTHORITY=http://localhost:8080/realms/civicflow
+VITE_KEYCLOAK_CLIENT_ID=civicflow-web
+VITE_KEYCLOAK_REDIRECT_URI=http://localhost:5173
+VITE_API_BASE_URL=https://localhost:7248
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+These values identify a public browser client; do not add a client secret to Vite environment variables. The API still enforces its own JWT, client, application-user, membership, organization, and role checks.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Commands
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
 ```
+
+The next frontend implementation step is an OIDC integration using a public Keycloak client configuration, followed by a typed API client that sends bearer tokens to endpoints protected by the backend authorization policies.

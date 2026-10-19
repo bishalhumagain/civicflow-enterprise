@@ -1,0 +1,12 @@
+{
+  "schema": "https://civicflow.example/schemas/provenance/v1",
+  "project": "CivicFlow Enterprise",
+  "owner": "Bishal Humagain",
+  "repository": "https://github.com/bishalhumagain/civicflow-enterprise",
+  "sourceLicenseStatus": "No license file is currently published; owner decision required",
+  "releaseVerification": {
+    "status": "manual-detached-signature-workflow",
+    "privateKeyLocation": "outside repository and build artifacts",
+    "instructions": "docs/RELEASE-VERIFICATION.md"
+  }
+}

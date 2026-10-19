@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
@@ -12,7 +13,7 @@ namespace PublicServiceCaseManagement.Api.Features.Memberships;
 [Route("api/organizations/{organizationId:guid}/memberships")]
 public sealed class OrganizationMembershipsController(
     IOrganizationMembershipService membershipService,
-    IHostEnvironment environment,
+    IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
@@ -21,7 +22,7 @@ public sealed class OrganizationMembershipsController(
         [FromBody] CreateOrganizationMembershipRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanAdministerOrganizationAsync(
@@ -64,7 +65,7 @@ public sealed class OrganizationMembershipsController(
         [FromQuery] bool? isActive,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanAdministerOrganizationAsync(
@@ -85,7 +86,7 @@ public sealed class OrganizationMembershipsController(
         Guid membershipId,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanAdministerOrganizationAsync(
@@ -110,7 +111,7 @@ public sealed class OrganizationMembershipsController(
         [FromBody] ChangeOrganizationMembershipRoleRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanAdministerOrganizationAsync(
@@ -159,7 +160,7 @@ public sealed class OrganizationMembershipsController(
         bool isActive,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanAdministerOrganizationAsync(

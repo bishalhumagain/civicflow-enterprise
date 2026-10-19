@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
+using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
@@ -16,7 +17,7 @@ public sealed class CasesController(
     ICaseService caseService,
     ICaseDocumentService caseDocumentService,
     IFileStorage fileStorage,
-    IHostEnvironment environment,
+    IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
@@ -24,7 +25,7 @@ public sealed class CasesController(
         CreateCaseRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanManageCasesAsync(cancellationToken))
@@ -59,7 +60,7 @@ public sealed class CasesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -92,7 +93,7 @@ public sealed class CasesController(
         [FromQuery, Range(1, 100)] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -130,7 +131,7 @@ public sealed class CasesController(
         [FromBody] ChangeCaseStatusRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanManageCasesAsync(cancellationToken))
@@ -142,12 +143,19 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var applicationUserId = await organizationContext
+            .GetApplicationUserIdAsync(cancellationToken);
+
+        if (applicationUserId is null)
+            return Forbid();
+
         try
         {
             var caseEntity = await caseService.ChangeStatusAsync(
                 id,
                 organizationId.Value,
-                request.NewStatus);
+                request.NewStatus,
+                applicationUserId.Value);
 
             if (caseEntity is null)
                 return NotFound();
@@ -173,7 +181,7 @@ public sealed class CasesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -211,7 +219,7 @@ public sealed class CasesController(
         [FromBody] AssignCaseRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanManageCasesAsync(cancellationToken))
@@ -223,13 +231,20 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var applicationUserId = await organizationContext
+            .GetApplicationUserIdAsync(cancellationToken);
+
+        if (applicationUserId is null)
+            return Forbid();
+
         try
         {
             var caseEntity = await caseService.AssignAsync(
                 id,
                 organizationId.Value,
                 request.StaffMemberId,
-                cancellationToken);
+                cancellationToken,
+                applicationUserId.Value);
 
             if (caseEntity is null)
                 return NotFound();
@@ -257,7 +272,7 @@ public sealed class CasesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -284,7 +299,8 @@ public sealed class CasesController(
             item.Id,
             item.PreviousStaffMemberId,
             item.NewStaffMemberId,
-            item.AssignedAt
+            item.AssignedAt,
+            item.AssignedByUserId
         }));
     }
 
@@ -296,7 +312,7 @@ public sealed class CasesController(
         [FromForm] IFormFile file,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await CanManageCasesAsync(cancellationToken))
@@ -340,7 +356,7 @@ public sealed class CasesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -370,7 +386,7 @@ public sealed class CasesController(
         Guid documentId,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(

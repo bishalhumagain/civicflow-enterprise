@@ -65,7 +65,8 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
     public async Task<Case?> ChangeStatusAsync(
         Guid caseId,
         Guid organizationId,
-        CaseStatus newStatus)
+        CaseStatus newStatus,
+        Guid? changedByUserId = null)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(c =>
@@ -94,7 +95,8 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
             caseEntity.OrganizationId,
             previousStatus,
             caseEntity.Status,
-            changedAt);
+            changedAt,
+            changedByUserId);
 
         dbContext.CaseStatusHistories.Add(history);
 
@@ -107,7 +109,8 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
         Guid caseId,
         Guid organizationId,
         Guid staffMemberId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? assignedByUserId = null)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(
@@ -149,7 +152,8 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
             caseEntity.OrganizationId,
             previousStaffMemberId,
             staffMember.Id,
-            assignedAt);
+            assignedAt,
+            assignedByUserId);
 
         dbContext.CaseAssignmentHistories.Add(history);
 

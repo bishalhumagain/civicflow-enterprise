@@ -5,28 +5,33 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: civicflow
-      POSTGRES_USER: civicflow_app
+      POSTGRES_USER: civicflow_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      CIVICFLOW_RUNTIME_PASSWORD: ${CIVICFLOW_RUNTIME_PASSWORD:?Set CIVICFLOW_RUNTIME_PASSWORD in .env}
+      CIVICFLOW_MIGRATOR_PASSWORD: ${CIVICFLOW_MIGRATOR_PASSWORD:?Set CIVICFLOW_MIGRATOR_PASSWORD in .env}
     ports:
       - "127.0.0.1:5432:5432"
-    volumes:
-      - civicflow_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U civicflow_app -d civicflow"]
+      test: ["CMD-SHELL", "pg_isready -U civicflow_admin -d civicflow"]
       interval: 5s
       timeout: 5s
       retries: 10
+    volumes:
+      - civicflow_postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.4.2
     container_name: civicflow-keycloak
     restart: unless-stopped
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN in .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env}
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   civicflow_postgres_data:

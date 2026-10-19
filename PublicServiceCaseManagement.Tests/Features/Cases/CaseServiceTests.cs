@@ -48,6 +48,7 @@ public sealed class CaseServiceTests
     public async Task ChangeStatusAsync_WhenStatusChanges_SavesCaseAndHistory()
     {
         await using var dbContext = CreateDbContext();
+        var actorUserId = Guid.NewGuid();
 
         var caseEntity = CreateCase();
 
@@ -59,7 +60,8 @@ public sealed class CaseServiceTests
         var result = await service.ChangeStatusAsync(
             caseEntity.Id,
             OrganizationId,
-            CaseStatus.UnderReview);
+            CaseStatus.UnderReview,
+            actorUserId);
 
         Assert.NotNull(result);
         Assert.Equal(CaseStatus.UnderReview, result.Status);
@@ -72,7 +74,7 @@ public sealed class CaseServiceTests
         Assert.Equal(OrganizationId, history.OrganizationId);
         Assert.Equal(CaseStatus.Submitted, history.PreviousStatus);
         Assert.Equal(CaseStatus.UnderReview, history.NewStatus);
-        Assert.Null(history.ChangedByUserId);
+        Assert.Equal(actorUserId, history.ChangedByUserId);
     }
 
     [Fact]
@@ -140,6 +142,7 @@ public sealed class CaseServiceTests
     public async Task AssignAsync_WhenStaffMemberIsAssigned_SavesAssignmentAndHistory()
     {
         await using var dbContext = CreateDbContext();
+        var actorUserId = Guid.NewGuid();
 
         var caseEntity = CreateCase();
         var staffMember = CreateStaffMember();
@@ -154,7 +157,8 @@ public sealed class CaseServiceTests
             caseEntity.Id,
             OrganizationId,
             staffMember.Id,
-            CancellationToken.None);
+            CancellationToken.None,
+            actorUserId);
 
         Assert.NotNull(result);
         Assert.Equal(staffMember.Id, result.AssignedToStaffMemberId);
@@ -167,6 +171,7 @@ public sealed class CaseServiceTests
         Assert.Equal(OrganizationId, history.OrganizationId);
         Assert.Null(history.PreviousStaffMemberId);
         Assert.Equal(staffMember.Id, history.NewStaffMemberId);
+        Assert.Equal(actorUserId, history.AssignedByUserId);
     }
 
     [Fact]

@@ -20,26 +20,31 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     private readonly OrganizationRole? defaultOrganizationRole;
     private readonly PlatformRole defaultPlatformRole;
     private readonly string environmentName;
+    private readonly bool enableBusinessEndpoints;
 
     private static readonly Guid DevelopmentOrganizationId =
         Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     public CivicFlowApiFactory(
         bool useAuthenticatedOrganizationContext = false,
-        string environmentName = "Development")
+        string environmentName = "Development",
+        bool enableBusinessEndpoints = false)
     {
         _ = useAuthenticatedOrganizationContext;
         this.environmentName = environmentName;
+        this.enableBusinessEndpoints = enableBusinessEndpoints;
     }
 
     public CivicFlowApiFactory(
         OrganizationRole defaultOrganizationRole,
         PlatformRole defaultPlatformRole = PlatformRole.None,
-        string environmentName = "Development")
+        string environmentName = "Development",
+        bool enableBusinessEndpoints = false)
     {
         this.defaultOrganizationRole = defaultOrganizationRole;
         this.defaultPlatformRole = defaultPlatformRole;
         this.environmentName = environmentName;
+        this.enableBusinessEndpoints = enableBusinessEndpoints;
     }
 
     public new HttpClient CreateClient()
@@ -80,6 +85,9 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             "Authentication:CitizenClientId",
             TestAuthenticationHandler.CitizenClientId);
+        builder.UseSetting(
+            "BusinessEndpoints:Enabled",
+            enableBusinessEndpoints.ToString());
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -95,6 +103,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                         TestAuthenticationHandler.StaffClientId,
                     ["Authentication:CitizenClientId"] =
                         TestAuthenticationHandler.CitizenClientId,
+                    ["BusinessEndpoints:Enabled"] =
+                        enableBusinessEndpoints.ToString(),
                     ["FileStorage:RootPath"] =
                         Path.Combine(Path.GetTempPath(), databaseName)
                 });

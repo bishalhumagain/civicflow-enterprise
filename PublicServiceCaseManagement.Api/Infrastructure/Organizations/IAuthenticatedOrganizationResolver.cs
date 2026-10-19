@@ -13,4 +13,7 @@ public interface IAuthenticatedOrganizationResolver
 
     Task<PlatformRole?> ResolvePlatformRoleAsync(
         CancellationToken cancellationToken = default);
+
+    Task<Guid?> ResolveApplicationUserIdAsync(
+        CancellationToken cancellationToken = default);
 }

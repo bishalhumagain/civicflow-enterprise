@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 
@@ -11,7 +12,7 @@ namespace PublicServiceCaseManagement.Api.Features.Organizations;
 [Route("api/organizations")]
 public sealed class OrganizationsController(
     IOrganizationService organizationService,
-    IHostEnvironment environment,
+    IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost]
@@ -19,7 +20,7 @@ public sealed class OrganizationsController(
         [FromBody] CreateOrganizationRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
@@ -50,7 +51,7 @@ public sealed class OrganizationsController(
     public async Task<ActionResult<IReadOnlyList<OrganizationResponse>>> GetAll(
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
@@ -67,7 +68,7 @@ public sealed class OrganizationsController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
@@ -89,7 +90,7 @@ public sealed class OrganizationsController(
         [FromBody] UpdateOrganizationRequest request,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
@@ -135,7 +136,7 @@ public sealed class OrganizationsController(
         bool isActive,
         CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
         if (!await IsPlatformSuperAdminAsync(cancellationToken))

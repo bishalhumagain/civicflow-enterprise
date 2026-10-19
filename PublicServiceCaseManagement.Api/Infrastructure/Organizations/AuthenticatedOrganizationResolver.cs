@@ -40,8 +40,29 @@ public sealed class AuthenticatedOrganizationResolver(
             .AsNoTracking()
             .Where(user =>
                 user.ExternalIdentityIssuer == identity.Value.Issuer &&
-                user.ExternalIdentitySubject == identity.Value.Subject)
+                user.ExternalIdentitySubject == identity.Value.Subject &&
+                user.IsActive)
             .Select(user => (PlatformRole?)user.PlatformRole)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Guid?> ResolveApplicationUserIdAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var identity = GetAuthenticatedIdentity();
+
+        if (identity is null)
+        {
+            return null;
+        }
+
+        return await dbContext.ApplicationUsers
+            .AsNoTracking()
+            .Where(user =>
+                user.ExternalIdentityIssuer == identity.Value.Issuer &&
+                user.ExternalIdentitySubject == identity.Value.Subject &&
+                user.IsActive)
+            .Select(user => (Guid?)user.Id)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -74,6 +95,7 @@ public sealed class AuthenticatedOrganizationResolver(
             where membership.OrganizationId == organizationId
                   && membership.IsActive
                   && organization.IsActive
+                  && user.IsActive
                   && user.ExternalIdentityIssuer == identity.Value.Issuer
                   && user.ExternalIdentitySubject == identity.Value.Subject
             select new ResolvedMembership(
