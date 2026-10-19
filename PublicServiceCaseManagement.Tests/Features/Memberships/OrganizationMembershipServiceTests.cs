@@ -402,4 +402,94 @@ public sealed class OrganizationMembershipServiceTests
         Assert.Null(result);
         Assert.True(membership.IsActive);
     }
+
+[Fact]
+public async Task CreateAsync_WhenOrganizationIsInactive_ThrowsInvalidOperationException()
+{
+    await using var dbContext = CreateDbContext();
+
+    var organization = CreateOrganization();
+    var user = CreateUser();
+
+    organization.Deactivate(Now);
+
+    await SeedAsync(dbContext, organization, user);
+
+    var service = new OrganizationMembershipService(dbContext);
+
+    var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        () => service.CreateAsync(
+            user.Id,
+            organization.Id,
+            OrganizationRole.Viewer,
+            CancellationToken.None));
+
+    Assert.Equal(
+        "Cannot create a membership in an inactive organization.",
+        exception.Message);
+
+    Assert.Empty(dbContext.OrganizationMemberships);
+}
+
+[Fact]
+public async Task CreateAsync_WhenMembershipAlreadyExistsAndIsInactive_ThrowsInvalidOperationException()
+{
+    await using var dbContext = CreateDbContext();
+
+    var organization = CreateOrganization();
+    var user = CreateUser();
+
+    await SeedAsync(dbContext, organization, user);
+
+    var existingMembership = OrganizationMembership.Create(
+        user.Id,
+        organization.Id,
+        OrganizationRole.Viewer,
+        Now);
+
+    existingMembership.Deactivate(Now);
+
+    dbContext.OrganizationMemberships.Add(existingMembership);
+    await dbContext.SaveChangesAsync();
+
+    var service = new OrganizationMembershipService(dbContext);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(
+        () => service.CreateAsync(
+            user.Id,
+            organization.Id,
+            OrganizationRole.CaseWorker,
+            CancellationToken.None));
+
+    var membership = Assert.Single(dbContext.OrganizationMemberships);
+    Assert.Equal(existingMembership.Id, membership.Id);
+    Assert.False(membership.IsActive);
+}
+
+[Fact]
+public async Task CreateAsync_WhenOrganizationIsReactivated_CreatesActiveMembership()
+{
+    await using var dbContext = CreateDbContext();
+
+    var organization = CreateOrganization();
+    var user = CreateUser();
+
+    organization.Deactivate(Now);
+    organization.Reactivate(Now.AddMinutes(1));
+
+    await SeedAsync(dbContext, organization, user);
+
+    var service = new OrganizationMembershipService(dbContext);
+
+    var result = await service.CreateAsync(
+        user.Id,
+        organization.Id,
+        OrganizationRole.Viewer,
+        CancellationToken.None);
+
+    Assert.Equal(organization.Id, result.OrganizationId);
+    Assert.Equal(user.Id, result.UserId);
+    Assert.True(result.IsActive);
+}
+
 }

@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -8,19 +9,35 @@ using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
-using System.Text.Json.Serialization;var builder = WebApplication.CreateBuilder(args);
+using System.Text.Json.Serialization;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var isDevelopment = builder.Environment.IsDevelopment();
 
 var authority = builder.Configuration["Authentication:Authority"]
-    ?? (builder.Environment.IsDevelopment()
+    ?? (isDevelopment
         ? "http://localhost:8080/realms/civicflow"
         : throw new InvalidOperationException(
             "Authentication:Authority must be configured outside Development."));
 
 var audience = builder.Configuration["Authentication:Audience"]
-    ?? (builder.Environment.IsDevelopment()
+    ?? (isDevelopment
         ? "civicflow-api"
         : throw new InvalidOperationException(
             "Authentication:Audience must be configured outside Development."));
+
+var staffClientId = builder.Configuration["Authentication:StaffClientId"]
+    ?? (isDevelopment
+        ? "civicflow-staff"
+        : throw new InvalidOperationException(
+            "Authentication:StaffClientId must be configured outside Development."));
+
+var citizenClientId = builder.Configuration["Authentication:CitizenClientId"]
+    ?? (isDevelopment
+        ? "civicflow-citizen"
+        : throw new InvalidOperationException(
+            "Authentication:CitizenClientId must be configured outside Development."));
 
 builder.Services
     .AddControllers()
@@ -40,7 +57,7 @@ builder.Services
         options.MapInboundClaims = false;
         options.Authority = authority;
         options.Audience = audience;
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.RequireHttpsMetadata = !isDevelopment;
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -56,10 +73,24 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("StaffClient", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("azp", staffClientId);
+    });
+
+    options.AddPolicy("CitizenClient", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("azp", citizenClientId);
+    });
+
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
+        .RequireClaim("azp", staffClientId)
         .Build();
 });
+
 builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
 {
     var configuration =
@@ -80,7 +111,7 @@ builder.Services.AddScoped<
     IAuthenticatedOrganizationResolver,
     AuthenticatedOrganizationResolver>();
 
-if (builder.Environment.IsDevelopment())
+if (isDevelopment)
 {
     builder.Services.AddScoped<
         ICurrentOrganizationContext,
@@ -92,9 +123,9 @@ else
         ICurrentOrganizationContext,
         AuthenticatedCurrentOrganizationContext>();
 }
+
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
-
 
 var app = builder.Build();
 
@@ -110,6 +141,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
 app.Run();
 
 public partial class Program { }

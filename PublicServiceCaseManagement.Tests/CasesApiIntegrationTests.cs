@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
@@ -22,6 +23,23 @@ public class CasesApiIntegrationTests
             $"/api/cases/{missingCaseId}/history");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+
+    [Fact]
+    public async Task GetStatusHistory_WhenClientIsCitizen_ReturnsForbidden()
+    {
+        await using var factory = new CivicFlowApiFactory();
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add(
+            "X-Test-Client-Id",
+            TestAuthenticationHandler.CitizenClientId);
+
+        var response = await client.GetAsync(
+            $"/api/cases/{Guid.NewGuid()}/history");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -170,7 +188,7 @@ public class CasesApiIntegrationTests
         Assert.Empty(historyJson.RootElement.EnumerateArray());
     }
 
-  
+
     [Fact]
     public async Task GetCase_WhenOrganizationHeaderDoesNotMatchMembership_ReturnsForbid()
     {
@@ -209,6 +227,119 @@ public class CasesApiIntegrationTests
             otherOrganizationId.ToString());
 
         var response = await client.GetAsync($"/api/cases/{caseId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCase_WhenUserBelongsToBothOrganizationsButCaseBelongsToAnother_ReturnsNotFound()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true);
+
+        var firstOrganizationId =
+            await factory.SeedAuthenticatedOrganizationAsync();
+
+        var secondOrganizationId =
+            await factory.SeedAdditionalOrganizationForAuthenticatedUserAsync();
+
+        Guid caseId;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+
+            var caseEntity = Case.Create(
+                firstOrganizationId,
+                $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+                "Tenant isolation test",
+                "This case belongs to the first organization.",
+                DateTimeOffset.UtcNow);
+
+            dbContext.Cases.Add(caseEntity);
+            await dbContext.SaveChangesAsync();
+
+            caseId = caseEntity.Id;
+        }
+
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            secondOrganizationId.ToString());
+
+        var response = await client.GetAsync($"/api/cases/{caseId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateCase_WhenUserIsViewer_ReturnsForbidden()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true);
+
+        var organizationId =
+            await factory.SeedAuthenticatedOrganizationAsync(
+                role: OrganizationRole.Viewer);
+
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Viewer permission test",
+                description = "A viewer must not create cases."
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeCaseStatus_WhenUserIsViewer_ReturnsForbidden()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true);
+
+        var organizationId =
+            await factory.SeedAuthenticatedOrganizationAsync(
+                role: OrganizationRole.Viewer);
+
+        Guid caseId;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+
+            var caseEntity = Case.Create(
+                organizationId,
+                $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+                "Viewer status test",
+                "A viewer must not change this case's status.",
+                DateTimeOffset.UtcNow);
+
+            dbContext.Cases.Add(caseEntity);
+            await dbContext.SaveChangesAsync();
+
+            caseId = caseEntity.Id;
+        }
+
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/cases/{caseId}/status",
+            new { newStatus = "UnderReview" });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

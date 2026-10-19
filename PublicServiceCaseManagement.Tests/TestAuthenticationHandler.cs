@@ -16,6 +16,8 @@ public sealed class TestAuthenticationHandler(
     public const string SchemeName = "CivicFlowTest";
     public const string Issuer = "http://localhost:8080/realms/civicflow";
     public const string Subject = "civicflow-integration-test-user";
+    public const string StaffClientId = "civicflow-staff";
+    public const string CitizenClientId = "civicflow-citizen";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -31,12 +33,16 @@ public sealed class TestAuthenticationHandler(
                 AuthenticateResult.Fail("Test bearer token is invalid."));
         }
 
+        var clientId = Request.Headers["X-Test-Client-Id"].FirstOrDefault()
+                       ?? StaffClientId;
+
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, Subject),
             new Claim(ClaimTypes.Name, "CivicFlow Integration Test User"),
             new Claim("iss", Issuer),
-            new Claim("sub", Subject)
+            new Claim("sub", Subject),
+            new Claim("azp", clientId)
         };
 
         var identity = new ClaimsIdentity(claims, SchemeName);

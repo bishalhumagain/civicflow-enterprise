@@ -130,6 +130,36 @@ public sealed class AuthenticatedOrganizationResolverTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task ResolvePlatformRoleAsync_WithLinkedSuperAdmin_ReturnsSuperAdmin()
+    {
+        var scenario = await CreateScenarioAsync();
+
+        await using var dbContext = scenario.DbContext;
+
+        var user = await dbContext.ApplicationUsers
+            .SingleAsync(user => user.Id == scenario.UserId);
+
+        user.SetPlatformRole(PlatformRole.SuperAdmin, Now);
+        await dbContext.SaveChangesAsync();
+
+        var result = await scenario.Resolver.ResolvePlatformRoleAsync();
+
+        Assert.Equal(PlatformRole.SuperAdmin, result);
+    }
+
+    [Fact]
+    public async Task ResolvePlatformRoleAsync_WithUnlinkedIdentity_ReturnsNull()
+    {
+        var scenario = await CreateScenarioAsync(linkIdentity: false);
+
+        await using var dbContext = scenario.DbContext;
+
+        var result = await scenario.Resolver.ResolvePlatformRoleAsync();
+
+        Assert.Null(result);
+    }
+
     private static async Task<ResolverScenario> CreateScenarioAsync(
         bool linkIdentity = true,
         bool activeMembership = true,

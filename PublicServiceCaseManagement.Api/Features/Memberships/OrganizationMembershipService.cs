@@ -8,6 +8,7 @@ namespace PublicServiceCaseManagement.Api.Features.Memberships;
 public sealed class OrganizationMembershipService(
     CivicFlowDbContext dbContext) : IOrganizationMembershipService
 {
+
     public async Task<OrganizationMembership> CreateAsync(
         Guid userId,
         Guid organizationId,
@@ -25,15 +26,21 @@ public sealed class OrganizationMembershipService(
                 "The application user does not exist.");
         }
 
-        var organizationExists = await dbContext.Organizations
-            .AnyAsync(
-                organization => organization.Id == organizationId,
+        var organization = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                item => item.Id == organizationId,
                 cancellationToken);
 
-        if (!organizationExists)
+        if (organization is null)
         {
             throw new KeyNotFoundException(
                 "The organization does not exist.");
+        }
+
+        if (!organization.IsActive)
+        {
+            throw new InvalidOperationException(
+                "Cannot create a membership in an inactive organization.");
         }
 
         var membershipExists = await dbContext.OrganizationMemberships
