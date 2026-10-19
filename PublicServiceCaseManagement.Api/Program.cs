@@ -117,6 +117,10 @@ builder.Services.AddScoped<
     AuthenticatedOrganizationResolver>();
 
 builder.Services.AddScoped<
+    IOrganizationTransactionContext,
+    OrganizationTransactionContext>();
+
+builder.Services.AddScoped<
     ICurrentOrganizationContext,
     AuthenticatedCurrentOrganizationContext>();
 
@@ -135,6 +139,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<OrganizationTransactionMiddleware>();
 
 app.MapControllers();
 

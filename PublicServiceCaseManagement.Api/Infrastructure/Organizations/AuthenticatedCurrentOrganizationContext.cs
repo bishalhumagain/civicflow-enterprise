@@ -4,16 +4,40 @@ using PublicServiceCaseManagement.Api.Domain.Users;
 namespace PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 public sealed class AuthenticatedCurrentOrganizationContext(
-    IAuthenticatedOrganizationResolver resolver)
+    IAuthenticatedOrganizationResolver resolver,
+    IOrganizationTransactionContext transactionContext)
     : ICurrentOrganizationContext
 {
-    public Task<Guid?> GetOrganizationIdAsync(
-        CancellationToken cancellationToken = default) =>
-        resolver.ResolveAsync(cancellationToken);
+    public async Task<Guid?> GetOrganizationIdAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var organizationId = await resolver.ResolveAsync(cancellationToken);
 
-    public Task<OrganizationRole?> GetOrganizationRoleAsync(
-        CancellationToken cancellationToken = default) =>
-        resolver.ResolveRoleAsync(cancellationToken);
+        if (organizationId.HasValue)
+        {
+            await transactionContext.BeginAsync(
+                organizationId.Value,
+                cancellationToken);
+        }
+
+        return organizationId;
+    }
+
+    public async Task<OrganizationRole?> GetOrganizationRoleAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var role = await resolver.ResolveRoleAsync(cancellationToken);
+        var organizationId = await resolver.ResolveAsync(cancellationToken);
+
+        if (organizationId.HasValue)
+        {
+            await transactionContext.BeginAsync(
+                organizationId.Value,
+                cancellationToken);
+        }
+
+        return role;
+    }
 
     public Task<PlatformRole?> GetPlatformRoleAsync(
         CancellationToken cancellationToken = default) =>
