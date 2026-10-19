@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace PublicServiceCaseManagement.Api.Migrations;
 
+[Migration("20261019120000_AddCaseDocuments")]
+[DbContext(typeof(CivicFlowDbContext))]
 public partial class AddCaseDocuments : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

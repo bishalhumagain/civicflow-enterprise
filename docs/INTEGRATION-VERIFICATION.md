@@ -2,9 +2,9 @@
 
 ## Current evidence
 
-The repository currently has automated tests with EF Core InMemory and a synthetic authentication handler. Those tests verify authorization and tenant-boundary behavior at the application level, but they do not prove PostgreSQL behavior or Keycloak-issued-token validation.
+The automated suite still uses EF Core InMemory and a synthetic authentication handler for most API tests. A disposable live-stack verification has additionally been completed: migrations applied with `civicflow_migrator`, `civicflow_runtime` could read application tables but could not create schema objects, and a real Keycloak-issued staff token was accepted only for its active organization and staff client. Cross-organization access, citizen-client access, and inactive membership returned 403; a tampered signature returned 401.
 
-During the current handover, Docker Compose was available but the Docker daemon was not reachable. No containers were started, no database was migrated, and no records or privileges were changed. Real integration verification remains incomplete.
+The verification used an isolated Compose project on alternate local ports and did not stop or modify the existing services or persistent data. RLS remains intentionally disabled.
 
 ## Required local verification sequence
 
@@ -15,10 +15,11 @@ cp .env.example .env
 # Replace placeholders in .env; never commit .env.
 docker compose up -d postgres keycloak
 
-# Create a Keycloak test user through the local admin UI, then set:
+# Create a disposable Keycloak test user through the local admin UI, then set:
 # KEYCLOAK_TEST_USERNAME, KEYCLOAK_TEST_PASSWORD, and
 # CIVICFLOW_ORGANIZATION_ID for scripts/verify-keycloak-token.sh.
 
+ConnectionStrings__CivicFlow="Host=localhost;Port=5432;Database=civicflow;Username=civicflow_migrator;Password=<local-migrator-password>" \
 dotnet ef database update \
   --project PublicServiceCaseManagement.Api \
   --startup-project PublicServiceCaseManagement.Api
@@ -47,7 +48,7 @@ Do not run the migration command against a persistent or production database. Do
 - Expired, wrong-issuer, wrong-audience, and wrong-client tokens are rejected.
 - Active application user, membership, and organization are required.
 - Cross-organization case and document access is denied without data disclosure.
-- PostgreSQL migrations apply to a clean disposable database.
-- Runtime database role cannot apply migrations or alter schema.
+- PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.
+- Runtime database role can read application tables but cannot create schema objects or bypass the tested role boundary.
 - Migration role is not used by the running API.
 - Production endpoint behavior is verified with `BusinessEndpoints:Enabled` both `false` and `true`.

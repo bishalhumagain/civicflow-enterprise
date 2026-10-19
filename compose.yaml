@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:17
-    container_name: civicflow-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: civicflow
@@ -10,7 +9,7 @@ services:
       CIVICFLOW_RUNTIME_PASSWORD: ${CIVICFLOW_RUNTIME_PASSWORD:?Set CIVICFLOW_RUNTIME_PASSWORD in .env}
       CIVICFLOW_MIGRATOR_PASSWORD: ${CIVICFLOW_MIGRATOR_PASSWORD:?Set CIVICFLOW_MIGRATOR_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U civicflow_admin -d civicflow"]
       interval: 5s
@@ -22,14 +21,13 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.4.2
-    container_name: civicflow-keycloak
     restart: unless-stopped
     command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN in .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${KEYCLOAK_HOST_PORT:-8080}:8080"
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import:ro
 

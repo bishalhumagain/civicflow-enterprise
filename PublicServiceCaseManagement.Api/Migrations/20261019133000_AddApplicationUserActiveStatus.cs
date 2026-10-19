@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace PublicServiceCaseManagement.Api.Migrations;
 
+[Migration("20261019133000_AddApplicationUserActiveStatus")]
+[DbContext(typeof(CivicFlowDbContext))]
 public partial class AddApplicationUserActiveStatus : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

@@ -24,6 +24,18 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect"
+      ,"protocolMappers": [
+        {
+          "name": "civicflow-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "civicflow-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "civicflow-citizen",
@@ -33,6 +45,18 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect"
+      ,"protocolMappers": [
+        {
+          "name": "civicflow-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "civicflow-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ]
 }

@@ -112,43 +112,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.ToTable("case_assignment_history", (string)null);
                 });
 
-            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("ChangedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ChangedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NewStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PreviousStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseId");
-
-                    b.HasIndex("OrganizationId", "CaseId", "ChangedAt");
-
-                    b.ToTable("case_status_history", (string)null);
-                });
-
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -192,12 +155,51 @@ namespace PublicServiceCaseManagement.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OrganizationId", "CaseId", "UploadedAt");
+                    b.HasIndex("CaseId");
 
                     b.HasIndex("StorageKey")
                         .IsUnique();
 
+                    b.HasIndex("OrganizationId", "CaseId", "UploadedAt");
+
                     b.ToTable("case_documents", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("OrganizationId", "CaseId", "ChangedAt");
+
+                    b.ToTable("case_status_history", (string)null);
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", b =>
@@ -302,9 +304,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
@@ -347,6 +346,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("NormalizedEmail")
                         .IsRequired()
@@ -396,7 +398,7 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseDocument", b =>
                 {
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
                         .WithMany()
@@ -411,7 +413,7 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseDocument", b =>
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
                 {
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
                         .WithMany()

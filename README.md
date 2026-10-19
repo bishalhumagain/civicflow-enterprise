@@ -2,7 +2,7 @@
 
 CivicFlow Enterprise is a .NET public-service case-management platform for organization-scoped workflows. It is a portfolio project focused on secure multi-tenant design, explicit domain rules, auditable case changes, automated testing, and deployment readiness.
 
-The project is currently a backend-first modular monolith with a reviewer-facing React dashboard shell. The API and persistence model are real and tested; real Keycloak/PostgreSQL end-to-end verification, public citizen intake, live frontend authentication/API integration, and deployment remain future milestones.
+The project is currently a backend-first modular monolith with a reviewer-facing React dashboard. The API and persistence model are real and tested. A disposable PostgreSQL/Keycloak verification run covers migration execution, runtime-role restrictions, and real JWT validation; production enablement, RLS, public citizen intake, and deployment remain future milestones.
 
 ## Project identity, ownership, and license
 
@@ -37,7 +37,7 @@ Project identity and a future signed release are separate concerns. The provenan
 | Testing | xUnit and ASP.NET Core integration testing |
 | Test database | EF Core InMemory for the current automated suite |
 | Local infrastructure | Docker Compose for PostgreSQL and Keycloak |
-| Frontend | React/TypeScript dashboard shell with optional PKCE OIDC/API integration |
+| Frontend | React/TypeScript dashboard with `oidc-client-ts` Authorization Code + PKCE and API integration |
 
 ## Current architecture
 
@@ -215,14 +215,18 @@ The latest verified local Release test run completed with:
 
 The test suite includes domain tests, service tests, HTTP integration tests, organization isolation tests, authorization tests, active-identity regression tests, production endpoint-gate tests, and case-document upload/download tests.
 
+The Release solution build also completed with 0 errors. An isolated Compose project was verified without stopping or modifying the existing local services. Existing EF migrations applied successfully to the disposable PostgreSQL database using `civicflow_migrator`. The `civicflow_runtime` role can read application tables but cannot create schema objects and is not a superuser. All tenant-owned tables currently report RLS disabled; application-level organization predicates remain the active tenant boundary.
+
+The isolated Keycloak realm issued a staff token with the expected issuer, API audience, and staff-client `azp`. Against the Development API configured explicitly for that disposable stack, the token returned 200 for its active organization, while a different organization, the citizen client, and an inactive membership returned 403. A tampered signature returned 401. These are manual disposable-stack probes, not committed automated tests; wrong-issuer, wrong-audience, and expiry cases still need automated real-realm coverage.
+
 Current test limitations:
 
 - The API integration suite uses EF Core InMemory rather than PostgreSQL.
-- Authentication tests use a synthetic handler rather than real Keycloak-issued JWTs.
-- No RLS or runtime least-privilege database test exists yet.
+- Most automated API tests use a synthetic handler rather than real Keycloak-issued JWTs.
+- No RLS policy is enabled or verified yet.
+- The real Keycloak probes are not yet encoded as repeatable CI integration tests.
 - No malware-scanning or content-signature validation pipeline exists yet.
-- Real Keycloak token and PostgreSQL privilege tests have not run because the local Docker daemon was unavailable during this verification.
-- A disposable Keycloak realm fixture, PostgreSQL role-init script, token smoke script, and PKCE browser flow are now present but require live services for end-to-end verification.
+- A disposable Keycloak realm fixture, PostgreSQL role-init script, token smoke script, and maintained PKCE browser flow are present. Live verification requires local Docker services and disposable test identities.
 
 CI is defined in `.github/workflows/ci.yml` and runs Release build/test commands. Remote CI status must be verified from an actual workflow run; this README does not claim a current remote result.
 
@@ -232,32 +236,29 @@ CivicFlow is not production-ready.
 
 Remaining security and operational work includes:
 
-- Enable `BusinessEndpoints:Enabled` only after the authorization matrix is verified in a production-like environment.
-- Add real PostgreSQL integration tests and migration verification.
-- Add real Keycloak token and realm/client integration tests.
-- Add PostgreSQL Row-Level Security or an equivalent defense-in-depth tenant boundary.
-- Use separate migration and runtime database roles with least privilege.
+- Enable `BusinessEndpoints:Enabled` only after the authorization matrix and production-like authentication are verified; this milestone does not enable production business endpoints automatically.
+- Add repeatable real PostgreSQL integration tests and migration/privilege verification to CI.
+- Add automated real Keycloak issuer, audience, signature, expiry, client, role, membership, and tenant-boundary tests.
+- Add PostgreSQL Row-Level Security or an equivalent defense-in-depth tenant boundary. RLS is deliberately not enabled until trusted transaction-scoped context exists.
+- Tighten database grants further after the RLS design is implemented and tested.
 - Replace local file storage with a durable object-storage adapter for production deployment.
 - Add malware scanning, content-signature validation, retention, deletion, and download audit events for documents.
 - Add structured logging, correlation IDs, ProblemDetails, metrics, dependency readiness, and operational alerts.
 - Add rate limiting, request-size policy, abuse prevention, backups, recovery, and data-retention controls.
-- Connect the React dashboard to Keycloak and the API; the current UI is clearly marked as demo mode.
+- Add live case mutations and richer unauthorized/error states to the React dashboard.
 - Add screenshots, deployment documentation, and a reviewer-friendly live demo.
 
 ## Next milestone
 
-The next milestone is **public citizen case intake with secure document submission**.
+The single recommended next milestone is **trusted transaction-scoped organization context plus automated PostgreSQL/Keycloak integration tests**. It should:
 
-It should define and implement, before enabling production endpoints:
+1. Derive the database organization context only after JWT validation and active membership resolution.
+2. Set and clear the context inside a transaction-safe request boundary that works with connection pooling.
+3. Enable and test RLS for cases, histories, documents, staff, memberships, and other tenant-owned tables.
+4. Prove missing context, cross-organization access, inactive identities, and runtime-role non-bypass behavior against PostgreSQL.
+5. Run repeatable real Keycloak tests for issuer, audience, signature, expiry, client, role, membership, and tenant boundaries.
 
-1. Citizen authentication and the relationship between citizens and organizations.
-2. A policy for whether citizens need explicit organization membership or use an approved public intake organization.
-3. A dedicated public case-submission endpoint and DTO.
-4. Multipart case creation with transactional case/document metadata handling.
-5. File content-signature checks and malware-scanning integration points.
-6. Document retention, deletion, download authorization, and audit events.
-7. PostgreSQL-backed tenant and migration tests.
-8. Real Keycloak-issued-token tests for staff and citizen clients.
+Public citizen intake and document submission should follow this milestone, not precede it.
 
 This sequence keeps the existing security rules intact instead of allowing a public upload path to bypass organization resolution.
 
@@ -279,9 +280,9 @@ The project still needs a finished UI, production-like infrastructure tests, pub
 
 ## Phased roadmap
 
-### Priority 1 — Real PostgreSQL and Keycloak security verification (next milestone)
+### Priority 1 — Trusted PostgreSQL tenant boundary and repeatable Keycloak verification (next milestone)
 
-Estimate: 24–40 hours. Run disposable PostgreSQL and Keycloak services, add a controlled realm/client fixture, validate real JWTs, verify migration behavior and database privileges, and execute cross-organization tests against PostgreSQL. Acceptance requires recorded real-token results, clean-schema migration verification, tenant-boundary tests, and documented runtime/migration database roles.
+Estimate: 24–40 hours. Add trusted transaction-scoped organization context, enable RLS safely, and convert the disposable PostgreSQL/Keycloak probes into repeatable integration tests. Acceptance requires denied cross-organization access at both application and database boundaries, clean-schema migration verification, real JWT claim validation, and documented runtime/migration roles.
 
 ### Priority 2 — Public citizen intake with secure document submission
 
@@ -303,7 +304,7 @@ Estimate: 24–40 hours. Attribute changes to application users, add concurrency
 
 Estimate: 32–60 hours. Connect the existing dashboard shell to Keycloak and the API, add screenshots, deploy a non-production demonstration, and document CI/CD and recovery procedures. Acceptance requires a reproducible demo with no secrets and evidence-based deployment documentation.
 
-The single recommended next milestone is **real infrastructure security verification**: run disposable PostgreSQL and Keycloak services, validate real JWTs and database-backed tenant isolation, and verify the explicit production endpoint gate before enabling any production business environment. This comes before citizen intake because it validates the security boundary on which every later feature depends.
+The single recommended next milestone is **trusted transaction-scoped organization context and automated RLS verification**. This comes before citizen intake or production enablement because it adds the database defense-in-depth boundary on which every later feature depends.
 
 ## AI Development Handover
 
