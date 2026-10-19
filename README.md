@@ -86,7 +86,7 @@ These capabilities establish an authentication and organization-resolution found
 
 ### Automated testing
 
-The latest verified local Release test run completed with **152 passed, 0 failed, and 0 skipped**.
+The latest verified local Release test run completed with **156 passed, 0 failed, and 0 skipped**.
 
 The suite includes domain and service tests, HTTP integration tests, and tests for authenticated organization resolution. Some tests use EF Core InMemory rather than PostgreSQL.
 
@@ -144,7 +144,7 @@ The authenticated organization resolver:
 
 The organization header identifies the organization being requested; it is **not proof of membership**. Membership must be validated against the authenticated identity and application database.
 
-Development and non-Development configurations both use the authenticated organization resolver. The test fixture preserves the seeded development organization for convenience, but test identities and their organization/platform roles are explicitly seeded. Case-controller endpoints retain Development-only guards. The automated integration tests exercise the authenticated organization resolver through a test authentication handler and an in-memory database; they are not a substitute for an end-to-end test with a real Keycloak-issued token and PostgreSQL.
+Development and non-Development configurations both use the authenticated organization resolver. The test fixture preserves the seeded development organization for convenience, but test identities and their organization/platform roles are explicitly seeded. Business controllers declare the `StaffClient` authorization policy, while role and organization membership checks remain enforced by the existing application logic. Case-controller endpoints retain Development-only guards, and production-environment tests verify that those guards remain active. The automated integration tests exercise the authenticated organization resolver through a test authentication handler and an in-memory database; they are not a substitute for an end-to-end test with a real Keycloak-issued token and PostgreSQL.
 
 Before exposing these endpoints in a production environment, the application needs a deliberate production endpoint policy, comprehensive authorization coverage, and end-to-end verification.
 
@@ -304,7 +304,7 @@ For Release configuration:
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-The latest verified local Release test result is **152 passed, 0 failed, 0 skipped**. Run the test command again to verify the current checkout after making changes.
+The latest verified local Release test result is **156 passed, 0 failed, 0 skipped**. Run the test command again to verify the current checkout after making changes.
 
 The test suite includes domain rules, service behavior, HTTP API workflows, and authenticated organization-resolution scenarios. Selected tests use EF Core InMemory. Real PostgreSQL integration tests and a full Keycloak-to-PostgreSQL end-to-end security test remain important next steps.
 

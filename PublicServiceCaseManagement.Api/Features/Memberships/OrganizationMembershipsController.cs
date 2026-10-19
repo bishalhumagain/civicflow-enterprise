@@ -1,4 +1,5 @@
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -7,6 +8,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
 [ApiController]
+[Authorize(Policy = "StaffClient")]
 [Route("api/organizations/{organizationId:guid}/memberships")]
 public sealed class OrganizationMembershipsController(
     IOrganizationMembershipService membershipService,

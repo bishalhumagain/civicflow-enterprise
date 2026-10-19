@@ -19,21 +19,27 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     private readonly string databaseName = $"CivicFlowTests_{Guid.NewGuid():N}";
     private readonly OrganizationRole? defaultOrganizationRole;
     private readonly PlatformRole defaultPlatformRole;
+    private readonly string environmentName;
 
     private static readonly Guid DevelopmentOrganizationId =
         Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-    public CivicFlowApiFactory(bool useAuthenticatedOrganizationContext = false)
+    public CivicFlowApiFactory(
+        bool useAuthenticatedOrganizationContext = false,
+        string environmentName = "Development")
     {
         _ = useAuthenticatedOrganizationContext;
+        this.environmentName = environmentName;
     }
 
     public CivicFlowApiFactory(
         OrganizationRole defaultOrganizationRole,
-        PlatformRole defaultPlatformRole = PlatformRole.None)
+        PlatformRole defaultPlatformRole = PlatformRole.None,
+        string environmentName = "Development")
     {
         this.defaultOrganizationRole = defaultOrganizationRole;
         this.defaultPlatformRole = defaultPlatformRole;
+        this.environmentName = environmentName;
     }
 
     public new HttpClient CreateClient()
@@ -58,7 +64,22 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment(environmentName);
+        builder.UseSetting(
+            "ConnectionStrings:CivicFlow",
+            "Host=localhost;Database=civicflow_tests;Username=test");
+        builder.UseSetting(
+            "Authentication:Authority",
+            TestAuthenticationHandler.Issuer);
+        builder.UseSetting(
+            "Authentication:Audience",
+            "civicflow-api");
+        builder.UseSetting(
+            "Authentication:StaffClientId",
+            TestAuthenticationHandler.StaffClientId);
+        builder.UseSetting(
+            "Authentication:CitizenClientId",
+            TestAuthenticationHandler.CitizenClientId);
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -66,7 +87,14 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:CivicFlow"] =
-                        "Host=localhost;Database=civicflow_tests;Username=test;Password=test"
+                        "Host=localhost;Database=civicflow_tests;Username=test",
+                    ["Authentication:Authority"] =
+                        TestAuthenticationHandler.Issuer,
+                    ["Authentication:Audience"] = "civicflow-api",
+                    ["Authentication:StaffClientId"] =
+                        TestAuthenticationHandler.StaffClientId,
+                    ["Authentication:CitizenClientId"] =
+                        TestAuthenticationHandler.CitizenClientId
                 });
         });
 

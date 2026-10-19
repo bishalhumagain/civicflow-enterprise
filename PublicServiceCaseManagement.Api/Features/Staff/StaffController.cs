@@ -1,4 +1,5 @@
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
@@ -6,6 +7,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
 [ApiController]
+[Authorize(Policy = "StaffClient")]
 [Route("api/staff")]
 public sealed class StaffController(
     IStaffService staffService,

@@ -1,5 +1,6 @@
 
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
@@ -8,6 +9,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
 [ApiController]
+[Authorize(Policy = "StaffClient")]
 [Route("api/cases")]
 public sealed class CasesController(
     ICaseService caseService,
