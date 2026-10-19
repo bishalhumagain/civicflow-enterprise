@@ -94,7 +94,9 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                     ["Authentication:StaffClientId"] =
                         TestAuthenticationHandler.StaffClientId,
                     ["Authentication:CitizenClientId"] =
-                        TestAuthenticationHandler.CitizenClientId
+                        TestAuthenticationHandler.CitizenClientId,
+                    ["FileStorage:RootPath"] =
+                        Path.Combine(Path.GetTempPath(), databaseName)
                 });
         });
 

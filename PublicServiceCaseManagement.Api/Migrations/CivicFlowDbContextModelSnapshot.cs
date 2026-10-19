@@ -146,6 +146,57 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.ToTable("case_status_history", (string)null);
                 });
 
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Sha256Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "CaseId", "UploadedAt");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.ToTable("case_documents", (string)null);
+                });
+
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -340,6 +391,21 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseDocument", b =>
                 {
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
                         .WithMany()

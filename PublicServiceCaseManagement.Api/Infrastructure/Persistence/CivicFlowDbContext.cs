@@ -14,6 +14,8 @@ public sealed class CivicFlowDbContext(
     public DbSet<Case> Cases => Set<Case>();
     public DbSet<CaseStatusHistory> CaseStatusHistories =>
         Set<CaseStatusHistory>();
+    public DbSet<CaseDocument> CaseDocuments =>
+        Set<CaseDocument>();
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CaseAssignmentHistory> CaseAssignmentHistories =>
         Set<CaseAssignmentHistory>();
@@ -134,6 +136,58 @@ public sealed class CivicFlowDbContext(
                 h.CaseId,
                 h.ChangedAt
             });
+        });
+
+        modelBuilder.Entity<CaseDocument>(entity =>
+        {
+            entity.ToTable("case_documents");
+
+            entity.HasKey(document => document.Id);
+
+            entity.Property(document => document.OrganizationId)
+                .IsRequired();
+
+            entity.Property(document => document.OriginalFileName)
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity.Property(document => document.StorageKey)
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(document => document.ContentType)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(document => document.SizeBytes)
+                .IsRequired();
+
+            entity.Property(document => document.Sha256Hash)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            entity.Property(document => document.UploadedAt)
+                .IsRequired();
+
+            entity.HasOne<Case>()
+                .WithMany()
+                .HasForeignKey(document => document.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(document => document.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(document => new
+            {
+                document.OrganizationId,
+                document.CaseId,
+                document.UploadedAt
+            });
+
+            entity.HasIndex(document => document.StorageKey)
+                .IsUnique();
         });
 
         modelBuilder.Entity<StaffMember>(entity =>

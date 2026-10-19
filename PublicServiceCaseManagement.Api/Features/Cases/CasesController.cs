@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
@@ -13,6 +14,8 @@ namespace PublicServiceCaseManagement.Api.Features.Cases;
 [Route("api/cases")]
 public sealed class CasesController(
     ICaseService caseService,
+    ICaseDocumentService caseDocumentService,
+    IFileStorage fileStorage,
     IHostEnvironment environment,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
@@ -284,6 +287,135 @@ public sealed class CasesController(
             item.AssignedAt
         }));
     }
+
+    [HttpPost("{id:guid}/documents")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<ActionResult<CaseDocumentResponse>> UploadDocument(
+        Guid id,
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        try
+        {
+            var document = await caseDocumentService.UploadAsync(
+                organizationId.Value,
+                id,
+                file,
+                cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetDocument),
+                new
+                {
+                    id,
+                    documentId = document.Id
+                },
+                ToDocumentResponse(document));
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+        catch (InvalidDataException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/documents")]
+    public async Task<IActionResult> GetDocuments(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        try
+        {
+            var documents = await caseDocumentService.GetAllAsync(
+                organizationId.Value,
+                id,
+                cancellationToken);
+
+            return Ok(documents.Select(ToDocumentResponse).ToList());
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/documents/{documentId:guid}")]
+    public async Task<IActionResult> GetDocument(
+        Guid id,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        if (!environment.IsDevelopment())
+            return NotFound();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        var document = await caseDocumentService.GetByIdAsync(
+            organizationId.Value,
+            id,
+            documentId,
+            cancellationToken);
+
+        if (document is null)
+            return NotFound();
+
+        try
+        {
+            var stream = await fileStorage.OpenReadAsync(
+                document.StorageKey,
+                cancellationToken);
+
+            return File(
+                stream,
+                document.ContentType,
+                document.OriginalFileName,
+                enableRangeProcessing: true);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    private static CaseDocumentResponse ToDocumentResponse(
+        Domain.Cases.CaseDocument document) =>
+        new(
+            document.Id,
+            document.CaseId,
+            document.OriginalFileName,
+            document.ContentType,
+            document.SizeBytes,
+            document.Sha256Hash,
+            document.UploadedAt);
 
     private async Task<bool> CanManageCasesAsync(
         CancellationToken cancellationToken)
