@@ -11,7 +11,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task CreateStaff_WithValidInput_ReturnsCreated()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -38,7 +39,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task GetStaff_ReturnsCreatedStaffMember()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var email = $"officer-{Guid.NewGuid():N}@example.com";
@@ -70,7 +72,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task GetStaff_FilteredByActiveStatus_ReturnsMatchingStaff()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var email = $"officer-{Guid.NewGuid():N}@example.com";
@@ -126,7 +129,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task DeactivateStaff_UpdatesStaffStatus()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -162,7 +166,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task ReactivateStaff_UpdatesStaffStatus()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -208,7 +213,8 @@ public sealed class StaffApiIntegrationTests
         string fullName,
         string email)
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -221,7 +227,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task CreateStaff_WithDuplicateEmail_ReturnsConflict()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var email = $"duplicate-{Guid.NewGuid():N}@example.com";
@@ -250,7 +257,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task DeactivateStaff_WhenStaffDoesNotExist_ReturnsNotFound()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PatchAsync(
@@ -263,7 +271,8 @@ public sealed class StaffApiIntegrationTests
     [Fact]
     public async Task ReactivateStaff_WhenStaffDoesNotExist_ReturnsNotFound()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PatchAsync(

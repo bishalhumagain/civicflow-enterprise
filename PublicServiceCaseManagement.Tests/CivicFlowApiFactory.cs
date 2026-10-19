@@ -17,11 +17,43 @@ namespace PublicServiceCaseManagement.Tests;
 public class CivicFlowApiFactory : WebApplicationFactory<Program>
 {
     private readonly string databaseName = $"CivicFlowTests_{Guid.NewGuid():N}";
-    private readonly bool useAuthenticatedOrganizationContext;
+    private readonly OrganizationRole? defaultOrganizationRole;
+    private readonly PlatformRole defaultPlatformRole;
+
+    private static readonly Guid DevelopmentOrganizationId =
+        Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     public CivicFlowApiFactory(bool useAuthenticatedOrganizationContext = false)
     {
-        this.useAuthenticatedOrganizationContext = useAuthenticatedOrganizationContext;
+        _ = useAuthenticatedOrganizationContext;
+    }
+
+    public CivicFlowApiFactory(
+        OrganizationRole defaultOrganizationRole,
+        PlatformRole defaultPlatformRole = PlatformRole.None)
+    {
+        this.defaultOrganizationRole = defaultOrganizationRole;
+        this.defaultPlatformRole = defaultPlatformRole;
+    }
+
+    public new HttpClient CreateClient()
+    {
+        var client = base.CreateClient();
+
+        if (defaultOrganizationRole.HasValue)
+        {
+            SeedDefaultDevelopmentIdentityAsync(
+                    defaultOrganizationRole.Value,
+                    defaultPlatformRole)
+                .GetAwaiter()
+                .GetResult();
+
+            client.DefaultRequestHeaders.Add(
+                "X-Organization-Id",
+                DevelopmentOrganizationId.ToString());
+        }
+
+        return client;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -61,15 +93,46 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             services.AddDbContext<CivicFlowDbContext>(options =>
                 options.UseInMemoryDatabase(databaseName));
 
-            if (useAuthenticatedOrganizationContext)
-            {
-                services.RemoveAll<ICurrentOrganizationContext>();
-
-                services.AddScoped<
-                    ICurrentOrganizationContext,
-                    AuthenticatedCurrentOrganizationContext>();
-            }
         });
+    }
+
+    private async Task SeedDefaultDevelopmentIdentityAsync(
+        OrganizationRole role,
+        PlatformRole platformRole)
+    {
+        using var scope = Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        await dbContext.Database.EnsureCreatedAsync();
+
+        var organization = await dbContext.Organizations
+            .SingleAsync(item => item.Id == DevelopmentOrganizationId);
+
+        var now = DateTimeOffset.UtcNow;
+        var user = ApplicationUser.Create(
+            "CivicFlow Development Test User",
+            $"development-{Guid.NewGuid():N}@example.com",
+            now);
+
+        user.LinkExternalIdentity(
+            TestAuthenticationHandler.Issuer,
+            TestAuthenticationHandler.Subject,
+            now);
+
+        user.SetPlatformRole(platformRole, now);
+
+        var membership = OrganizationMembership.Create(
+            user.Id,
+            organization.Id,
+            role,
+            now);
+
+        dbContext.ApplicationUsers.Add(user);
+        dbContext.OrganizationMemberships.Add(membership);
+
+        await dbContext.SaveChangesAsync();
     }
 
     public async Task<Guid> SeedAuthenticatedOrganizationAsync(

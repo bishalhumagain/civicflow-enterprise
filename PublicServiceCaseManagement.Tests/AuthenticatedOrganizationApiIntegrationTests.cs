@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Users;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
@@ -75,6 +76,26 @@ public sealed class AuthenticatedOrganizationApiIntegrationTests
         var response = await client.GetAsync("/api/cases");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrdinaryAuthenticatedStaffClient_CannotAccessSuperAdminEndpoint()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true);
+
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.Viewer,
+            PlatformRole.None);
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await client.GetAsync("/api/organizations");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

@@ -11,7 +11,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task CreateOrganization_WithValidInput_ReturnsCreated()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -42,7 +44,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task CreateOrganization_WithDuplicateCode_ReturnsConflict()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var firstResponse = await client.PostAsJsonAsync(
@@ -65,7 +69,9 @@ public sealed class OrganizationApiIntegrationTests
         string name,
         string code)
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -78,7 +84,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task GetOrganizations_ReturnsSeededAndCreatedOrganizations()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -103,7 +111,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task GetOrganization_WhenOrganizationExists_ReturnsOrganization()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -132,7 +142,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task GetOrganization_WhenOrganizationDoesNotExist_ReturnsNotFound()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync(
@@ -144,7 +156,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task UpdateOrganization_ChangesOrganizationDetails()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -179,7 +193,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task UpdateOrganization_WithDuplicateCode_ReturnsConflict()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var firstResponse = await client.PostAsJsonAsync(
@@ -208,7 +224,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task DeactivateAndReactivateOrganization_UpdatesStatus()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -250,7 +268,9 @@ public sealed class OrganizationApiIntegrationTests
     [Fact]
     public async Task DeactivateOrganization_WhenOrganizationDoesNotExist_ReturnsNotFound()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin,
+            PublicServiceCaseManagement.Api.Domain.Users.PlatformRole.SuperAdmin);
         using var client = factory.CreateClient();
 
         var response = await client.PatchAsync(

@@ -192,7 +192,9 @@ public sealed class OrganizationMembershipApiIntegrationTests
         Guid OrganizationId,
         Guid UserId)> CreateClientWithUserAsync()
     {
-        var factory = new CivicFlowApiFactory();
+        var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            PlatformRole.SuperAdmin);
         var client = factory.CreateClient();
 
         try

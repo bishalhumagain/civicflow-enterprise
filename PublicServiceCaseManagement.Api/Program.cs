@@ -111,18 +111,9 @@ builder.Services.AddScoped<
     IAuthenticatedOrganizationResolver,
     AuthenticatedOrganizationResolver>();
 
-if (isDevelopment)
-{
-    builder.Services.AddScoped<
-        ICurrentOrganizationContext,
-        DevelopmentCurrentOrganizationContext>();
-}
-else
-{
-    builder.Services.AddScoped<
-        ICurrentOrganizationContext,
-        AuthenticatedCurrentOrganizationContext>();
-}
+builder.Services.AddScoped<
+    ICurrentOrganizationContext,
+    AuthenticatedCurrentOrganizationContext>();
 
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();

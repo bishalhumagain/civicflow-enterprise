@@ -14,7 +14,8 @@ public class CasesApiIntegrationTests
     [Fact]
     public async Task GetStatusHistory_WhenCaseDoesNotExist_ReturnsNotFound()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         var missingCaseId = Guid.NewGuid();
@@ -29,7 +30,8 @@ public class CasesApiIntegrationTests
     [Fact]
     public async Task GetStatusHistory_WhenClientIsCitizen_ReturnsForbidden()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         client.DefaultRequestHeaders.Add(
@@ -45,7 +47,8 @@ public class CasesApiIntegrationTests
     [Fact]
     public async Task CreateCase_ChangeStatus_AndGetHistory_ReturnsRecordedTransition()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
@@ -103,7 +106,8 @@ public class CasesApiIntegrationTests
         string title,
         string description)
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -118,7 +122,8 @@ public class CasesApiIntegrationTests
     [Fact]
     public async Task CreateCase_WithTitleLongerThan200Characters_ReturnsBadRequest()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -137,7 +142,8 @@ public class CasesApiIntegrationTests
     [Fact]
     public async Task ChangeStatus_WhenTransitionIsInvalid_ReturnsBadRequestAndDoesNotCreateHistory()
     {
-        await using var factory = new CivicFlowApiFactory();
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
         using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
