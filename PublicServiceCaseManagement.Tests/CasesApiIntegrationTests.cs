@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
@@ -165,6 +168,49 @@ public class CasesApiIntegrationTests
             await historyResponse.Content.ReadAsStringAsync());
 
         Assert.Empty(historyJson.RootElement.EnumerateArray());
+    }
+
+  
+    [Fact]
+    public async Task GetCase_WhenOrganizationHeaderDoesNotMatchMembership_ReturnsForbid()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true);
+
+        await factory.SeedAuthenticatedOrganizationAsync();
+
+        var otherOrganizationId =
+            await factory.SeedOrganizationWithoutMembershipAsync();
+
+        var caseId = Guid.NewGuid();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+
+            var caseEntity = Case.Create(
+                otherOrganizationId,
+                $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+                "Cross-organization access test",
+                "This case must not be accessible without organization membership.",
+                DateTimeOffset.UtcNow);
+
+            dbContext.Cases.Add(caseEntity);
+            await dbContext.SaveChangesAsync();
+
+            caseId = caseEntity.Id;
+        }
+
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            otherOrganizationId.ToString());
+
+        var response = await client.GetAsync($"/api/cases/{caseId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
 }
