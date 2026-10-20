@@ -18,10 +18,13 @@
 .landing-hero h1{margin:0 0 14px;font-size:40px;line-height:1.12;letter-spacing:-1.2px;color:#172033}
 .landing-subtitle{margin:0;font-size:15px;line-height:1.7;color:#475467;max-width:680px}
 .landing-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.landing-actions-compact{grid-template-columns:repeat(2,minmax(0,1fr));max-width:760px}
 .landing-card{background:#fff;border:1px solid #e8edf3;border-radius:12px;padding:26px;box-shadow:0 10px 30px #162e4d08;display:flex;flex-direction:column;gap:12px}
 .landing-card h2{margin:0;font-size:22px;letter-spacing:-.4px;color:#172033}
 .landing-card p{margin:0;font-size:13px;line-height:1.7;color:#475467;flex:1}
-.landing-button{border:1px solid #dfe5ec;background:#fff;color:#344054;border-radius:9px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-start}
+.landing-card-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.landing-button{border:1px solid #dfe5ec;background:#fff;color:#344054;border-radius:9px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer}
+.landing-card-actions .landing-button{align-self:auto}
 .landing-button.primary{border:0;background:#2563eb;color:#fff;box-shadow:0 6px 18px #2563eb1f}
 .landing-button:hover{filter:brightness(.98)}
 .landing-button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}

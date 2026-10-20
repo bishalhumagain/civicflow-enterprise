@@ -26,8 +26,9 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - **Health**: Health controller present.
 
 ### Frontend
-- **Modular UI**: Split into `src/components/` (CaseDetails, StaffDirectory, OrganizationAdministration, CitizenIntake, StatCard, StatusPill, LoginForm, Toast) and `src/pages/` (LandingPage, CitizenProfilePage). App composed from modules.
-- **Landing**: Three entry points - Citizen Portal, Organization Portal, Platform Administration. Officer flow shows branded in-app login form; auth remains server-authoritative via OIDC.
+- **Modular UI**: Split into `src/components/` (CaseDetails, StaffDirectory, OrganizationAdministration, CitizenIntake, StatCard, StatusPill, LoginForm, Toast) and `src/pages/` (LandingPage, StaffLoginPage, CitizenProfilePage). App composed from modules.
+- **Landing**: Two public entry points - Citizen Portal (separate **Sign in** and **Register** buttons) and Organization Portal. Staff/Organization Admin/Super Admin sign-in lives on a dedicated URL (`/admin`), not on the public landing page. Auth remains server-authoritative via OIDC.
+- **Routes**: `/` (public landing), `/admin` (staff/platform sign-in), `/citizen/login`, `/citizen/register` (citizen OIDC entry points).
 - **Auth**: `oidc-client-ts` integration, session management, login/logout.
 - **Workspace**: Cases/Staff/Organizations/Public intake/Citizen profile views, filters/search/pagination, case details with history/assignments/docs.
 - **Notifications**: Toast system (success/error/info/warning).
@@ -78,7 +79,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - **Provider**: Keycloak OIDC (dev defaults `http://localhost:8080/realms/civicflow`). Tokens validated via JWT Bearer.
 - **Audiences/clients**: `civicflow-api` (aud), `civicflow-staff` (azp for staff policy), `civicflow-citizen` (azp for citizen policy).
 - **Enforcement**: Policies and fallback require authenticated users with specific `azp` claims. Org scoping enforced server-side.
-- **Frontend**: Branded landing with in-app login form; OIDC flow initiated securely (Authorization Code). Auth remains server-authoritative.
+- **Frontend**: Public landing with Citizen (**Sign in**/**Register**) and Organization Portal entries; staff/platform sign-in served at the dedicated `/admin` URL. OIDC flow initiated securely (Authorization Code). Auth remains server-authoritative.
 - **Secrets**: No secrets in repo. Use env vars/placeholders.
 
 ## 9) Database

@@ -29,9 +29,43 @@ const userManager = oidcIsConfigured
     })
   : null
 
-export async function startLogin(): Promise<void> {
+export type LoginOptions = {
+  /**
+   * Optional relative path to return to after a successful sign-in.
+   * Defaults to the configured redirect URI.
+   */
+  returnTo?: string
+  /**
+   * When true, asks the identity provider to open its registration screen.
+   */
+  register?: boolean
+}
+
+function resolveRedirectTarget(returnTo?: string): string {
+  if (!returnTo) return redirect
+  try {
+    return new URL(returnTo, window.location.origin).toString()
+  } catch {
+    return redirect
+  }
+}
+
+export async function startLogin(options: LoginOptions = {}): Promise<void> {
   if (!userManager) throw new Error('Keycloak OIDC is not configured.')
-  await userManager.signinRedirect()
+
+  const extraQueryParams: Record<string, string> = {}
+  if (options.register) {
+    extraQueryParams.kc_action = 'register'
+  }
+
+  await userManager.signinRedirect({
+    redirect_uri: resolveRedirectTarget(options.returnTo),
+    ...(Object.keys(extraQueryParams).length > 0 ? { extraQueryParams } : {}),
+  })
+}
+
+export async function startRegistration(options: LoginOptions = {}): Promise<void> {
+  await startLogin({ ...options, register: true })
 }
 
 export async function getAccessToken(): Promise<string | null> {

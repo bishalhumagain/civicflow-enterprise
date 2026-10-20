@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Citizen API endpoints (`GET/POST/PUT /api/citizens/me`) secured by the `CitizenClient` policy
 - Citizen profile UI page and navigation entry, integrated with the Keycloak citizen flow
 - `getAccessToken` helper and `civicflow-web/src/api/citizens.ts` API client
+- Separate **Sign in** and **Register** actions in the Citizen Portal, with registration routed through the Keycloak registration action
+- Dedicated staff/platform sign-in page served at `/admin` (separate URL, no longer part of the public landing page)
+- Lightweight path routing with citizen entry points `/citizen/login` and `/citizen/register`
 - Citizen profile domain tests (validation, trimming, uniqueness constraints) and API integration tests (auth policy, create/update, duplicates, business-endpoint gating)
 - Professional documentation system (README, USER_MANUAL, documentation workflow)
 - Comprehensive repository audit and verified documentation
@@ -26,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced landing page with clear journey separation
 - `CitizensController` resolves the caller via `IAuthenticatedOrganizationResolver` (async, no sync-over-async) and enforces business-endpoint gating
 - Citizen profile page surfaces explicit sign-in and not-authorized states
+- Landing page reduced to two public portals (Citizen, Organization); platform administration moved behind the `/admin` URL
+- `startLogin`/`startRegistration` accept an optional `returnTo` target and registration flag
 
 ### Security
 - Citizen endpoints never accept a client-supplied user ID; the profile is keyed to the authenticated `sub`/`iss` identity

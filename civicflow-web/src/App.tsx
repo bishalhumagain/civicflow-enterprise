@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiRequest } from './api'
-import { completeLogin, logout, oidcIsConfigured, startLogin, type AuthSession } from './auth'
+import { completeLogin, logout, oidcIsConfigured, startLogin, startRegistration, type AuthSession } from './auth'
 import './App.css'
 
 import {
@@ -29,9 +29,30 @@ import { CaseDetails } from './components/CaseDetails'
 import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
 import { CitizenIntake } from './components/CitizenIntake'
-import { LandingPage, type LandingIntent } from './pages/LandingPage'
+import { LandingPage } from './pages/LandingPage'
+import StaffLoginPage from './pages/StaffLoginPage'
 import CitizenProfilePage from './pages/CitizenProfilePage'
 import { useToast } from './components/use-toast'
+
+const STAFF_LOGIN_PATH = '/admin'
+
+type AppRoute = 'landing' | 'staff-login' | 'citizen-login' | 'citizen-register'
+
+function resolveRoute(pathname: string): AppRoute {
+  const path = pathname.replace(/\/+$/, '').toLowerCase()
+
+  if (path === STAFF_LOGIN_PATH) return 'staff-login'
+  if (path === '/citizen/login') return 'citizen-login'
+  if (path === '/citizen/register') return 'citizen-register'
+
+  return 'landing'
+}
+
+function navigateTo(path: string) {
+  if (window.location.pathname !== path) {
+    window.history.pushState({}, document.title, path)
+  }
+}
 
 function App() {
   const { showToast } = useToast()
@@ -59,8 +80,7 @@ function App() {
   const [casePage, setCasePage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [adminLoading, setAdminLoading] = useState(false)
-  const [showLanding, setShowLanding] = useState(true)
-  const [landingIntent, setLandingIntent] = useState<LandingIntent | null>(null)
+  const [route, setRoute] = useState<AppRoute>(() => resolveRoute(window.location.pathname))
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
 
@@ -90,11 +110,17 @@ function App() {
   }), [cases, search, selectedStatus])
 
   useEffect(() => {
+    const handlePopState = () => setRoute(resolveRoute(window.location.pathname))
+    window.addEventListener('popstate', handlePopState)
+
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
     void completeLogin()
         .then((session) => {
           setAuthSession(session)
           if (session) {
-            setShowLanding(false)
             showToast('Signed in successfully.', 'success')
           }
         })
@@ -253,66 +279,70 @@ function App() {
     }
   }, [authSession, activeView, selectedOrganizationId])
 
-  const handleLogin = () => {
-    setLoginError(null)
-    void startLogin().catch((reason: unknown) => {
-      const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
-      setError(message)
-      setLoginError(message)
-      showToast(message, 'error')
-    })
-  }
-
-  const handleSelectIntent = (intent: LandingIntent) => {
-    setLandingIntent(intent)
-    if (intent === 'officer') {
-      // Keep user on landing to use in-app sign-in form; OIDC still available via button
-      return
-    }
-    if (intent === 'citizen') {
-      setLoginError(null)
-      showToast('Redirecting to citizen sign-in...', 'info')
-      void startLogin().catch((reason: unknown) => {
-        const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
-        setError(message)
-        setLoginError(message)
-        showToast(message, 'error')
-      })
-      return
-    }
-    handleLogin()
-  }
-
-  const handleLoginSubmit = () => {
-    setLoginLoading(true)
+  const beginOidcLogin = (options: { returnTo?: string; register?: boolean; toast: string }) => {
     setLoginError(null)
     setError(null)
-    // Keep authentication server-authoritative via existing OIDC/session flow
-    // Show clear guidance and trigger OIDC if configured, else inform user
-    if (oidcIsConfigured) {
-      showToast('Redirecting to secure sign-in...', 'info')
-      void startLogin()
-          .catch((reason: unknown) => {
-            const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
-            setLoginError(message)
-            setError(message)
-            showToast(message, 'error')
-          })
-          .finally(() => setLoginLoading(false))
+
+    if (!oidcIsConfigured) {
+      const message = 'Secure authentication is not configured. Use environment variables for OIDC/Keycloak.'
+      setLoginError(message)
+      setError(message)
+      showToast(message, 'warning')
       return
     }
-    setLoginLoading(false)
-    const message = 'Secure authentication is not configured. Use environment variables for OIDC/Keycloak.'
-    setLoginError(message)
-    setError(message)
-    showToast(message, 'warning')
+
+    setLoginLoading(true)
+    showToast(options.toast, 'info')
+
+    const run = options.register
+        ? startRegistration({ returnTo: options.returnTo })
+        : startLogin({ returnTo: options.returnTo })
+
+    void run
+        .catch((reason: unknown) => {
+          const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
+          setLoginError(message)
+          setError(message)
+          showToast(message, 'error')
+        })
+        .finally(() => setLoginLoading(false))
   }
+
+  const handleCitizenSignIn = () =>
+      beginOidcLogin({
+        returnTo: window.location.origin,
+        toast: 'Redirecting to citizen sign-in...',
+      })
+
+  const handleCitizenRegister = () =>
+      beginOidcLogin({
+        returnTo: window.location.origin,
+        register: true,
+        toast: 'Redirecting to citizen registration...',
+      })
+
+  const handleOrganizationSignIn = () => {
+    setLoginError(null)
+    navigateTo(STAFF_LOGIN_PATH)
+    setRoute('staff-login')
+  }
+
+  const handleBackToLanding = () => {
+    setLoginError(null)
+    navigateTo('/')
+    setRoute('landing')
+  }
+
+  const handleLoginSubmit = () =>
+      beginOidcLogin({
+        toast: 'Redirecting to secure sign-in...',
+      })
 
   const handleSignOut = () => {
     logout(authSession)
     setAuthSession(null)
-    setShowLanding(true)
-    setLandingIntent(null)
+    navigateTo('/')
+    setRoute('landing')
     setActiveView('cases')
     showToast('Signed out.', 'info')
   }
@@ -621,13 +651,24 @@ function App() {
     }
   }
 
-  if (showLanding && !authSession) {
+  if (route === 'staff-login' && !authSession) {
+    return (
+      <StaffLoginPage
+        onSubmit={handleLoginSubmit}
+        onBack={handleBackToLanding}
+        loading={loginLoading}
+        error={loginError}
+      />
+    )
+  }
+
+  if (!authSession) {
     return (
       <LandingPage
-        onSelectIntent={handleSelectIntent}
-        onLoginSubmit={handleLoginSubmit}
-        loginLoading={loginLoading}
-        loginError={loginError}
+        onCitizenSignIn={handleCitizenSignIn}
+        onCitizenRegister={handleCitizenRegister}
+        onOrganizationSignIn={handleOrganizationSignIn}
+        loading={loginLoading}
       />
     )
   }
@@ -689,7 +730,7 @@ function App() {
           </nav>
 
           <div className="sidebar-footer">
-            <button className="link-button" onClick={() => { setShowLanding(true); setLandingIntent(null) }} type="button">⚙ <span>Back to landing</span></button>
+            <button className="link-button" onClick={handleBackToLanding} type="button">⚙ <span>Back to landing</span></button>
             <div className="profile">
               <span className="avatar">CF</span>
               <span>
@@ -726,7 +767,7 @@ function App() {
               )}
 
               {oidcIsConfigured && !authSession && (
-                  <button className="auth-button" onClick={handleLogin} type="button">
+                  <button className="auth-button" onClick={handleLoginSubmit} type="button">
                     Sign in
                   </button>
               )}
@@ -735,7 +776,6 @@ function App() {
 
           <section className="content">
             {error && <div className="auth-error" role="alert">{error}</div>}
-            {landingIntent && !authSession && <div className="info-banner" role="status">Selected: {landingIntent === 'citizen' ? 'Citizen' : 'Government Officer'}. Redirecting to Keycloak sign-in.</div>}
 
             {activeView === 'citizen' ? (
                 <CitizenIntake />

@@ -30,33 +30,36 @@ In a local development environment:
 3. Navigate to the frontend URL (typically `http://localhost:5173` in development)
 
 ### Landing Page
-When accessing CivicFlow without an active session, you'll see the landing page with:
+When accessing CivicFlow without an active session, the public landing page (`/`) shows:
 - **CivicFlow branding** and description
-- **Citizen Portal** - For public service requests and citizen self-service profile
-- **Organization Portal** - For staff access
-- **Platform Administration** - For platform-level administration
+- **Citizen Portal** - For public service requests and citizen self-service profile, with two buttons: **Sign in** (existing citizen) and **Register** (new citizen account)
+- **Organization Portal** - For staff, Organization Administrators, and Super Admins
+
+Platform administration is served at a **dedicated URL** (`/admin`), not on the public landing page. Staff sign in there directly.
 
 ### Authentication
 
-#### For Government Officers (Staff)
-1. Click **"I'm a Government Officer"** on the landing page
-2. You'll see the **in-app login form** with username/email and password fields
-3. Click **"Sign in"** - If OIDC is configured, you'll be redirected to Keycloak for secure authentication
+#### For Government Officers (Staff, Organization Admin, Super Admin)
+1. Navigate to the dedicated staff sign-in URL: `https://<your-civicflow-host>/admin`
+2. You'll see the **staff sign-in form** with username/email and password fields
+3. Click **"Continue to Sign In"** - If OIDC is configured, you'll be redirected to Keycloak for secure authentication
 4. After successful authentication, you'll be redirected back to the workspace
 5. Authentication and authorization are enforced server-side by the API
 
 #### For Citizens
-1. Click **"I'm a Citizen"** on the landing page
-2. You are redirected to the secure Keycloak sign-in for the citizen realm
+1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
+2. You are redirected to the secure Keycloak sign-in (or registration) for the citizen realm
 3. After signing in, open **Citizen profile** in the navigation to create or update your profile
 4. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
 5. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
+
+**Citizen route shortcuts:** `/citizen/login` and `/citizen/register` open the citizen OIDC flow directly.
 
 #### Logging Out
 1. In the workspace, click **"Sign out"** in the top bar
 2. You'll be returned to the landing page
 
-**Note:** Authentication is server-authoritative via Keycloak OIDC. The in-app login form initiates the secure Authorization Code flow when OIDC is configured.
+**Note:** Authentication is server-authoritative via Keycloak OIDC. The sign-in forms initiate the secure Authorization Code flow when OIDC is configured.
 
 ## 3. Understanding the Interface
 

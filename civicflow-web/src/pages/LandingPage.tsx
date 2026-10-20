@@ -1,29 +1,25 @@
-import { useState, type ReactNode } from 'react'
-import { LoginForm } from '../components/LoginForm'
-
-export type LandingIntent = 'citizen' | 'officer'
-
-type AuthMode = 'none' | 'signin'
+import type { ReactNode } from 'react'
 
 export type LandingPageProps = {
-  onSelectIntent?: (intent: LandingIntent) => void
-  onLoginSubmit?: (credentials: { username: string; password: string }) => void
-  loginLoading?: boolean
-  loginError?: string | null
+  /** Citizen sign-in (existing account). */
+  onCitizenSignIn?: () => void
+  /** Citizen registration (new account). */
+  onCitizenRegister?: () => void
+  /** Navigate to the separate staff/organization portal URL. */
+  onOrganizationSignIn?: () => void
+  loading?: boolean
 }
 
 function Card({
   icon,
   title,
   description,
-  actionLabel,
-  onClick,
+  actions,
 }: {
   icon: ReactNode
   title: string
   description: string
-  actionLabel: string
-  onClick: () => void
+  actions: ReactNode
 }) {
   return (
     <article className="landing-card">
@@ -32,34 +28,17 @@ function Card({
       </div>
       <h2>{title}</h2>
       <p>{description}</p>
-      <button className="landing-button primary" type="button" onClick={onClick}>
-        {actionLabel}
-      </button>
+      <div className="landing-card-actions">{actions}</div>
     </article>
   )
 }
 
 export function LandingPage({
-  onSelectIntent,
-  onLoginSubmit,
-  loginLoading = false,
-  loginError = null,
+  onCitizenSignIn,
+  onCitizenRegister,
+  onOrganizationSignIn,
+  loading = false,
 }: LandingPageProps) {
-  const [authMode, setAuthMode] = useState<AuthMode>('none')
-
-  const handleCitizenClick = () => {
-    onSelectIntent?.('citizen')
-    // Stay on landing; public intake entry remains accessible after auth
-  }
-
-  const handleOfficerClick = () => {
-    setAuthMode('signin')
-  }
-
-  const handleBack = () => {
-    setAuthMode('none')
-  }
-
   return (
     <div className="landing-page">
       <header className="landing-header">
@@ -69,57 +48,62 @@ export function LandingPage({
         </div>
       </header>
       <main className="landing-main">
-        {authMode === 'none' ? (
-          <>
-            <section className="landing-hero">
-              <p className="landing-eyebrow">PUBLIC SERVICE CASE MANAGEMENT</p>
-              <h1>Manage public requests with clarity and accountability</h1>
-              <p className="landing-subtitle">
-                CivicFlow helps government teams track, assign, and resolve cases while providing citizens a simple way to
-                submit service requests. All access is validated server-side for security and compliance.
-              </p>
-            </section>
-            <section className="landing-actions">
-              <Card
-                icon={<span>👤</span>}
-                title="Citizen Portal"
-                description="Submit service requests and track their progress."
-                actionLabel="Continue as Citizen"
-                onClick={handleCitizenClick}
-              />
-              <Card
-                icon={<span>🏛️</span>}
-                title="Organization Portal"
-                description="Staff and Organization Administrators access the workspace."
-                actionLabel="Sign in"
-                onClick={handleOfficerClick}
-              />
-              <Card
-                icon={<span>⚙️</span>}
-                title="Platform Administration"
-                description="Super Admin access for platform-wide administration."
-                actionLabel="Sign in"
-                onClick={handleOfficerClick}
-              />
-            </section>
-            <section className="landing-note">
-              <p>
-                Your choice here sets the journey only. Authentication and role-based permissions are enforced by the
-                CivicFlow API and remain authoritative.
-              </p>
-            </section>
-          </>
-        ) : (
-          <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ margin: 0 }}>Sign In</h2>
-              <button className="secondary-button" type="button" onClick={handleBack}>
-                ← Back
+        <section className="landing-hero">
+          <p className="landing-eyebrow">PUBLIC SERVICE CASE MANAGEMENT</p>
+          <h1>Manage public requests with clarity and accountability</h1>
+          <p className="landing-subtitle">
+            CivicFlow helps government teams track, assign, and resolve cases while providing citizens a simple way to
+            submit service requests. All access is validated server-side for security and compliance.
+          </p>
+        </section>
+        <section className="landing-actions landing-actions-compact">
+          <Card
+            icon={<span>👤</span>}
+            title="Citizen Portal"
+            description="Submit service requests, track progress, and manage your citizen profile."
+            actions={
+              <>
+                <button
+                  className="landing-button primary"
+                  type="button"
+                  onClick={onCitizenSignIn}
+                  disabled={loading}
+                >
+                  {loading ? 'Please wait…' : 'Sign in'}
+                </button>
+                <button
+                  className="landing-button"
+                  type="button"
+                  onClick={onCitizenRegister}
+                  disabled={loading}
+                >
+                  Register
+                </button>
+              </>
+            }
+          />
+          <Card
+            icon={<span>🏛️</span>}
+            title="Organization Portal"
+            description="Staff and Organization Administrators access the organization workspace."
+            actions={
+              <button
+                className="landing-button primary"
+                type="button"
+                onClick={onOrganizationSignIn}
+                disabled={loading}
+              >
+                Sign in
               </button>
-            </div>
-            <LoginForm onSubmit={() => onLoginSubmit?.({ username: '', password: '' })} loading={loginLoading} error={loginError} />
-          </section>
-        )}
+            }
+          />
+        </section>
+        <section className="landing-note">
+          <p>
+            Platform administration is available at a separate, dedicated sign-in URL. Authentication and role-based
+            permissions are enforced by the CivicFlow API and remain authoritative.
+          </p>
+        </section>
       </main>
       <footer className="landing-footer">
         <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
