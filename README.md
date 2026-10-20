@@ -1,55 +1,129 @@
 # CivicFlow Enterprise
 
-CivicFlow Enterprise is a full-stack public service case management platform. It has a .NET 10 Web API backend with PostgreSQL and JWT/OIDC authentication (Keycloak), and a React + TypeScript + Vite frontend for staff operations and public intake.
+CivicFlow Enterprise is a public-service case management platform with a .NET 10 ASP.NET Core Web API backend and a React 19 + TypeScript + Vite frontend. The system is designed for organization-scoped case management with Keycloak-based OIDC authentication and role/claim-aware authorization.
 
-## What the project can do so far
+> **Repository**: [https://github.com/bishalhumagain/civicflow-enterprise.git](https://github.com/bishalhumagain/civicflow-enterprise.git)
 
-### Backend (PublicServiceCaseManagement.Api)
-- **Authentication & Authorization**: JWT Bearer auth via Keycloak with issuer/audience validation. Policies for staff (`azp` = `civicflow-staff`) and citizens (`azp` = `civicflow-citizen`). Fallback policy requires authenticated staff client.
-- **Organization scoping**: All business operations are organization-scoped. Middleware/resolvers enforce organization context from authenticated claims/tokens.
-- **Cases**: Create/list/view cases, update status, assign cases to staff, view case history and assignment history, manage documents (upload/download with file storage).
-- **Staff & Team**: Staff directory management (create/deactivate/reactivate).
-- **Organizations & Memberships**: Create organizations, manage memberships and roles, toggle organization/membership status.
-- **Public/Operational endpoints**: REST API under `/api/*` with Swagger in development.
-- **Data layer**: EF Core with PostgreSQL (Npgsql), migrations support, domain entities for cases, staff, orgs, memberships, documents, history.
-- **File storage**: Local file storage abstraction for case documents.
+## 1) Current implementation status
+- **Implemented and verified**: Backend API structure, JWT Bearer auth against Keycloak (dev defaults), organization scoping, Cases/Staff/Organizations/Memberships features, EF Core migrations to PostgreSQL, file storage abstraction, integration/unit tests in `PublicServiceCaseManagement.Tests`, Docker Compose for Postgres/Keycloak, frontend modularized with landing page and in-app login UI.
+- **Partially implemented**: Citizen portal (public intake UI exists but full end-to-end submission/tracking flows depend on auth/roles), admin UI actions gated by auth.
+- **Planned/not verified**: CI/CD workflows (no GitHub Actions visible), advanced observability, production deployment hardening.
+- **Not verified end-to-end in this environment**: Full Keycloak realm setup and live external auth flows (Keycloak service exists in compose but realm configuration must be supplied).
 
-### Frontend (civicflow-web)
-- **Modular architecture**: Components split into `src/components/` (CaseDetails, StaffDirectory, OrganizationAdministration, CitizenIntake, StatCard, StatusPill, LoginForm, Toast) and pages in `src/pages/` (LandingPage). Clean separation of concerns.
-- **Landing page**: Professional welcome screen with two options - "I'm a Citizen" and "I'm a Government Officer". 
-  - Government Officer flow shows an in-app branded login form; authentication remains server-authoritative via Keycloak OIDC (Authorization Code flow).
-  - Citizen flow indicates journey intent and routes to public intake.
-- **Authentication**: OIDC integration via `oidc-client-ts` (Keycloak). Session management, login/logout, token handling. Auth is backend-authoritative (JWT validation).
-- **Workspace**: Authenticated staff workspace with views for Cases, Staff & Team, Organizations, and Public intake. Case list with filters/search/pagination, case details with status changes, assignments, history, and documents.
-- **Case operations**: Create cases, update status (with guards for demo cases), assign to staff, upload/download documents.
-- **Administration**: Staff management and organization/membership administration with role-based UI behavior.
-- **Notifications**: Toast notification system for success/error/info/warning feedback.
-- **Responsive design**: Mobile/tablet-friendly layouts, responsive grids/tables/buttons.
-- **Error handling**: Proper error messages, loading states, guards for unauthenticated/configured states.
+## 2) Problem statement and goals
+Provide a secure, organization-scoped platform for public service teams to intake, track, assign, and resolve cases while maintaining audit history and clear separation between staff and citizen access.
 
-### Infrastructure/Tooling
-- Docker Compose setup, scripts, infra folder, solution file, tests project present.
+## 3) Features implemented today
+### Backend
+- **AuthN/AuthZ**: JWT Bearer via Keycloak, policies for staff (`azp` = `civicflow-staff`) and citizens (`azp` = `civicflow-citizen`), fallback policy requires authenticated staff client. Claims mapped without inbound claim remapping.
+- **Organization scoping**: Organization context resolved from authenticated user/membership; middleware/transaction context enforce scoping.
+- **Cases**: CRUD-like operations, status changes with history, assignments with audit attribution, documents upload/download, pagination.
+- **Staff**: Manage staff members (create/deactivate/reactivate).
+- **Organizations & Memberships**: Create orgs, manage memberships/roles, toggle status.
+- **Persistence**: EF Core + Npgsql, migrations present, row-level security migration added.
+- **Files**: Local file storage under `App_Data/uploads`.
+- **Health**: Health controller present.
 
-## Recommended next steps
+### Frontend
+- **Modular UI**: Split into `src/components/` (CaseDetails, StaffDirectory, OrganizationAdministration, CitizenIntake, StatCard, StatusPill, LoginForm, Toast) and `src/pages/` (LandingPage). App composed from modules.
+- **Landing**: Two options - Citizen and Government Officer. Officer flow shows branded in-app login form; auth remains server-authoritative via OIDC.
+- **Auth**: `oidc-client-ts` integration, session management, login/logout.
+- **Workspace**: Cases/Staff/Organizations/Public intake views, filters/search/pagination, case details with history/assignments/docs.
+- **Notifications**: Toast system (success/error/info/warning).
+- **Responsive**: Mobile/tablet breakpoints.
 
-### High Priority (Security & Core Flow)
-1. **Complete Keycloak integration** - Set up proper Keycloak realm/clients (civicflow-api, civicflow-staff, civicflow-citizen), configure env vars, test token flows. Consider custom Keycloak theme to avoid UI jump.
-2. **Role/claim enforcement** - Wire up UI to respect backend policies/roles (hide admin actions based on claims), ensure proper authorization checks.
-3. **Error boundaries & validation** - Add React error boundaries, improve form validation, handle token expiry gracefully.
-4. **API error standardization** - Ensure consistent error responses from API, better user-facing messages.
+## 4) Technology stack (verified)
+| Layer | Technology | Version (from files) |
+|---|---|---|
+| Backend | .NET / ASP.NET Core | `net10.0` |
+| Backend packages | Microsoft.AspNetCore.Authentication.JwtBearer, EF Core Design, Npgsql EF Core, Swashbuckle | 10.0.13 / 10.0.0 / 10.0.0 / 10.3.0 |
+| Database | PostgreSQL | 17 (Compose) |
+| ORM | Entity Framework Core | 10.0.0 |
+| Auth | Keycloak (OIDC) | 26.4.2 (Compose) |
+| Frontend | React, TypeScript, Vite | 19.2.8, ~6.0.2, ^8.3.0 |
+| Frontend auth | oidc-client-ts | ^3.5.0 |
+| Testing | xUnit, ASP.NET Core TestHost, EF Core InMemory | 2.9.3, 10.0.0, 10.0.0 |
 
-### Medium Priority (UX & Features)
-5. **Citizen portal completion** - Flesh out public intake flow (submission, tracking) with proper auth/roles.
-6. **Notifications/real-time** - Add in-app notifications or signalR for case updates.
-7. **Audit trail UI** - Enhance history/assignment history display with better timelines.
-8. **File handling** - Add file type/size validation, previews, better download UX.
-9. **Search & filters** - Advanced filtering, saved views.
+## 5) Repository structure
+```
+.
+├── PublicServiceCaseManagement.Api/        # ASP.NET Core API
+├── PublicServiceCaseManagement.Tests/     # xUnit tests
+├── civicflow-web/                          # React + Vite frontend
+├── compose.yaml                            # Postgres + Keycloak
+├── infra/                                  # Infra configs (Keycloak realm, Postgres init)
+├── scripts/                                # Utility scripts
+├── docs/                                   # Docs
+└── PublicServiceCaseManagement.sln         # Solution
+```
 
-### Low Priority (Polish & Ops)
-10. **Testing** - Add unit/integration tests (frontend + backend). Current tests project exists but needs coverage.
-11. **Performance** - Code splitting, lazy loading routes/components, API pagination improvements.
-12. **Observability** - Logging, health checks, monitoring.
-13. **CI/CD** - GitHub Actions for lint/test/build/deploy.
-14. **Documentation** - API docs expansion, deployment guide, env var docs.
+## 6) Backend architecture
+**Projects**: `PublicServiceCaseManagement.Api` (Web API), `PublicServiceCaseManagement.Tests` (tests). Dependencies: API references packages only (no internal project references).
 
-**Immediate recommendation:** Focus on Keycloak realm/client configuration and end-to-end auth testing. The architecture is solid and ready for proper identity setup. The UI now provides a clean branded entry point while maintaining server-authoritative security.
+**Layers (by folders)**:
+- `Domain/` - Entities (`Case`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `StaffMember`, `Organization`, `OrganizationMembership`, `ApplicationUser`, enums)
+- `Features/` - Feature endpoints/services/controllers (Cases, Staff, Organizations, Memberships, Health)
+- `Infrastructure/` - Authz, Orgs (context/resolvers/middleware), Persistence (DbContext), Files (storage)
+- `Migrations/` - EF Core migrations
+
+**Startup (`Program.cs`)**: Configures auth (JWT Bearer), policies (`StaffClient`, `CitizenClient`, fallback), DbContext (Npgsql), DI for services, Swagger in dev, auth middleware, controllers. Defaults in dev point to local Keycloak/DB if not configured.
+
+**Request flow**: HTTP → Auth middleware (JWT validation) → Authorization policies → Controllers → Services → DbContext/EF Core → DB → Response (JSON, enums serialized as strings).
+
+## 7) Frontend architecture
+**Entry**: `main.tsx` wraps `App` in `ToastProvider`. `App.tsx` manages auth/session, workspace state, data fetching, actions. Modular components/pages as above. API calls via `api.ts`/`api-client.ts` with Bearer tokens and org headers. Auth via `auth.ts` (oidc-client-ts).
+
+## 8) Authentication, authorization, security
+- **Provider**: Keycloak OIDC (dev defaults `http://localhost:8080/realms/civicflow`). Tokens validated via JWT Bearer.
+- **Audiences/clients**: `civicflow-api` (aud), `civicflow-staff` (azp for staff policy), `civicflow-citizen` (azp for citizen policy).
+- **Enforcement**: Policies and fallback require authenticated users with specific `azp` claims. Org scoping enforced server-side.
+- **Frontend**: Branded landing with in-app login form; OIDC flow initiated securely (Authorization Code). Auth remains server-authoritative.
+- **Secrets**: No secrets in repo. Use env vars/placeholders.
+
+## 9) Database
+**Engine**: PostgreSQL 17. **Migrations**: Multiple migrations in `Migrations/` (initial, cases, staff, orgs, memberships/users, identity, documents, assignment audit, RLS). **DbContext**: `CivicFlowDbContext`. Connection configured via `ConnectionStrings:CivicFlow` or env.
+
+## 10) API (verified endpoints by controllers)
+- `HealthController`: health checks
+- `CasesController`: cases CRUD/operations, status, assignment, history, documents
+- `StaffController`: staff management
+- `OrganizationsController`: org management
+- `OrganizationMembershipsController`: memberships/roles
+
+Auth required per policies; exact routes/roles enforced as coded.
+
+## 11) Local development setup
+### Prerequisites
+- .NET SDK 10.x
+- Node.js (compatible with Vite 8/React 19)
+- PostgreSQL 17 or Docker
+- Keycloak (or use Compose)
+
+### Environment configuration (do not commit secrets)
+API config via appsettings/env. Frontend via `VITE_*` env vars (see auth/api usage). Compose requires `.env` with passwords for Postgres/Keycloak.
+
+### Steps
+1. Clone repo
+2. Start deps: `docker compose up -d postgres keycloak` (set `.env` first)
+3. API: `dotnet restore`, apply migrations `dotnet ef database update` (from API project), run `dotnet run` in `PublicServiceCaseManagement.Api`
+4. Frontend: `cd civicflow-web && npm ci && npm run dev`
+
+## 12) Tests
+**Run**: `dotnet test` from solution root. Tests use WebApplicationFactory, InMemory/real deps as configured, test auth handler present. **Lint/Build (frontend)**: `npm run lint && npm run build` in `civicflow-web` (both pass currently).
+
+## 13) Troubleshooting
+- **Auth fails**: Check Keycloak authority/audience/client IDs and tokens.
+- **DB connection**: Verify connection string and Postgres running.
+- **CORS**: Configure as needed.
+- **Migrations**: Apply via EF Core tools.
+
+## 14) AI Developer Handoff
+- **Entry points**: `PublicServiceCaseManagement.Api/Program.cs`, `civicflow-web/src/main.tsx`, `civicflow-web/src/App.tsx`
+- **Contracts/Auth**: `Program.cs` policies, `Features/*` controllers/services, `auth.ts`, `api.ts`/`api-client.ts`
+- **Boundaries**: Organization scoping enforced server-side; auth server-authoritative (Keycloak)
+- **Run**: API (`dotnet run`), Frontend (`npm run dev`), Tests (`dotnet test`)
+- **Invariants**: Never trust client org/role; validate JWTs; preserve org isolation
+- **Gaps**: Full Keycloak realm config, citizen portal completion, CI/CD
+- **Next task**: Configure Keycloak realm/clients and test end-to-end auth; ensure UI role enforcement matches backend policies
+
+*This README reflects verified code as of inspection. Areas marked unverified require runtime/config validation.*
