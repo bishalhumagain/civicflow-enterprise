@@ -19,6 +19,11 @@ export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; to
 export type Organization = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string }
 export type Membership = { id: string; userId: string; organizationId: string; role: string; isActive: boolean; createdAt: string; updatedAt: string }
 
+export type CaseHistoryData = { caseId: string; items: HistoryEntry[] }
+export type AssignmentHistoryData = { caseId: string; items: AssignmentEntry[] }
+export type CaseDocumentsData = { caseId: string; items: CaseDocument[] }
+export type MembershipsData = { organizationId: string; items: Membership[] }
+
 export const statusLabels: Record<CaseStatus, string> = {
   Submitted: 'Submitted', UnderReview: 'Under review', Assigned: 'Assigned', InProgress: 'In progress',
   AwaitingInformation: 'Awaiting information', Resolved: 'Resolved', Closed: 'Closed', Rejected: 'Rejected',

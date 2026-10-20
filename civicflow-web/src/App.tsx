@@ -1,74 +1,35 @@
-
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiRequest } from './api'
 import { completeLogin, logout, oidcIsConfigured, startLogin, type AuthSession } from './auth'
 import './App.css'
 
-type CaseStatus = 'Submitted' | 'UnderReview' | 'Assigned' | 'InProgress' | 'AwaitingInformation' | 'Resolved' | 'Closed' | 'Rejected'
-type CasePriority = 'High' | 'Normal' | 'Low'
-
-type CaseRecord = {
-  id: string
-  referenceNumber: string
-  title: string
-  description: string
-  status: CaseStatus
-  priority: CasePriority
-  createdAt: string
-}
-
-type StaffMember = { id: string; fullName: string; email: string; isActive: boolean }
-type HistoryEntry = { id: string; previousStatus: CaseStatus; newStatus: CaseStatus; changedAt: string }
-type CaseDocument = { id: string; originalFileName: string; contentType: string; sizeBytes: number; uploadedAt: string }
-type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
-type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; assignedAt: string; assignedByUserId: string | null }
-type Organization = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string }
-type Membership = { id: string; userId: string; organizationId: string; role: string; isActive: boolean; createdAt: string; updatedAt: string }
-type WorkspaceView = 'cases' | 'staff' | 'organizations' | 'citizen'
-
-type CaseHistoryData = {
-  caseId: string
-  items: HistoryEntry[]
-}
-
-type AssignmentHistoryData = {
-  caseId: string
-  items: AssignmentEntry[]
-}
-
-type CaseDocumentsData = {
-  caseId: string
-  items: CaseDocument[]
-}
-
-type MembershipsData = {
-  organizationId: string
-  items: Membership[]
-}
-
-const organizationId = import.meta.env.VITE_CIVICFLOW_ORGANIZATION_ID as string | undefined
-
-const statusLabels: Record<CaseStatus, string> = {
-  Submitted: 'Submitted',
-  UnderReview: 'Under review',
-  Assigned: 'Assigned',
-  InProgress: 'In progress',
-  AwaitingInformation: 'Awaiting information',
-  Resolved: 'Resolved',
-  Closed: 'Closed',
-  Rejected: 'Rejected',
-}
-
-const statusOptions: CaseStatus[] = [
-  'Submitted',
-  'UnderReview',
-  'Assigned',
-  'InProgress',
-  'AwaitingInformation',
-  'Resolved',
-  'Closed',
-  'Rejected',
-]
+import {
+  organizationId,
+  statusLabels,
+  statusOptions,
+  type AssignmentEntry,
+  type AssignmentHistoryData,
+  type CaseDocument,
+  type CaseDocumentsData,
+  type CaseHistoryData,
+  type CasePage,
+  type CaseRecord,
+  type CaseStatus,
+  type HistoryEntry,
+  type Membership,
+  type MembershipsData,
+  type Organization,
+  type StaffMember,
+  type WorkspaceView,
+} from './domain'
+import { requestJson } from './api-client'
+import { StatusPill } from './components/StatusPill'
+import { StatCard } from './components/StatCard'
+import { CaseDetails } from './components/CaseDetails'
+import { StaffDirectory } from './components/StaffDirectory'
+import { OrganizationAdministration } from './components/OrganizationAdministration'
+import { CitizenIntake } from './components/CitizenIntake'
+import { LandingPage, type LandingIntent } from './pages/LandingPage'
 
 function App() {
   const [authSession, setAuthSession] = useState<AuthSession | null>(null)
@@ -95,6 +56,8 @@ function App() {
   const [casePage, setCasePage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [adminLoading, setAdminLoading] = useState(false)
+  const [showLanding, setShowLanding] = useState(true)
+  const [landingIntent, setLandingIntent] = useState<LandingIntent | null>(null)
 
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
 
@@ -123,7 +86,12 @@ function App() {
 
   useEffect(() => {
     void completeLogin()
-        .then(setAuthSession)
+        .then((session) => {
+          setAuthSession(session)
+          if (session) {
+            setShowLanding(false)
+          }
+        })
         .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'OIDC login failed.'))
   }, [])
 
@@ -279,6 +247,19 @@ function App() {
     void startLogin().catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'OIDC login failed.')
     })
+  }
+
+  const handleSelectIntent = (intent: LandingIntent) => {
+    setLandingIntent(intent)
+    handleLogin()
+  }
+
+  const handleSignOut = () => {
+    logout(authSession)
+    setAuthSession(null)
+    setShowLanding(true)
+    setLandingIntent(null)
+    setActiveView('cases')
   }
 
   async function submitCase(event: FormEvent<HTMLFormElement>) {
@@ -529,7 +510,7 @@ function App() {
           },
       )
 
-      setMembershipsData((current) => ({
+      setMembershipsData((current: MembershipsData | null) => ({
         organizationId: currentOrganizationId,
         items: current?.organizationId === currentOrganizationId
             ? [...current.items, created]
@@ -557,13 +538,13 @@ function App() {
 
       const result = await requestJson<Membership>(path, authSession, {
         method: action === 'role' ? 'PUT' : 'PATCH',
-        ...(action === 'role' ? { body: JSON.stringify({ role }) } : {}),
+        ...(action === 'role' && role ? { body: JSON.stringify({ role }) } : {}),
       })
 
-      setMembershipsData((current) => ({
+      setMembershipsData((current: MembershipsData | null) => ({
         organizationId: currentOrganizationId,
         items: current?.organizationId === currentOrganizationId
-            ? current.items.map((item) => item.id === result.id ? result : item)
+            ? current.items.map((item: Membership) => item.id === result.id ? result : item)
             : [result],
       }))
     } catch (reason) {
@@ -571,6 +552,10 @@ function App() {
     } finally {
       setAdminLoading(false)
     }
+  }
+
+  if (showLanding && !authSession) {
+    return <LandingPage onSelectIntent={handleSelectIntent} />
   }
 
   const caseEmptyMessage = !organizationId
@@ -627,7 +612,7 @@ function App() {
           </nav>
 
           <div className="sidebar-footer">
-            <a href="#settings">⚙ <span>Settings</span></a>
+            <button className="link-button" onClick={() => { setShowLanding(true); setLandingIntent(null) }} type="button">⚙ <span>Back to landing</span></button>
             <div className="profile">
               <span className="avatar">CF</span>
               <span>
@@ -656,7 +641,7 @@ function App() {
 
             <div className="topbar-actions">
               {oidcIsConfigured && authSession ? (
-                  <button className="auth-button" onClick={() => logout(authSession)} type="button">
+                  <button className="auth-button" onClick={handleSignOut} type="button">
                     Sign out
                   </button>
               ) : (
@@ -673,9 +658,10 @@ function App() {
 
           <section className="content">
             {error && <div className="auth-error" role="alert">{error}</div>}
+            {landingIntent && !authSession && <div className="info-banner" role="status">Selected: {landingIntent === 'citizen' ? 'Citizen' : 'Government Officer'}. Redirecting to Keycloak sign-in.</div>}
 
             {activeView === 'citizen' ? (
-                <CitizenLanding />
+                <CitizenIntake />
             ) : activeView === 'staff' ? (
                 <StaffDirectory
                     staff={staff}
@@ -892,485 +878,6 @@ function App() {
           </section>
         </main>
       </div>
-  )
-}
-
-function CaseDetails({
-                       caseRecord,
-                       history,
-                       assignmentHistory,
-                       documents,
-                       staff,
-                       actionLoading,
-                       onStatusChange,
-                       onAssignmentChange,
-                       onUpload,
-                       onDownload,
-                     }: {
-  caseRecord: CaseRecord | null
-  history: HistoryEntry[]
-  assignmentHistory: AssignmentEntry[]
-  documents: CaseDocument[]
-  staff: StaffMember[]
-  actionLoading: boolean
-  onStatusChange: (status: CaseStatus) => Promise<void>
-  onAssignmentChange: (staffMemberId: string) => Promise<void>
-  onUpload: (file: File) => Promise<void>
-  onDownload: (document: CaseDocument) => Promise<void>
-}) {
-  if (!caseRecord) {
-    return (
-        <aside className="detail-card">
-          <p className="muted empty-state">Select a case to view details.</p>
-        </aside>
-    )
-  }
-
-  return (
-      <aside className="detail-card">
-        <div className="detail-header">
-          <span>CASE DETAILS</span>
-        </div>
-
-        <div className="detail-title">
-          <span className="case-reference">{caseRecord.referenceNumber}</span>
-          <h2>{caseRecord.title}</h2>
-          <StatusPill status={caseRecord.status} />
-        </div>
-
-        <p className="case-description">{caseRecord.description}</p>
-
-        <div className="detail-section">
-          <h3>Workflow</h3>
-          <label>
-            Status
-            <select
-                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
-                value={caseRecord.status}
-                onChange={(event) => void onStatusChange(event.target.value as CaseStatus)}
-            >
-              {statusOptions.map((status) => (
-                  <option key={status} value={status}>{statusLabels[status]}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Assign to
-            <select
-                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
-                defaultValue=""
-                onChange={(event) => void onAssignmentChange(event.target.value)}
-            >
-              <option value="">Select staff member</option>
-              {staff.filter((member) => member.isActive).map((member) => (
-                  <option key={member.id} value={member.id}>{member.fullName}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="detail-section">
-          <h3>Documents</h3>
-          {caseRecord.id.startsWith('demo-') ? (
-              <p className="muted">Documents are available for live cases.</p>
-          ) : (
-              <>
-                <label className="upload-control">
-                  Attach supporting document
-                  <input
-                      disabled={actionLoading}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        if (file) void onUpload(file)
-                        event.currentTarget.value = ''
-                      }}
-                  />
-                </label>
-
-                {documents.length === 0 ? (
-                    <p className="muted">No documents attached.</p>
-                ) : (
-                    <ul>
-                      {documents.map((document) => (
-                          <li key={document.id}>
-                            <button
-                                className="document-link"
-                                disabled={actionLoading}
-                                onClick={() => void onDownload(document)}
-                                type="button"
-                            >
-                              {document.originalFileName}
-                            </button>
-                            {' '}
-                            <small>{Math.ceil(document.sizeBytes / 1024)} KB</small>
-                          </li>
-                      ))}
-                    </ul>
-                )}
-              </>
-          )}
-        </div>
-
-        <div className="detail-section timeline">
-          <h3>Status history</h3>
-          {caseRecord.id.startsWith('demo-') || history.length === 0 ? (
-              <p className="muted">No recorded status changes yet.</p>
-          ) : (
-              history.map((item) => (
-                  <p key={item.id}>
-                    <span className="timeline-dot" />
-                    <span>
-                <strong>{statusLabels[item.previousStatus]} → {statusLabels[item.newStatus]}</strong>
-                <small>{new Date(item.changedAt).toLocaleString()}</small>
-              </span>
-                  </p>
-              ))
-          )}
-        </div>
-
-        <div className="detail-section timeline">
-          <h3>Assignment history</h3>
-          {caseRecord.id.startsWith('demo-') || assignmentHistory.length === 0 ? (
-              <p className="muted">No recorded assignments yet.</p>
-          ) : (
-              assignmentHistory.map((item) => (
-                  <p key={item.id}>
-                    <span className="timeline-dot" />
-                    <span>
-                <strong>{item.previousStaffMemberId ? 'Reassigned case' : 'Case assigned'}</strong>
-                <small>{new Date(item.assignedAt).toLocaleString()}</small>
-              </span>
-                  </p>
-              ))
-          )}
-        </div>
-      </aside>
-  )
-}
-
-function StaffDirectory({
-                          staff,
-                          authenticated,
-                          loading,
-                          onCreate,
-                          onToggle,
-                        }: {
-  staff: StaffMember[]
-  authenticated: boolean
-  loading: boolean
-  onCreate: (fullName: string, email: string) => Promise<void>
-  onToggle: (member: StaffMember) => Promise<void>
-}) {
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-
-  return (
-      <>
-        <div className="page-heading">
-          <div>
-            <p className="eyebrow">ORGANIZATION DIRECTORY</p>
-            <h1>Staff &amp; team</h1>
-            <p className="muted">Active staff available for case assignment in the selected organization.</p>
-          </div>
-        </div>
-
-        {authenticated && (
-            <form
-                className="case-card inline-form"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void onCreate(fullName, email)
-                  setFullName('')
-                  setEmail('')
-                }}
-            >
-              <input
-                  required
-                  minLength={1}
-                  maxLength={150}
-                  placeholder="Full name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-              />
-              <input
-                  required
-                  type="email"
-                  maxLength={254}
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-              />
-              <button className="primary-button" disabled={loading} type="submit">Add staff</button>
-            </form>
-        )}
-
-        <section className="case-card directory-card">
-          {!authenticated ? (
-              <p className="muted empty-state">Sign in with a staff identity to load the organization directory.</p>
-          ) : staff.length === 0 ? (
-              <p className="muted empty-state">No active staff members were returned, or this role cannot access staff administration.</p>
-          ) : (
-              <div className="directory-grid">
-                {staff.map((member) => (
-                    <article className="directory-member" key={member.id}>
-                      <span className="avatar">{member.fullName.slice(0, 2).toUpperCase()}</span>
-                      <div>
-                        <strong>{member.fullName}</strong>
-                        <span>{member.email}</span>
-                        <small>{member.isActive ? 'Active' : 'Inactive'}</small>
-                      </div>
-                      <button
-                          className="secondary-button"
-                          disabled={loading}
-                          onClick={() => void onToggle(member)}
-                          type="button"
-                      >
-                        {member.isActive ? 'Deactivate' : 'Reactivate'}
-                      </button>
-                    </article>
-                ))}
-              </div>
-          )}
-        </section>
-      </>
-  )
-}
-
-function OrganizationAdministration({
-                                      authenticated,
-                                      loading,
-                                      organizations,
-                                      memberships,
-                                      selectedOrganizationId,
-                                      onSelectOrganization,
-                                      onCreateOrganization,
-                                      onToggleOrganization,
-                                      onCreateMembership,
-                                      onUpdateMembership,
-                                    }: {
-  authenticated: boolean
-  loading: boolean
-  organizations: Organization[]
-  memberships: Membership[]
-  selectedOrganizationId: string
-  onSelectOrganization: (id: string) => void
-  onCreateOrganization: (name: string, code: string) => Promise<void>
-  onToggleOrganization: (organization: Organization) => Promise<void>
-  onCreateMembership: (userId: string, role: string) => Promise<void>
-  onUpdateMembership: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void>
-}) {
-  const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [userId, setUserId] = useState('')
-  const [role, setRole] = useState('Viewer')
-
-  const selected = organizations.find((item) => item.id === selectedOrganizationId)
-
-  return (
-      <>
-        <div className="page-heading">
-          <div>
-            <p className="eyebrow">ACCESS ADMINISTRATION</p>
-            <h1>Organizations &amp; memberships</h1>
-            <p className="muted">Platform administrators can manage organizations; organization administrators can manage memberships in their own organization.</p>
-          </div>
-        </div>
-
-        {!authenticated ? (
-            <section className="case-card empty-state">
-              <p className="muted">Sign in to access authorized administration features.</p>
-            </section>
-        ) : (
-            <>
-              <section className="case-card admin-panel">
-                <h2>Organizations</h2>
-
-                {organizations.length === 0 ? (
-                    <p className="muted">No platform organizations loaded. If you are an OrganizationAdmin, select the configured organization below to manage its memberships.</p>
-                ) : (
-                    <div className="admin-row">
-                      <select
-                          aria-label="Selected organization"
-                          value={selectedOrganizationId}
-                          onChange={(event) => onSelectOrganization(event.target.value)}
-                      >
-                        {organizations.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                        ))}
-                      </select>
-                      {selected && (
-                          <button
-                              className="secondary-button"
-                              disabled={loading}
-                              onClick={() => void onToggleOrganization(selected)}
-                              type="button"
-                          >
-                            {selected.isActive ? 'Deactivate' : 'Reactivate'}
-                          </button>
-                      )}
-                    </div>
-                )}
-
-                <form
-                    className="inline-form"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void onCreateOrganization(name, code)
-                      setName('')
-                      setCode('')
-                    }}
-                >
-                  <input required placeholder="Organization name" value={name} onChange={(event) => setName(event.target.value)} />
-                  <input required placeholder="Code" value={code} onChange={(event) => setCode(event.target.value)} />
-                  <button className="primary-button" disabled={loading} type="submit">Create organization</button>
-                </form>
-              </section>
-
-              <section className="case-card admin-panel">
-                <h2>Memberships {selectedOrganizationId && <small>{selectedOrganizationId}</small>}</h2>
-
-                <form
-                    className="inline-form"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void onCreateMembership(userId, role)
-                      setUserId('')
-                    }}
-                >
-                  <input
-                      required
-                      placeholder="Application user ID"
-                      value={userId}
-                      onChange={(event) => setUserId(event.target.value)}
-                  />
-                  <select value={role} onChange={(event) => setRole(event.target.value)}>
-                    <option>Viewer</option>
-                    <option>CaseWorker</option>
-                    <option>OrganizationAdmin</option>
-                  </select>
-                  <button className="primary-button" disabled={loading || !selectedOrganizationId} type="submit">
-                    Add membership
-                  </button>
-                </form>
-
-                {memberships.length === 0 ? (
-                    <p className="muted empty-state">No memberships returned, or this identity is not authorized for the selected organization.</p>
-                ) : (
-                    <div className="membership-list">
-                      {memberships.map((membership) => (
-                          <div className="membership-row" key={membership.id}>
-                            <code>{membership.userId}</code>
-                            <select
-                                value={membership.role}
-                                disabled={loading}
-                                onChange={(event) => void onUpdateMembership(membership, 'role', event.target.value)}
-                            >
-                              <option>Viewer</option>
-                              <option>CaseWorker</option>
-                              <option>OrganizationAdmin</option>
-                            </select>
-                            <span>{membership.isActive ? 'Active' : 'Inactive'}</span>
-                            <button
-                                className="secondary-button"
-                                disabled={loading}
-                                onClick={() => void onUpdateMembership(membership, 'active')}
-                                type="button"
-                            >
-                              {membership.isActive ? 'Deactivate' : 'Reactivate'}
-                            </button>
-                          </div>
-                      ))}
-                    </div>
-                )}
-              </section>
-            </>
-        )}
-      </>
-  )
-}
-
-function CitizenLanding() {
-  const [submitted, setSubmitted] = useState(false)
-
-  return (
-      <>
-        <div className="page-heading">
-          <div>
-            <p className="eyebrow">PUBLIC SERVICE PORTAL</p>
-            <h1>Request public assistance</h1>
-            <p className="muted">Describe a local service issue and provide enough detail for the responsible team.</p>
-          </div>
-        </div>
-
-        <section className="case-card citizen-card">
-          <div>
-            <h2>Citizen intake foundation</h2>
-            <p>This public-facing form is prepared for the future citizen submission contract. It does not submit to the staff API and cannot expose internal case data.</p>
-          </div>
-
-          <form onSubmit={(event) => {
-            event.preventDefault()
-            setSubmitted(true)
-          }}>
-            <label>
-              Issue title
-              <input required minLength={3} maxLength={200} placeholder="What do you need help with?" />
-            </label>
-            <label>
-              Details
-              <textarea required minLength={10} maxLength={5000} placeholder="Include location, dates, and relevant context." />
-            </label>
-            <button className="primary-button" type="submit">
-              {submitted ? 'Submission unavailable' : 'Preview request'}
-            </button>
-            {submitted && (
-                <p className="auth-error" role="status">
-                  Citizen intake is not enabled yet. A dedicated citizen API, organization-resolution policy, and document authorization must be implemented before requests can be submitted.
-                </p>
-            )}
-          </form>
-        </section>
-      </>
-  )
-}
-
-async function requestJson<T>(path: string, session: AuthSession, init?: RequestInit): Promise<T> {
-  if (!organizationId) {
-    throw new Error('Organization configuration is missing. Set VITE_CIVICFLOW_ORGANIZATION_ID and restart the frontend.')
-  }
-
-  const response = await apiRequest(path, session, organizationId, init)
-
-  if (response.status === 401) throw new Error('Your session is missing or has expired. Sign in again.')
-  if (response.status === 403) throw new Error('You are not authorized for this organization or operation.')
-  if (!response.ok) throw new Error(`API request failed with HTTP ${response.status}.`)
-  if (response.status === 204) return undefined as T
-
-  return await response.json() as T
-}
-
-function StatCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
-  return (
-      <article className="stat-card">
-        <div className={`stat-icon ${tone}`} aria-hidden="true">◈</div>
-        <div>
-          <span>{label}</span>
-          <strong>{value}</strong>
-          <small>{detail}</small>
-        </div>
-      </article>
-  )
-}
-
-function StatusPill({ status }: { status: CaseStatus }) {
-  return (
-      <span className={`status-pill ${status.toLowerCase()}`}>
-      <i aria-hidden="true" />
-        {statusLabels[status]}
-    </span>
   )
 }
 

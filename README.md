@@ -363,3 +363,10 @@ Future agents must preserve existing uncommitted work, avoid persistent database
 - GitHub: [bishalhumagain](https://github.com/bishalhumagain)
 - LinkedIn: [Bishal Humagain](https://www.linkedin.com/in/bishalhumagain)
 - Repository: [CivicFlow Enterprise](https://github.com/bishalhumagain/civicflow-enterprise)
+
+## Frontend (Phase 1 - Modularization)
+
+- **Modular structure**: Components split into `src/components/`, pages in `src/pages/`, with extracted `CaseDetails`, `StaffDirectory`, `OrganizationAdministration`, `CitizenIntake`, `StatusPill`, `StatCard`.
+- **Landing page**: Public welcome page at entry with "Login as Citizen" and "Login as Government Officer" options. Selection indicates journey intent only; Keycloak/OIDC remains authoritative.
+- **Auth integration boundary**: Landing triggers existing OIDC flow via `startLogin()` with clean placeholders for future Keycloak integration.
+- **Preserved behavior**: All existing workflows, API contracts, guards (demo cases), loading/error states remain unchanged.
