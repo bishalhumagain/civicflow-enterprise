@@ -30,8 +30,10 @@ import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
 import { CitizenIntake } from './components/CitizenIntake'
 import { LandingPage, type LandingIntent } from './pages/LandingPage'
+import { useToast } from './components/Toast'
 
 function App() {
+  const { showToast } = useToast()
   const [authSession, setAuthSession] = useState<AuthSession | null>(null)
   const [cases, setCases] = useState<CaseRecord[]>([])
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
@@ -58,6 +60,8 @@ function App() {
   const [adminLoading, setAdminLoading] = useState(false)
   const [showLanding, setShowLanding] = useState(true)
   const [landingIntent, setLandingIntent] = useState<LandingIntent | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
 
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
 
@@ -90,10 +94,15 @@ function App() {
           setAuthSession(session)
           if (session) {
             setShowLanding(false)
+            showToast('Signed in successfully.', 'success')
           }
         })
-        .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'OIDC login failed.'))
-  }, [])
+        .catch((reason: unknown) => {
+          const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
+          setError(message)
+          showToast(message, 'error')
+        })
+  }, [showToast])
 
   useEffect(() => {
     if (!authSession || !organizationId) return
@@ -244,14 +253,47 @@ function App() {
   }, [authSession, activeView, selectedOrganizationId])
 
   const handleLogin = () => {
+    setLoginError(null)
     void startLogin().catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'OIDC login failed.')
+      const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
+      setError(message)
+      setLoginError(message)
+      showToast(message, 'error')
     })
   }
 
   const handleSelectIntent = (intent: LandingIntent) => {
     setLandingIntent(intent)
+    if (intent === 'officer') {
+      // Keep user on landing to use in-app sign-in form; OIDC still available via button
+      return
+    }
     handleLogin()
+  }
+
+  const handleLoginSubmit = (_credentials: { username: string; password: string }) => {
+    setLoginLoading(true)
+    setLoginError(null)
+    setError(null)
+    // Keep authentication server-authoritative via existing OIDC/session flow
+    // Show clear guidance and trigger OIDC if configured, else inform user
+    if (oidcIsConfigured) {
+      showToast('Redirecting to secure sign-in...', 'info')
+      void startLogin()
+          .catch((reason: unknown) => {
+            const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
+            setLoginError(message)
+            setError(message)
+            showToast(message, 'error')
+          })
+          .finally(() => setLoginLoading(false))
+      return
+    }
+    setLoginLoading(false)
+    const message = 'Secure authentication is not configured. Use environment variables for OIDC/Keycloak.'
+    setLoginError(message)
+    setError(message)
+    showToast(message, 'warning')
   }
 
   const handleSignOut = () => {
@@ -260,6 +302,7 @@ function App() {
     setShowLanding(true)
     setLandingIntent(null)
     setActiveView('cases')
+    showToast('Signed out.', 'info')
   }
 
   async function submitCase(event: FormEvent<HTMLFormElement>) {
@@ -284,8 +327,11 @@ function App() {
       setNewTitle('')
       setNewDescription('')
       setShowCreateForm(false)
+      showToast('Case created.', 'success')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Case creation failed. Your role may not permit this action.')
+      const message = reason instanceof Error ? reason.message : 'Case creation failed. Your role may not permit this action.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -319,8 +365,11 @@ function App() {
       )
 
       setCaseHistoryData({ caseId, items: loadedHistory })
+      showToast('Status updated.', 'success')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Status update failed. Your role may not permit this action.')
+      const message = reason instanceof Error ? reason.message : 'Status update failed. Your role may not permit this action.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -337,8 +386,11 @@ function App() {
         method: 'PATCH',
         body: JSON.stringify({ staffMemberId }),
       })
+      showToast('Assignment updated.', 'success')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Assignment failed. Your role may not permit this action.')
+      const message = reason instanceof Error ? reason.message : 'Assignment failed. Your role may not permit this action.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -368,8 +420,11 @@ function App() {
             ? [...current.items, uploaded]
             : [uploaded],
       }))
+      showToast('Document uploaded.', 'success')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Document upload failed. Check the file type and size.')
+      const message = reason instanceof Error ? reason.message : 'Document upload failed. Check the file type and size.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -555,7 +610,14 @@ function App() {
   }
 
   if (showLanding && !authSession) {
-    return <LandingPage onSelectIntent={handleSelectIntent} />
+    return (
+      <LandingPage
+        onSelectIntent={handleSelectIntent}
+        onLoginSubmit={handleLoginSubmit}
+        loginLoading={loginLoading}
+        loginError={loginError}
+      />
+    )
   }
 
   const caseEmptyMessage = !organizationId

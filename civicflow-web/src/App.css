@@ -30,11 +30,47 @@
 .landing-footer{padding:20px 40px;text-align:center;color:#98a2b3;font-size:11px}
 .landing-footer p{margin:0}
 
+/* Toast */
+.toast-container{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:10px;z-index:1000}
+.toast{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:#1f2937;color:#fff;box-shadow:0 12px 30px #10182829;font-size:12px;max-width:360px}
+.toast-success{background:#166534}
+.toast-error{background:#b91c1c}
+.toast-warning{background:#92400e}
+.toast-info{background:#1f2937}
+.toast button{border:0;background:none;color:#fff;cursor:pointer;font-size:16px;line-height:1}
+
+/* Responsive buttons */
+.primary-button,.secondary-button,.auth-button{cursor:pointer;transition:filter .15s ease,box-shadow .15s ease}
+.primary-button:hover:not(:disabled),.secondary-button:hover:not(:disabled),.auth-button:hover:not(:disabled){filter:brightness(.98)}
+.primary-button:disabled,.secondary-button:disabled,.auth-button:disabled{opacity:.6;cursor:not-allowed}
+.auth-button{white-space:nowrap}
+
+/* Responsive layout */
+@media(max-width:1100px){
+  .app-shell{grid-template-columns:260px 1fr}
+  .case-layout{grid-template-columns:1fr}
+}
 @media(max-width:900px){
   .landing-actions{grid-template-columns:1fr}
   .landing-hero h1{font-size:32px}
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{position:static}
+  .case-layout{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:640px){
   .landing-header,.landing-main,.landing-footer{padding-left:20px;padding-right:20px}
   .landing-hero h1{font-size:28px}
+  .main-content{padding:16px}
+  .topbar{flex-direction:column;align-items:flex-start;gap:10px}
+  .topbar-actions{width:100%;justify-content:space-between;flex-wrap:wrap}
+  .stat-grid{grid-template-columns:1fr}
+  .case-toolbar{flex-direction:column;align-items:stretch}
+  .case-toolbar .search{width:100%}
+  .case-toolbar select{width:100%}
+  .table-wrap{overflow-x:auto}
+  table{min-width:520px}
+  .pagination{flex-direction:column;align-items:flex-start;gap:8px}
+  .toast-container{left:16px;right:16px;bottom:16px}
+  .toast{max-width:100%}
 }

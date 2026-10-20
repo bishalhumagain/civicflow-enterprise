@@ -1,64 +1,124 @@
+import { useState, type ReactNode } from 'react'
+import { LoginForm } from '../components/LoginForm'
+
 export type LandingIntent = 'citizen' | 'officer'
 
-export function LandingPage({ onSelectIntent }: { onSelectIntent: (intent: LandingIntent) => void }) {
+type AuthMode = 'none' | 'signin'
+
+export type LandingPageProps = {
+  onSelectIntent?: (intent: LandingIntent) => void
+  onLoginSubmit?: (credentials: { username: string; password: string }) => void
+  loginLoading?: boolean
+  loginError?: string | null
+}
+
+function Card({
+  icon,
+  title,
+  description,
+  actionLabel,
+  onClick,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  actionLabel: string
+  onClick: () => void
+}) {
+  return (
+    <article className="landing-card">
+      <div className="landing-brand" style={{ fontSize: 28 }}>
+        {icon}
+      </div>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <button className="landing-button primary" type="button" onClick={onClick}>
+        {actionLabel}
+      </button>
+    </article>
+  )
+}
+
+export function LandingPage({
+  onSelectIntent,
+  onLoginSubmit,
+  loginLoading = false,
+  loginError = null,
+}: LandingPageProps) {
+  const [authMode, setAuthMode] = useState<AuthMode>('none')
+
+  const handleCitizenClick = () => {
+    onSelectIntent?.('citizen')
+    // Stay on landing; public intake entry remains accessible after auth
+  }
+
+  const handleOfficerClick = () => {
+    setAuthMode('signin')
+  }
+
+  const handleBack = () => {
+    setAuthMode('none')
+  }
+
   return (
     <div className="landing-page">
       <header className="landing-header">
         <div className="landing-brand">
           <span className="landing-brand-mark">C</span>
-          <span className="landing-brand-name">CivicFlow Enterprise</span>
+          <span className="landing-brand-name">CivicFlow</span>
         </div>
       </header>
-
       <main className="landing-main">
-        <section className="landing-hero">
-          <p className="landing-eyebrow">PUBLIC SERVICE PLATFORM</p>
-          <h1>CivicFlow helps citizens and government teams resolve public service requests</h1>
-          <p className="landing-subtitle">
-            CivicFlow helps citizens submit and track public service requests, and helps authorized government staff
-            review, assign, and resolve cases securely and transparently.
-          </p>
-        </section>
-
-        <section className="landing-actions" aria-label="Entry options">
-          <article className="landing-card">
-            <h2>Login as Citizen</h2>
-            <p>Submit requests, track status, and stay informed about your public service cases.</p>
-            <button
-              className="landing-button primary"
-              type="button"
-              onClick={() => onSelectIntent('citizen')}
-              aria-label="Continue as citizen to sign in"
-            >
-              Continue as Citizen
-            </button>
-          </article>
-
-          <article className="landing-card">
-            <h2>Login as Government Officer</h2>
-            <p>Access the case management workspace to review, assign, and resolve service requests.</p>
-            <button
-              className="landing-button"
-              type="button"
-              onClick={() => onSelectIntent('officer')}
-              aria-label="Continue as government officer to sign in"
-            >
-              Continue as Government Officer
-            </button>
-          </article>
-        </section>
-
-        <section className="landing-note">
-          <p>
-            Selection indicates your intended journey only. Authentication and authorization are handled by Keycloak.
-            Roles and permissions are validated on the server.
-          </p>
-        </section>
+        {authMode === 'none' ? (
+          <>
+            <section className="landing-hero">
+              <p className="landing-eyebrow">PUBLIC SERVICE CASE MANAGEMENT</p>
+              <h1>Manage public requests with clarity and accountability</h1>
+              <p className="landing-subtitle">
+                CivicFlow helps government teams track, assign, and resolve cases while providing citizens a simple way to
+                submit service requests. All access is validated server-side for security and compliance.
+              </p>
+            </section>
+            <section className="landing-actions">
+              <Card
+                icon={<span>👤</span>}
+                title="I'm a Citizen"
+                description="Submit service requests and track their progress. Public intake access is available after authentication as appropriate."
+                actionLabel="Continue as Citizen"
+                onClick={handleCitizenClick}
+              />
+              <Card
+                icon={<span>🏛️</span>}
+                title="I'm a Government Officer"
+                description="Access the staff workspace to review, assign, and resolve cases. Sign in with your official credentials."
+                actionLabel="Sign in as Government Officer"
+                onClick={handleOfficerClick}
+              />
+            </section>
+            <section className="landing-note">
+              <p>
+                Your choice here sets the journey only. Authentication and role-based permissions are enforced by the
+                CivicFlow API and remain authoritative.
+              </p>
+            </section>
+          </>
+        ) : (
+          <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h2 style={{ margin: 0 }}>Government Officer Sign In</h2>
+              <button className="secondary-button" type="button" onClick={handleBack}>
+                ← Back
+              </button>
+            </div>
+            <LoginForm onSubmit={(creds) => onLoginSubmit?.(creds)} loading={loginLoading} error={loginError} />
+          </section>
+        )}
       </main>
-
       <footer className="landing-footer">
-        <p>CivicFlow Enterprise · Secure public service case management</p>
+        <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
       </footer>
     </div>
   )
 }
+
+export default LandingPage
