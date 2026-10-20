@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useToast } from './Toast'
+import { useToast } from './use-toast'
 
 export type LoginFormProps = {
   onSubmit: (credentials: { username: string; password: string }) => void

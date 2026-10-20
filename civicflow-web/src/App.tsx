@@ -30,7 +30,7 @@ import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
 import { CitizenIntake } from './components/CitizenIntake'
 import { LandingPage, type LandingIntent } from './pages/LandingPage'
-import { useToast } from './components/Toast'
+import { useToast } from './components/use-toast'
 
 function App() {
   const { showToast } = useToast()
@@ -271,7 +271,7 @@ function App() {
     handleLogin()
   }
 
-  const handleLoginSubmit = (_credentials: { username: string; password: string }) => {
+  const handleLoginSubmit = () => {
     setLoginLoading(true)
     setLoginError(null)
     setError(null)

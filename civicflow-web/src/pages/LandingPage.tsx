@@ -110,7 +110,7 @@ export function LandingPage({
                 ← Back
               </button>
             </div>
-            <LoginForm onSubmit={(creds) => onLoginSubmit?.(creds)} loading={loginLoading} error={loginError} />
+            <LoginForm onSubmit={() => onLoginSubmit?.({ username: '', password: '' })} loading={loginLoading} error={loginError} />
           </section>
         )}
       </main>
