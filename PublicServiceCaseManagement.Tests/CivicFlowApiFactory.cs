@@ -220,6 +220,36 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         return organization.Id;
     }
 
+    public async Task<Guid> SeedAuthenticatedPlatformUserAsync(
+        PlatformRole platformRole = PlatformRole.None)
+    {
+        using var scope = Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        await dbContext.Database.EnsureCreatedAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        var user = ApplicationUser.Create(
+            "CivicFlow Citizen Test User",
+            $"citizen-{Guid.NewGuid():N}@example.com",
+            now);
+
+        user.LinkExternalIdentity(
+            TestAuthenticationHandler.Issuer,
+            TestAuthenticationHandler.Subject,
+            now);
+
+        user.SetPlatformRole(platformRole, now);
+
+        dbContext.ApplicationUsers.Add(user);
+
+        await dbContext.SaveChangesAsync();
+
+        return user.Id;
+    }
+
     public async Task<Guid> SeedAdditionalOrganizationForAuthenticatedUserAsync(
         OrganizationRole role = OrganizationRole.OrganizationAdmin)
     {

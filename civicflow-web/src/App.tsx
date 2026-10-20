@@ -30,6 +30,7 @@ import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
 import { CitizenIntake } from './components/CitizenIntake'
 import { LandingPage, type LandingIntent } from './pages/LandingPage'
+import CitizenProfilePage from './pages/CitizenProfilePage'
 import { useToast } from './components/use-toast'
 
 function App() {
@@ -266,6 +267,17 @@ function App() {
     setLandingIntent(intent)
     if (intent === 'officer') {
       // Keep user on landing to use in-app sign-in form; OIDC still available via button
+      return
+    }
+    if (intent === 'citizen') {
+      setLoginError(null)
+      showToast('Redirecting to citizen sign-in...', 'info')
+      void startLogin().catch((reason: unknown) => {
+        const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
+        setError(message)
+        setLoginError(message)
+        showToast(message, 'error')
+      })
       return
     }
     handleLogin()
@@ -671,6 +683,9 @@ function App() {
             <button className={activeView === 'citizen' ? 'active' : ''} onClick={() => setActiveView('citizen')} type="button">
               ⌂ <span>Public intake</span>
             </button>
+            <button className={activeView === 'citizen-profile' ? 'active' : ''} onClick={() => setActiveView('citizen-profile')} type="button">
+              ☺ <span>Citizen profile</span>
+            </button>
           </nav>
 
           <div className="sidebar-footer">
@@ -724,6 +739,8 @@ function App() {
 
             {activeView === 'citizen' ? (
                 <CitizenIntake />
+            ) : activeView === 'citizen-profile' ? (
+                <CitizenProfilePage />
             ) : activeView === 'staff' ? (
                 <StaffDirectory
                     staff={staff}

@@ -4,6 +4,8 @@
 
 The automated suite still uses EF Core InMemory and a synthetic authentication handler for most API tests. A disposable live-stack verification has additionally been completed: migrations applied with `civicflow_migrator`, `civicflow_runtime` could read application tables but could not create schema objects, and a real Keycloak-issued staff token was accepted only for its active organization and staff client. Cross-organization access, citizen-client access, and inactive membership returned 403; a tampered signature returned 401.
 
+Citizen self-service profile endpoints (`/api/citizens/me`) are covered by automated integration tests using the synthetic authentication handler: anonymous requests return 401, staff-client requests return 403, unlinked identities return 401, create/update behavior and duplicate validation are asserted, and the endpoints honour `BusinessEndpoints:Enabled` gating. These tests use EF Core InMemory, not a live database.
+
 The verification used an isolated Compose project on alternate local ports and did not stop or modify the existing services or persistent data. RLS remains intentionally disabled.
 
 ## Required local verification sequence

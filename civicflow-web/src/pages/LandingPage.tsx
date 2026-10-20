@@ -82,16 +82,23 @@ export function LandingPage({
             <section className="landing-actions">
               <Card
                 icon={<span>👤</span>}
-                title="I'm a Citizen"
-                description="Submit service requests and track their progress. Public intake access is available after authentication as appropriate."
+                title="Citizen Portal"
+                description="Submit service requests and track their progress."
                 actionLabel="Continue as Citizen"
                 onClick={handleCitizenClick}
               />
               <Card
                 icon={<span>🏛️</span>}
-                title="I'm a Government Officer"
-                description="Access the staff workspace to review, assign, and resolve cases. Sign in with your official credentials."
-                actionLabel="Sign in as Government Officer"
+                title="Organization Portal"
+                description="Staff and Organization Administrators access the workspace."
+                actionLabel="Sign in"
+                onClick={handleOfficerClick}
+              />
+              <Card
+                icon={<span>⚙️</span>}
+                title="Platform Administration"
+                description="Super Admin access for platform-wide administration."
+                actionLabel="Sign in"
                 onClick={handleOfficerClick}
               />
             </section>
@@ -105,7 +112,7 @@ export function LandingPage({
         ) : (
           <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ margin: 0 }}>Government Officer Sign In</h2>
+              <h2 style={{ margin: 0 }}>Sign In</h2>
               <button className="secondary-button" type="button" onClick={handleBack}>
                 ← Back
               </button>

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Citizen self-registration/profile: `CitizenProfile` domain entity with EF Core migration (`AddCitizenProfiles`)
+- Citizen API endpoints (`GET/POST/PUT /api/citizens/me`) secured by the `CitizenClient` policy
+- Citizen profile UI page and navigation entry, integrated with the Keycloak citizen flow
+- `getAccessToken` helper and `civicflow-web/src/api/citizens.ts` API client
+- Citizen profile domain tests (validation, trimming, uniqueness constraints) and API integration tests (auth policy, create/update, duplicates, business-endpoint gating)
 - Professional documentation system (README, USER_MANUAL, documentation workflow)
 - Comprehensive repository audit and verified documentation
 - Toast notification system for user feedback
@@ -19,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `App.tsx` into modular components and pages
 - Improved auth flow UX while maintaining server-authoritative security
 - Enhanced landing page with clear journey separation
+- `CitizensController` resolves the caller via `IAuthenticatedOrganizationResolver` (async, no sync-over-async) and enforces business-endpoint gating
+- Citizen profile page surfaces explicit sign-in and not-authorized states
+
+### Security
+- Citizen endpoints never accept a client-supplied user ID; the profile is keyed to the authenticated `sub`/`iss` identity
 
 ### Fixed
 - Lint and build issues (unused variables, Fast Refresh compatibility)

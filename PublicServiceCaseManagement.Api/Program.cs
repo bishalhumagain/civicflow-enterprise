@@ -126,6 +126,7 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
+builder.Services.AddScoped<PublicServiceCaseManagement.Api.Features.Citizens.ICitizenProfileService, PublicServiceCaseManagement.Api.Features.Citizens.CitizenProfileService>();
 
 var app = builder.Build();
 

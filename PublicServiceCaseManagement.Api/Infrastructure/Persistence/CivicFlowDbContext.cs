@@ -22,6 +22,9 @@ public sealed class CivicFlowDbContext(
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<ApplicationUser> ApplicationUsers =>
         Set<ApplicationUser>();
+
+    public DbSet<CitizenProfile> CitizenProfiles =>
+        Set<CitizenProfile>();
     public DbSet<OrganizationMembership> OrganizationMemberships =>
         Set<OrganizationMembership>();
 
@@ -404,6 +407,27 @@ public sealed class CivicFlowDbContext(
                 UpdatedAt = DateTimeOffset.Parse(
                     "2026-01-01T00:00:00+00:00")
             });
+        });
+        modelBuilder.Entity<CitizenProfile>(entity =>
+        {
+            entity.ToTable("citizen_profiles");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.ApplicationUserId).IsRequired();
+            entity.Property(c => c.FullName).HasMaxLength(150).IsRequired();
+            entity.Property(c => c.Email).HasMaxLength(254).IsRequired();
+            entity.Property(c => c.PhoneNumber).HasMaxLength(30);
+            entity.Property(c => c.NIDNumber).HasMaxLength(50);
+            entity.Property(c => c.CitizenshipNumber).HasMaxLength(50);
+            entity.Property(c => c.Gender).HasMaxLength(20);
+            entity.Property(c => c.PermanentAddress).HasMaxLength(500);
+            entity.Property(c => c.TemporaryAddress).HasMaxLength(500);
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+            entity.HasIndex(c => c.ApplicationUserId).IsUnique();
+            entity.HasIndex(c => c.Email);
+            entity.HasIndex(c => c.NIDNumber).IsUnique().HasFilter("\"NIDNumber\" IS NOT NULL");
+            entity.HasIndex(c => c.CitizenshipNumber).IsUnique().HasFilter("\"CitizenshipNumber\" IS NOT NULL");
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(c => c.ApplicationUserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

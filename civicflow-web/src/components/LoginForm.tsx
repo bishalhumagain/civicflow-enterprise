@@ -23,8 +23,8 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
 
   return (
     <form className="case-card create-form" onSubmit={handleSubmit}>
-      <h2>Staff Sign In</h2>
-      <p className="muted">Use your CivicFlow credentials to access the workspace.</p>
+        <h2>Sign In</h2>
+      <p className="muted">You will be redirected to the secure identity provider to authenticate.</p>
       {error && (
         <div className="auth-error" role="alert">
           {error}
@@ -38,7 +38,7 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           disabled={loading}
-          placeholder="e.g. admin@civicflow.org"
+          placeholder="your username or email"
         />
       </label>
       <label>
@@ -55,11 +55,11 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
       </label>
       <div>
         <button className="primary-button" type="submit" disabled={loading}>
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? 'Redirecting…' : 'Continue to Sign In'}
         </button>
       </div>
       <small className="muted">
-        Authentication and authorization remain server-authoritative.
+        Authentication and authorization remain server-authoritative via Keycloak OIDC.
       </small>
     </form>
   )

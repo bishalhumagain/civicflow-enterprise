@@ -34,6 +34,12 @@ export async function startLogin(): Promise<void> {
   await userManager.signinRedirect()
 }
 
+export async function getAccessToken(): Promise<string | null> {
+  if (!userManager) return null
+  const user = await userManager.getUser()
+  return user?.access_token ?? null
+}
+
 export async function completeLogin(): Promise<AuthSession | null> {
   if (!userManager) return null
 

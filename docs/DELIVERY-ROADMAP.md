@@ -74,9 +74,9 @@ Acceptance:
 
 ### 4. Implement citizen intake safely
 
-Status: frontend foundation only; backend intake remains unstarted and depends on the tenant boundary and an explicit citizen organization policy.
+Status: citizen self-service profile is implemented (`/api/citizens/me`, `CitizenClient` policy). Case submission intake remains unstarted and depends on the tenant boundary and an explicit citizen organization policy.
 
-Add a dedicated citizen submission contract and service rather than reusing staff mutation authorization. Define whether a citizen selects an approved public intake organization or is associated through an existing relationship. Add multipart case/document creation with transactional metadata cleanup and anti-enumeration behavior.
+A citizen profile contract now exists (create/update own profile keyed to the authenticated identity, with duplicate detection). Still required: a dedicated citizen submission contract and service rather than reusing staff mutation authorization. Define whether a citizen selects an approved public intake organization or is associated through an existing relationship. Add multipart case/document creation with transactional metadata cleanup and anti-enumeration behavior.
 
 Acceptance:
 
