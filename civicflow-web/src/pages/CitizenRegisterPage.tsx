@@ -14,6 +14,9 @@ export function CitizenRegisterPage({
 }: CitizenAuthPageProps) {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [nidNumber, setNidNumber] = useState('')
+  const [citizenshipNumber, setCitizenshipNumber] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +32,9 @@ export function CitizenRegisterPage({
       const result = await register({
         fullName: fullName.trim(),
         email: email.trim(),
+        phoneNumber: phoneNumber.trim(),
+        nidNumber: nidNumber.trim(),
+        citizenshipNumber: citizenshipNumber.trim(),
         password,
       })
       setInfo(result.message)
@@ -79,6 +85,38 @@ export function CitizenRegisterPage({
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                disabled={loading}
+              />
+            </label>
+            <label>
+              Phone number
+              <input
+                required
+                type="tel"
+                maxLength={32}
+                autoComplete="tel"
+                value={phoneNumber}
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                disabled={loading}
+              />
+            </label>
+            <label>
+              Citizenship number
+              <input
+                required
+                maxLength={64}
+                value={citizenshipNumber}
+                onChange={(event) => setCitizenshipNumber(event.target.value)}
+                disabled={loading}
+              />
+            </label>
+            <label>
+              NID number
+              <input
+                required
+                maxLength={64}
+                value={nidNumber}
+                onChange={(event) => setNidNumber(event.target.value)}
                 disabled={loading}
               />
             </label>

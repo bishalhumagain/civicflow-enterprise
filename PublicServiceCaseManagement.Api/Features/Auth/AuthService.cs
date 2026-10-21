@@ -35,6 +35,27 @@ public sealed class AuthService(
             return new AuthOperationResult(true, GenericRegistrationMessage);
         }
 
+        var nid = request.NidNumber.Trim();
+        var citizenship = request.CitizenshipNumber.Trim();
+
+        if (await dbContext.CitizenProfiles.AnyAsync(
+                profile => profile.NIDNumber == nid,
+                cancellationToken))
+        {
+            return new AuthOperationResult(
+                false,
+                "A citizen profile with this NID number already exists.");
+        }
+
+        if (await dbContext.CitizenProfiles.AnyAsync(
+                profile => profile.CitizenshipNumber == citizenship,
+                cancellationToken))
+        {
+            return new AuthOperationResult(
+                false,
+                "A citizen profile with this citizenship number already exists.");
+        }
+
         var now = timeProvider.GetUtcNow();
         var user = ApplicationUser.Create(request.FullName, email, now);
 
@@ -50,6 +71,22 @@ public sealed class AuthService(
         }
 
         await userManager.AddToRoleAsync(user, AppRoles.Citizen);
+
+        var profileRecord = CitizenProfile.Create(
+            user.Id,
+            request.FullName,
+            email,
+            request.PhoneNumber,
+            nid,
+            citizenship,
+            age: null,
+            gender: null,
+            permanentAddress: null,
+            temporaryAddress: null,
+            now);
+
+        dbContext.CitizenProfiles.Add(profileRecord);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         auditLogger.AccountLifecycle(
             user.Email ?? email,

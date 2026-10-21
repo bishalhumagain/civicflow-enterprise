@@ -16,6 +16,16 @@ public sealed record RegisterRequest(
     [StringLength(254)]
     string Email,
     [Required]
+    [Phone]
+    [StringLength(32)]
+    string PhoneNumber,
+    [Required]
+    [StringLength(64, MinimumLength = 1)]
+    string NidNumber,
+    [Required]
+    [StringLength(64, MinimumLength = 1)]
+    string CitizenshipNumber,
+    [Required]
     [StringLength(128, MinimumLength = 12)]
     string Password);
 

@@ -34,12 +34,17 @@ public sealed class AuthApiIntegrationTests
         HttpClient client,
         string email)
     {
+        var suffix = Math.Abs(email.GetHashCode()).ToString();
+
         var response = await client.PostAsJsonAsync(
             "/api/auth/register",
             new
             {
                 fullName = "Lifecycle Test User",
                 email,
+                phoneNumber = "9800000000",
+                nidNumber = $"NID-{suffix}",
+                citizenshipNumber = $"CIT-{suffix}",
                 password = StrongPassword
             });
 
@@ -165,6 +170,9 @@ public sealed class AuthApiIntegrationTests
             {
                 fullName = "Duplicate User",
                 email,
+                phoneNumber = "9800000001",
+                nidNumber = $"NID-DUP-{Guid.NewGuid():N}",
+                citizenshipNumber = $"CIT-DUP-{Guid.NewGuid():N}",
                 password = StrongPassword
             });
 
@@ -399,6 +407,9 @@ public sealed class AuthApiIntegrationTests
             {
                 fullName = "Weak Password User",
                 email = $"weak-{Guid.NewGuid():N}@example.com",
+                phoneNumber = "9800000002",
+                nidNumber = $"NID-WEAK-{Guid.NewGuid():N}",
+                citizenshipNumber = $"CIT-WEAK-{Guid.NewGuid():N}",
                 password = "password"
             });
 

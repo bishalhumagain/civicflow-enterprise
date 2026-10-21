@@ -236,6 +236,9 @@ export async function logout(): Promise<void> {
 export type RegisterInput = {
   fullName: string
   email: string
+  phoneNumber: string
+  nidNumber: string
+  citizenshipNumber: string
   password: string
 }
 
