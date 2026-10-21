@@ -3,9 +3,17 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 namespace PublicServiceCaseManagement.Tests;
 
+/// <summary>
+/// Test authentication scheme that authenticates requests without a real
+/// cookie. The authenticated user id is supplied through the
+/// <c>X-Test-User-Id</c> header (or a well-known default), and the role
+/// through <c>X-Test-Role</c>. This mirrors the claims that ASP.NET Core
+/// Identity places in the cookie principal.
+/// </summary>
 public sealed class TestAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -14,10 +22,13 @@ public sealed class TestAuthenticationHandler(
         options, logger, encoder)
 {
     public const string SchemeName = "CivicFlowTest";
-    public const string Issuer = "http://localhost:8080/realms/civicflow";
-    public const string Subject = "civicflow-integration-test-user";
-    public const string StaffClientId = "civicflow-staff";
-    public const string CitizenClientId = "civicflow-citizen";
+
+    public const string StaffRole = AppRoles.Staff;
+    public const string CitizenRole = AppRoles.Citizen;
+    public const string SuperAdminRole = AppRoles.SuperAdmin;
+
+    public static readonly Guid DefaultUserId =
+        Guid.Parse("a0000000-0000-0000-0000-000000000001");
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -26,24 +37,34 @@ public sealed class TestAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        // A caller presenting a bearer token must not be authenticated by
+        // this scheme; the request is treated as unauthenticated (401).
         if (Request.Headers.Authorization.ToString()
             .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(
-                AuthenticateResult.Fail("Test bearer token is invalid."));
+            return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var clientId = Request.Headers["X-Test-Client-Id"].FirstOrDefault()
-                       ?? StaffClientId;
+        var userId = Request.Headers["X-Test-User-Id"].FirstOrDefault()
+            is { Length: > 0 } raw && Guid.TryParse(raw, out var parsed)
+                ? parsed
+                : DefaultUserId;
 
-        var claims = new[]
+        var role = Request.Headers["X-Test-Role"].FirstOrDefault()
+                   ?? StaffRole;
+
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, Subject),
-            new Claim(ClaimTypes.Name, "CivicFlow Integration Test User"),
-            new Claim("iss", Issuer),
-            new Claim("sub", Subject),
-            new Claim("azp", clientId)
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new(ClaimTypes.Name, "CivicFlow Integration Test User"),
+            new(ClaimTypes.Email, "integration.test@civicflow.test"),
+            new(ClaimTypes.Role, role)
         };
+
+        if (string.Equals(role, StaffRole, StringComparison.OrdinalIgnoreCase))
+        {
+            claims.Add(new Claim("organization.manage", "true"));
+        }
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);

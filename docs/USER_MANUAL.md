@@ -11,10 +11,10 @@
 This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code.
 
 ### Application Status
-- **Implemented**: Core staff workspace (cases, staff, organizations), authentication framework, case management operations, citizen self-service profile
+- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, case management operations, citizen self-service profile
 - **Partially Implemented**: Public/citizen intake interface (submission/tracking depend on configuration)
-- **Not Fully Verified**: End-to-end authentication flows depend on Keycloak configuration
-- **Limitations**: Some features require proper environment setup and role configuration
+- **Not Fully Verified in this environment**: Live browser + database end-to-end runs (the code paths are covered by automated integration tests)
+- **Limitations**: Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production
 
 ### Supported Environment
 - Modern web browser (Chrome, Firefox, Edge, Safari - recent versions)
@@ -41,25 +41,31 @@ Platform administration is served at a **dedicated URL** (`/admin`), not on the 
 
 #### For Government Officers (Staff, Organization Admin, Super Admin)
 1. Navigate to the dedicated staff sign-in URL: `https://<your-civicflow-host>/admin`
-2. You'll see the **staff sign-in form** with username/email and password fields
-3. Click **"Continue to Sign In"** - If OIDC is configured, you'll be redirected to Keycloak for secure authentication
-4. After successful authentication, you'll be redirected back to the workspace
+2. You'll see the **staff sign-in form** with email and password fields
+3. Enter your email and password and submit
+4. After successful authentication, you'll be taken to the workspace
 5. Authentication and authorization are enforced server-side by the API
 
 #### For Citizens
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
-2. You are redirected to the secure Keycloak sign-in (or registration) for the citizen realm
-3. After signing in, open **Citizen profile** in the navigation to create or update your profile
-4. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
-5. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
+2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
+3. Confirm your email using the verification link, then sign in
+4. After signing in, open **Citizen profile** in the navigation to create or update your profile
+5. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
+6. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
 
-**Citizen route shortcuts:** `/citizen/login` and `/citizen/register` open the citizen OIDC flow directly.
+**Citizen route shortcuts:** `/citizen/login` and `/citizen/register` open the citizen flows directly.
+
+#### Password Recovery
+1. On the citizen or staff sign-in page, choose **Forgot password**
+2. Enter your email; a reset link is sent if the account exists
+3. Open the reset link and choose a new password
 
 #### Logging Out
 1. In the workspace, click **"Sign out"** in the top bar
 2. You'll be returned to the landing page
 
-**Note:** Authentication is server-authoritative via Keycloak OIDC. The sign-in forms initiate the secure Authorization Code flow when OIDC is configured.
+**Note:** Authentication is server-authoritative using an HttpOnly session cookie with CSRF protection. No authentication tokens are stored in the browser's JavaScript-accessible storage.
 
 ## 3. Understanding the Interface
 
@@ -87,7 +93,7 @@ Available views (as implemented):
 ## 4. Role-Specific Instructions
 
 ### Government Officer / Staff User
-**Access requirements:** Authenticated via Keycloak with `azp` claim for staff client; must have appropriate organization membership/role as enforced by the API.
+**Access requirements:** Authenticated staff account with the `staff` (or `superadmin`) role; must have appropriate organization membership/role as enforced by the API.
 
 **Available actions:**
 - View and manage cases
@@ -109,7 +115,7 @@ Available views (as implemented):
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
 
 ### Administrator Functions
-Organization and membership administration are available in the "Organizations" view for authorized users. Specific permissions are enforced server-side by the API based on roles and claims.
+Organization and membership administration are available in the "Organizations" view for authorized users. Specific permissions are enforced server-side by the API based on roles and organization memberships.
 
 ## 5. Core Workflows
 
@@ -182,21 +188,22 @@ Organization and membership administration are available in the "Organizations" 
 | Error | Possible Cause | Recovery |
 |---|---|---|
 | "Configure an organization ID to load cases" | Missing `VITE_CIVICFLOW_ORGANIZATION_ID` | Configure environment variables (see README) |
-| "Configure the OpenID Connect settings to sign in" | Missing Keycloak/OIDC config | Set `VITE_KEYCLOAK_*` environment variables |
-| "Authentication not configured" | OIDC not set up | Contact administrator or configure Keycloak |
-| "Sign in to load organization cases" | Not authenticated | Sign in via Government Officer flow |
+| "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
+| "Please verify your email to sign in" | Email not confirmed | Open the verification link from your email (or resend it) |
+| "Too many attempts. Try again later." | Account temporarily locked | Wait ~15 minutes and retry |
+| "Sign in to load organization cases" | Not authenticated | Sign in via the staff or citizen sign-in page |
 | "Your role may not permit this action" | Insufficient permissions | Contact administrator for appropriate role |
-| "Session expired" | Token expired | Sign out and sign in again |
-| "Your current session is not authorized for citizen profile access" | Signed in as staff/non-citizen client | Sign in through the Citizen Portal |
-| "Sign in with your citizen account…" | No active citizen session | Click **Sign in** and authenticate via Keycloak |
+| Session expired / unexpected sign-out | Cookie expired or revoked | Sign in again |
+| "Your current session is not authorized for citizen profile access" | Signed in as a staff account | Sign in through the Citizen Portal |
 | "A citizen profile with this NID number already exists" | Duplicate NID/citizenship/email | Use your own details or contact your administrator |
+| CSRF error on save | Anti-forgery token missing/expired | Refresh the page and retry |
 | Case creation/update fails | Network/API issues or permissions | Check connection and permissions; retry |
 
 **Tips:**
 - Watch for toast notifications - they provide real-time feedback
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
-- Verify Keycloak is running and properly configured if using auth
+- Verification and password-reset emails are logged by the API in local development (see README)
 
 ## 7. Security and Privacy
 
@@ -210,14 +217,14 @@ Organization and membership administration are available in the "Organizations" 
 - Cases and documents are organization-scoped
 - Access is controlled by authentication and authorization
 - Server-side validation enforces permissions
-- Session management follows OIDC best practices
+- Sessions use HttpOnly cookies with CSRF protection and are revoked on sign-out
 
 **Note:** No absolute security guarantees can be made - follow your organization's security policies.
 
 ## 8. Known Limitations
 
 ### Current Limitations
-- **Authentication setup required**: Full OIDC/Keycloak configuration needed for production-like auth
+- **Email delivery**: Verification and password-reset emails require a configured email sender in production (local development logs them)
 - **Citizen portal incomplete**: Public submission/tracking workflows may be limited
 - **Environment dependent**: Many features require proper backend/frontend configuration
 - **No offline support**: Requires network connectivity
@@ -238,10 +245,10 @@ Organization and membership administration are available in the "Organizations" 
 - **Case**: A service request or issue tracked through the system
 - **Organization**: A government department/agency using CivicFlow
 - **Membership**: Association between a user and an organization with a specific role
-- **OIDC**: OpenID Connect - authentication protocol used with Keycloak
-- **Keycloak**: Identity and access management solution
-- **JWT**: JSON Web Token - used for API authentication
-- **azp**: Authorized party claim in JWT tokens
+- **OIDC/Identity**: CivicFlow uses first-party ASP.NET Core Identity with cookie sessions
+- **Session Cookie**: HttpOnly cookie identifying the signed-in user (not readable by JavaScript)
+- **CSRF**: Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header)
+- **Role**: Account permission level (`citizen`, `staff`, or `superadmin`)
 - **Assignment**: Designating a staff member to handle a case
 - **Status History**: Audit trail of case status changes
 - **Assignment History**: Audit trail of case assignments

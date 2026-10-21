@@ -8,6 +8,8 @@ export type LandingPageProps = {
   /** Navigate to the separate staff/organization portal URL. */
   onOrganizationSignIn?: () => void
   loading?: boolean
+  /** Optional operator-facing notice shown when sign-in is temporarily unavailable. */
+  configurationWarning?: string | null
 }
 
 function Card({
@@ -38,6 +40,7 @@ export function LandingPage({
   onCitizenRegister,
   onOrganizationSignIn,
   loading = false,
+  configurationWarning = null,
 }: LandingPageProps) {
   return (
     <div className="landing-page">
@@ -48,6 +51,11 @@ export function LandingPage({
         </div>
       </header>
       <main className="landing-main">
+        {configurationWarning && (
+          <div className="auth-error" role="alert" style={{ marginBottom: 20 }}>
+            {configurationWarning}
+          </div>
+        )}
         <section className="landing-hero">
           <p className="landing-eyebrow">PUBLIC SERVICE CASE MANAGEMENT</p>
           <h1>Manage public requests with clarity and accountability</h1>

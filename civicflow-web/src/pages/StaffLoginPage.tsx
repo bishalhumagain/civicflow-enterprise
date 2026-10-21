@@ -1,8 +1,9 @@
-import { LoginForm } from '../components/LoginForm'
+import { LoginForm, type LoginCredentials } from '../components/LoginForm'
 
 export type StaffLoginPageProps = {
-  onSubmit: () => void
+  onSubmit: (credentials: LoginCredentials) => void
   onBack?: () => void
+  onForgotPassword?: () => void
   loading?: boolean
   error?: string | null
 }
@@ -10,6 +11,7 @@ export type StaffLoginPageProps = {
 export function StaffLoginPage({
   onSubmit,
   onBack,
+  onForgotPassword,
   loading = false,
   error = null,
 }: StaffLoginPageProps) {
@@ -36,6 +38,13 @@ export function StaffLoginPage({
             separate from the public landing page.
           </p>
           <LoginForm onSubmit={onSubmit} loading={loading} error={error} />
+          {onForgotPassword ? (
+            <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
+              <button className="link-button" type="button" onClick={onForgotPassword}>
+                Forgot your password?
+              </button>
+            </p>
+          ) : null}
         </section>
       </main>
       <footer className="landing-footer">

@@ -1,45 +1,26 @@
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Features.Auth;
 using PublicServiceCaseManagement.Api.Features.Cases;
+using PublicServiceCaseManagement.Api.Features.Citizens;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Staff;
-using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
-using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
+using PublicServiceCaseManagement.Api.Infrastructure.Files;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var isDevelopment = builder.Environment.IsDevelopment();
-
-var authority = builder.Configuration["Authentication:Authority"]
-    ?? (isDevelopment
-        ? "http://localhost:8080/realms/civicflow"
-        : throw new InvalidOperationException(
-            "Authentication:Authority must be configured outside Development."));
-
-var audience = builder.Configuration["Authentication:Audience"]
-    ?? (isDevelopment
-        ? "civicflow-api"
-        : throw new InvalidOperationException(
-            "Authentication:Audience must be configured outside Development."));
-
-var staffClientId = builder.Configuration["Authentication:StaffClientId"]
-    ?? (isDevelopment
-        ? "civicflow-staff"
-        : throw new InvalidOperationException(
-            "Authentication:StaffClientId must be configured outside Development."));
-
-var citizenClientId = builder.Configuration["Authentication:CitizenClientId"]
-    ?? (isDevelopment
-        ? "civicflow-citizen"
-        : throw new InvalidOperationException(
-            "Authentication:CitizenClientId must be configured outside Development."));
 
 builder.Services
     .AddControllers()
@@ -51,47 +32,6 @@ builder.Services
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.MapInboundClaims = false;
-        options.Authority = authority;
-        options.Audience = audience;
-        options.RequireHttpsMetadata = !isDevelopment;
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = authority,
-            ValidateAudience = true,
-            ValidAudience = audience,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("StaffClient", policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.RequireClaim("azp", staffClientId);
-    });
-
-    options.AddPolicy("CitizenClient", policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.RequireClaim("azp", citizenClientId);
-    });
-
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .RequireClaim("azp", staffClientId)
-        .Build();
-});
 
 builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
 {
@@ -105,12 +45,153 @@ builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
     options.UseNpgsql(connectionString);
 });
 
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.Password.RequiredLength = 12;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Password.RequiredUniqueChars = 6;
+
+        options.User.RequireUniqueEmail = true;
+
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
+        options.SignIn.RequireConfirmedEmail = true;
+    })
+    .AddRoles<IdentityRole<Guid>>()
+    .AddEntityFrameworkStores<CivicFlowDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+builder.Services
+    .AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    // The __Host- prefix is only honoured over HTTPS. Outside Development we
+    // always require HTTPS, so the hardened prefix is used there; in
+    // Development the cookie falls back to a plain name so it works over the
+    // Vite proxy and in integration tests.
+    options.Cookie.Name = isDevelopment
+        ? "civicflow.auth"
+        : "__Host-civicflow";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = isDevelopment
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.Path = "/";
+    options.SlidingExpiration = true;
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AppRoles.StaffPolicy, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireRole(AppRoles.Staff, AppRoles.SuperAdmin);
+    });
+
+    options.AddPolicy(AppRoles.CitizenPolicy, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireRole(AppRoles.Citizen);
+    });
+
+    options.AddPolicy(AppRoles.SuperAdminPolicy, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireRole(AppRoles.SuperAdmin);
+    });
+
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .RequireRole(AppRoles.Staff, AppRoles.SuperAdmin)
+        .Build();
+});
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = isDevelopment
+        ? "civicflow.csrf"
+        : "__Host-civicflow-csrf";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = isDevelopment
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.Path = "/";
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy("password", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 8,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
+
 builder.Services.AddScoped<ICaseService, CaseService>();
 builder.Services.AddScoped<ICaseDocumentService, CaseDocumentService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
+builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
 builder.Services.AddSingleton<IBusinessEndpointAccess, BusinessEndpointAccess>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddScoped<
     IAuthenticatedOrganizationResolver,
@@ -126,9 +207,36 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
-builder.Services.AddScoped<PublicServiceCaseManagement.Api.Features.Citizens.ICitizenProfileService, PublicServiceCaseManagement.Api.Features.Citizens.CitizenProfileService>();
+builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
+
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        if (allowedOrigins.Length == 0)
+        {
+            return;
+        }
+
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
+
+await IdentityDataSeeder.SeedAsync(app.Services);
 
 if (app.Environment.IsDevelopment())
 {
@@ -137,9 +245,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseRateLimiter();
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AntiforgeryMiddleware>();
 app.UseMiddleware<OrganizationTransactionMiddleware>();
 
 app.MapControllers();

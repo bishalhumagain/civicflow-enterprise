@@ -12,6 +12,7 @@ namespace PublicServiceCaseManagement.Api.Features.Staff;
 [Route("api/staff")]
 public sealed class StaffController(
     IStaffService staffService,
+    IStaffAccountService staffAccountService,
     IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
@@ -55,6 +56,48 @@ public sealed class StaffController(
         catch (ArgumentException exception)
         {
             return BadRequest(new { error = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { error = exception.Message });
+        }
+    }
+
+    [HttpPost("accounts")]
+    public async Task<IActionResult> ProvisionAccount(
+        [FromBody] ProvisionStaffAccountRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsOrganizationAdminAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        try
+        {
+            var account = await staffAccountService.ProvisionAsync(
+                organizationId.Value,
+                request,
+                cancellationToken);
+
+            return Created(
+                $"/api/staff/accounts/{account.UserId}",
+                account);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
         }
         catch (InvalidOperationException exception)
         {

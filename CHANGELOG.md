@@ -8,11 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- ASP.NET Core Identity authentication replacing Keycloak: `ApplicationUser : IdentityUser<Guid>`, `CivicFlowDbContext : IdentityDbContext`, cookie sessions, and role-based authorization
+- Auth API (`/api/auth`): `csrf`, `register`, `login`, `logout`, `verify-email`, `resend-verification`, `forgot-password`, `reset-password`, `change-password`, `me`
+- Anti-forgery (CSRF) protection for unsafe `/api/*` methods with the `X-CSRF-TOKEN` header
+- Account lifecycle: email confirmation, password recovery/change, lockout (5 attempts / 15 minutes), and rate limiting on auth/password endpoints
+- Audit logging (`AUTH_SUCCESS`/`AUTH_FAILURE`/`ACCOUNT_LIFECYCLE`/`PRIVILEGE_CHANGE`), security headers middleware, and enumeration-safe auth responses
+- Staff account provisioning (`POST /api/staff/accounts`) creating the Identity user, role, membership, and staff record atomically
+- Frontend cookie-authentication flows and pages (citizen login/register, verify email, forgot/reset password, staff login)
+- Identity migration (`MigrateToAspNetCoreIdentity`) with data backfill for previously Keycloak-managed users
+- Auth lifecycle and anti-forgery integration tests
+
+### Removed
+- Keycloak and all OIDC/JWT integration (backend packages, `infra/keycloak`, `scripts/verify-keycloak-token.sh`, compose service, `VITE_KEYCLOAK_*` config, and `oidc-client-ts` frontend dependency)
+
+### Added (prior)
 - Citizen self-registration/profile: `CitizenProfile` domain entity with EF Core migration (`AddCitizenProfiles`)
 - Citizen API endpoints (`GET/POST/PUT /api/citizens/me`) secured by the `CitizenClient` policy
-- Citizen profile UI page and navigation entry, integrated with the Keycloak citizen flow
-- `getAccessToken` helper and `civicflow-web/src/api/citizens.ts` API client
-- Separate **Sign in** and **Register** actions in the Citizen Portal, with registration routed through the Keycloak registration action
+- Citizen profile UI page and navigation entry, integrated with the citizen portal flow
+- `civicflow-web/src/api/citizens.ts` API client using the authenticated cookie session
+- Separate **Sign in** and **Register** actions in the Citizen Portal
 - Dedicated staff/platform sign-in page served at `/admin` (separate URL, no longer part of the public landing page)
 - Lightweight path routing with citizen entry points `/citizen/login` and `/citizen/register`
 - Citizen profile domain tests (validation, trimming, uniqueness constraints) and API integration tests (auth policy, create/update, duplicates, business-endpoint gating)
@@ -30,10 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CitizensController` resolves the caller via `IAuthenticatedOrganizationResolver` (async, no sync-over-async) and enforces business-endpoint gating
 - Citizen profile page surfaces explicit sign-in and not-authorized states
 - Landing page reduced to two public portals (Citizen, Organization); platform administration moved behind the `/admin` URL
-- `startLogin`/`startRegistration` accept an optional `returnTo` target and registration flag
 
 ### Security
-- Citizen endpoints never accept a client-supplied user ID; the profile is keyed to the authenticated `sub`/`iss` identity
+- Citizen endpoints never accept a client-supplied user ID; the profile is keyed to the authenticated Identity user
+- Sessions are HttpOnly cookies with CSRF protection; no tokens or signing keys are exposed to the browser
 
 ### Fixed
 - Lint and build issues (unused variables, Fast Refresh compatibility)
@@ -47,11 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-10-21
 
 ### Added (Initial)
-- .NET 10 ASP.NET Core Web API with Keycloak OIDC JWT auth
+- .NET 10 ASP.NET Core Web API
 - PostgreSQL 17 with EF Core migrations
 - React 19 + TypeScript + Vite frontend
 - Organization-scoped case management
 - Cases, Staff, Organizations, Memberships features
 - Document upload/download with local storage
-- Docker Compose setup (Postgres + Keycloak)
+- Docker Compose setup (Postgres)
 - Integration and unit tests (xUnit)

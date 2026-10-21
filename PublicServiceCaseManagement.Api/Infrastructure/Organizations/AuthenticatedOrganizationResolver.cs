@@ -1,4 +1,5 @@
 
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -29,19 +30,16 @@ public sealed class AuthenticatedOrganizationResolver(
     public async Task<PlatformRole?> ResolvePlatformRoleAsync(
         CancellationToken cancellationToken = default)
     {
-        var identity = GetAuthenticatedIdentity();
+        var userId = GetAuthenticatedUserId();
 
-        if (identity is null)
+        if (userId is null)
         {
             return null;
         }
 
         return await dbContext.ApplicationUsers
             .AsNoTracking()
-            .Where(user =>
-                user.ExternalIdentityIssuer == identity.Value.Issuer &&
-                user.ExternalIdentitySubject == identity.Value.Subject &&
-                user.IsActive)
+            .Where(user => user.Id == userId.Value && user.IsActive)
             .Select(user => (PlatformRole?)user.PlatformRole)
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -49,19 +47,16 @@ public sealed class AuthenticatedOrganizationResolver(
     public async Task<Guid?> ResolveApplicationUserIdAsync(
         CancellationToken cancellationToken = default)
     {
-        var identity = GetAuthenticatedIdentity();
+        var userId = GetAuthenticatedUserId();
 
-        if (identity is null)
+        if (userId is null)
         {
             return null;
         }
 
         return await dbContext.ApplicationUsers
             .AsNoTracking()
-            .Where(user =>
-                user.ExternalIdentityIssuer == identity.Value.Issuer &&
-                user.ExternalIdentitySubject == identity.Value.Subject &&
-                user.IsActive)
+            .Where(user => user.Id == userId.Value && user.IsActive)
             .Select(user => (Guid?)user.Id)
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -69,9 +64,9 @@ public sealed class AuthenticatedOrganizationResolver(
     private async Task<ResolvedMembership?> ResolveMembershipAsync(
         CancellationToken cancellationToken)
     {
-        var identity = GetAuthenticatedIdentity();
+        var userId = GetAuthenticatedUserId();
 
-        if (identity is null)
+        if (userId is null)
         {
             return null;
         }
@@ -96,15 +91,14 @@ public sealed class AuthenticatedOrganizationResolver(
                   && membership.IsActive
                   && organization.IsActive
                   && user.IsActive
-                  && user.ExternalIdentityIssuer == identity.Value.Issuer
-                  && user.ExternalIdentitySubject == identity.Value.Subject
+                  && user.Id == userId.Value
             select new ResolvedMembership(
                 membership.OrganizationId,
                 membership.Role)
         ).SingleOrDefaultAsync(cancellationToken);
     }
 
-    private (string Issuer, string Subject)? GetAuthenticatedIdentity()
+    private Guid? GetAuthenticatedUserId()
     {
         var httpContext = httpContextAccessor.HttpContext;
 
@@ -113,16 +107,16 @@ public sealed class AuthenticatedOrganizationResolver(
             return null;
         }
 
-        var issuer = httpContext.User.FindFirst("iss")?.Value;
-        var subject = httpContext.User.FindFirst("sub")?.Value;
+        var identifier = httpContext.User.FindFirst(
+            ClaimTypes.NameIdentifier)?.Value;
 
-        if (string.IsNullOrWhiteSpace(issuer) ||
-            string.IsNullOrWhiteSpace(subject))
+        if (!Guid.TryParse(identifier, out var userId) ||
+            userId == Guid.Empty)
         {
             return null;
         }
 
-        return (issuer, subject);
+        return userId;
     }
 
     private sealed record ResolvedMembership(

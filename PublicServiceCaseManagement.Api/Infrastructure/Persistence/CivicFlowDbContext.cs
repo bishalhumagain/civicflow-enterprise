@@ -1,4 +1,6 @@
 
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
@@ -9,7 +11,7 @@ namespace PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 public sealed class CivicFlowDbContext(
     DbContextOptions<CivicFlowDbContext> options)
-    : DbContext(options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Case> Cases => Set<Case>();
     public DbSet<CaseStatusHistory> CaseStatusHistories =>
@@ -22,7 +24,6 @@ public sealed class CivicFlowDbContext(
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<ApplicationUser> ApplicationUsers =>
         Set<ApplicationUser>();
-
     public DbSet<CitizenProfile> CitizenProfiles =>
         Set<CitizenProfile>();
     public DbSet<OrganizationMembership> OrganizationMemberships =>
@@ -275,6 +276,12 @@ public sealed class CivicFlowDbContext(
 
             entity.HasKey(u => u.Id);
 
+            entity.Property(u => u.UserName)
+                .HasMaxLength(254);
+
+            entity.Property(u => u.NormalizedUserName)
+                .HasMaxLength(254);
+
             entity.Property(u => u.FullName)
                 .HasMaxLength(150)
                 .IsRequired();
@@ -295,19 +302,6 @@ public sealed class CivicFlowDbContext(
             entity.Property(u => u.IsActive)
                 .IsRequired();
 
-            entity.Property(u => u.ExternalIdentityIssuer)
-                .HasMaxLength(500);
-
-            entity.Property(u => u.ExternalIdentitySubject)
-                .HasMaxLength(255);
-
-            entity.HasIndex(u => new
-                {
-                    u.ExternalIdentityIssuer,
-                    u.ExternalIdentitySubject
-                })
-                .IsUnique();
-
             entity.Property(u => u.CreatedAt)
                 .IsRequired();
 
@@ -315,6 +309,9 @@ public sealed class CivicFlowDbContext(
                 .IsRequired();
 
             entity.HasIndex(u => u.NormalizedEmail)
+                .IsUnique();
+
+            entity.HasIndex(u => u.NormalizedUserName)
                 .IsUnique();
         });
 
@@ -428,6 +425,36 @@ public sealed class CivicFlowDbContext(
             entity.HasIndex(c => c.NIDNumber).IsUnique().HasFilter("\"NIDNumber\" IS NOT NULL");
             entity.HasIndex(c => c.CitizenshipNumber).IsUnique().HasFilter("\"CitizenshipNumber\" IS NOT NULL");
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(c => c.ApplicationUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityRole<Guid>>(entity =>
+        {
+            entity.ToTable("identity_roles");
+        });
+
+        modelBuilder.Entity<IdentityUserRole<Guid>>(entity =>
+        {
+            entity.ToTable("identity_user_roles");
+        });
+
+        modelBuilder.Entity<IdentityUserClaim<Guid>>(entity =>
+        {
+            entity.ToTable("identity_user_claims");
+        });
+
+        modelBuilder.Entity<IdentityUserLogin<Guid>>(entity =>
+        {
+            entity.ToTable("identity_user_logins");
+        });
+
+        modelBuilder.Entity<IdentityRoleClaim<Guid>>(entity =>
+        {
+            entity.ToTable("identity_role_claims");
+        });
+
+        modelBuilder.Entity<IdentityUserToken<Guid>>(entity =>
+        {
+            entity.ToTable("identity_user_tokens");
         });
     }
 }

@@ -5,21 +5,24 @@ import {
   saveMyCitizenProfile,
   type CitizenProfile,
 } from "../api/citizens";
-import { startLogin } from "../auth";
 
-const initialForm = {
-  fullName: "",
-  email: "",
-  phoneNumber: "",
-  nidNumber: "",
-  citizenshipNumber: "",
-  age: "",
-  gender: "",
-  permanentAddress: "",
-  temporaryAddress: "",
-};
+export default function CitizenProfilePage({
+  onSignIn,
+}: {
+  onSignIn?: () => void;
+} = {}) {
+  const initialForm = {
+    fullName: "",
+    email: "",
+    phoneNumber: "",
+    nidNumber: "",
+    citizenshipNumber: "",
+    age: "",
+    gender: "",
+    permanentAddress: "",
+    temporaryAddress: "",
+  };
 
-export default function CitizenProfilePage() {
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
@@ -118,7 +121,11 @@ export default function CitizenProfilePage() {
         <button
           type="button"
           onClick={() => {
-            void startLogin().catch(() => setError("Citizen sign-in failed."));
+            if (onSignIn) {
+              onSignIn();
+            } else {
+              window.location.assign("/citizen/login");
+            }
           }}
           className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
         >

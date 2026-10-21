@@ -11,8 +11,8 @@ public sealed class CitizensApiIntegrationTests
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add(
-            "X-Test-Client-Id",
-            TestAuthenticationHandler.CitizenClientId);
+            "X-Test-Role",
+            TestAuthenticationHandler.CitizenRole);
         return client;
     }
 

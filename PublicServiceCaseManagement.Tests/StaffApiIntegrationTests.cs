@@ -64,7 +64,7 @@ public sealed class StaffApiIntegrationTests
 
         var staffMember = Assert.Single(
             json.RootElement.EnumerateArray(),
-            staff => staff.GetProperty("email").GetString() == email);        Assert.Equal(
+            staff => staff.GetProperty("email").GetString() == email); Assert.Equal(
             "Jordan Lee",
             staffMember.GetProperty("fullName").GetString());
     }

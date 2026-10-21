@@ -26,8 +26,8 @@ public sealed class ProductionAuthorizationIntegrationTests
         using var client = factory.CreateClient();
 
         client.DefaultRequestHeaders.Add(
-            "X-Test-Client-Id",
-            TestAuthenticationHandler.CitizenClientId);
+            "X-Test-Role",
+            TestAuthenticationHandler.CitizenRole);
 
         var response = await client.GetAsync("/api/cases");
 

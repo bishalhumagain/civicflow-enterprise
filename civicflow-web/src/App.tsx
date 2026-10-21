@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiRequest } from './api'
-import { completeLogin, logout, oidcIsConfigured, startLogin, startRegistration, type AuthSession } from './auth'
+import {
+  getCurrentUser,
+  login as loginRequest,
+  logout as logoutRequest,
+  type AuthUser,
+} from './auth'
 import './App.css'
 
 import {
@@ -31,19 +36,40 @@ import { OrganizationAdministration } from './components/OrganizationAdministrat
 import { CitizenIntake } from './components/CitizenIntake'
 import { LandingPage } from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
+import CitizenLoginPage from './pages/CitizenLoginPage'
+import { CitizenRegisterPage } from './pages/CitizenRegisterPage'
+import { VerifyEmailPage } from './pages/VerifyEmailPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import CitizenProfilePage from './pages/CitizenProfilePage'
 import { useToast } from './components/use-toast'
+import type { LoginCredentials } from './components/LoginForm'
 
 const STAFF_LOGIN_PATH = '/admin'
+const CITIZEN_LOGIN_PATH = '/citizen/login'
+const CITIZEN_REGISTER_PATH = '/citizen/register'
+const VERIFY_EMAIL_PATH = '/citizen/verify-email'
+const FORGOT_PASSWORD_PATH = '/forgot-password'
+const RESET_PASSWORD_PATH = '/reset-password'
 
-type AppRoute = 'landing' | 'staff-login' | 'citizen-login' | 'citizen-register'
+type AppRoute =
+  | 'landing'
+  | 'staff-login'
+  | 'citizen-login'
+  | 'citizen-register'
+  | 'verify-email'
+  | 'forgot-password'
+  | 'reset-password'
 
 function resolveRoute(pathname: string): AppRoute {
   const path = pathname.replace(/\/+$/, '').toLowerCase()
 
   if (path === STAFF_LOGIN_PATH) return 'staff-login'
-  if (path === '/citizen/login') return 'citizen-login'
-  if (path === '/citizen/register') return 'citizen-register'
+  if (path === CITIZEN_LOGIN_PATH) return 'citizen-login'
+  if (path === CITIZEN_REGISTER_PATH) return 'citizen-register'
+  if (path === VERIFY_EMAIL_PATH) return 'verify-email'
+  if (path === FORGOT_PASSWORD_PATH) return 'forgot-password'
+  if (path === RESET_PASSWORD_PATH) return 'reset-password'
 
   return 'landing'
 }
@@ -56,7 +82,8 @@ function navigateTo(path: string) {
 
 function App() {
   const { showToast } = useToast()
-  const [authSession, setAuthSession] = useState<AuthSession | null>(null)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
+  const [sessionChecked, setSessionChecked] = useState(false)
   const [cases, setCases] = useState<CaseRecord[]>([])
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
 
@@ -117,25 +144,30 @@ function App() {
   }, [])
 
   useEffect(() => {
-    void completeLogin()
-        .then((session) => {
-          setAuthSession(session)
-          if (session) {
-            showToast('Signed in successfully.', 'success')
-          }
+    let mounted = true
+
+    void getCurrentUser()
+        .then((user) => {
+          if (!mounted) return
+          setCurrentUser(user)
         })
-        .catch((reason: unknown) => {
-          const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
-          setError(message)
-          showToast(message, 'error')
+        .catch(() => {
+          if (!mounted) return
+          setCurrentUser(null)
         })
-  }, [showToast])
+        .finally(() => {
+          if (mounted) setSessionChecked(true)
+        })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
-    if (!authSession || !organizationId) return
+    if (!currentUser || !organizationId) return
 
     let mounted = true
-    const session = authSession
 
     async function loadWorkspace() {
       setLoading(true)
@@ -143,8 +175,8 @@ function App() {
 
       try {
         const [caseResult, staffMembers] = await Promise.all([
-          requestJson<CasePage>(`/api/cases?page=${casePage}&pageSize=20`, session),
-          requestJson<StaffMember[]>('/api/staff', session),
+          requestJson<CasePage>(`/api/cases?page=${casePage}&pageSize=20`),
+          requestJson<StaffMember[]>('/api/staff'),
         ])
 
         if (!mounted) return
@@ -173,16 +205,15 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [authSession, casePage])
+  }, [currentUser, casePage])
 
   useEffect(() => {
-    if (!authSession || !selectedCase || selectedCase.id.startsWith('demo-')) return
+    if (!currentUser || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
     let mounted = true
-    const session = authSession
     const caseId = selectedCase.id
 
-    void requestJson<HistoryEntry[]>(`/api/cases/${caseId}/history`, session)
+    void requestJson<HistoryEntry[]>(`/api/cases/${caseId}/history`)
         .then((result) => {
           if (mounted) {
             setCaseHistoryData({ caseId, items: result })
@@ -192,7 +223,7 @@ function App() {
           if (mounted) setError(reason instanceof Error ? reason.message : 'Case history could not be loaded.')
         })
 
-    void requestJson<AssignmentEntry[]>(`/api/cases/${caseId}/assignment-history`, session)
+    void requestJson<AssignmentEntry[]>(`/api/cases/${caseId}/assignment-history`)
         .then((result) => {
           if (mounted) {
             setAssignmentHistoryData({ caseId, items: result })
@@ -202,7 +233,7 @@ function App() {
           if (mounted) setError(reason instanceof Error ? reason.message : 'Assignment history could not be loaded.')
         })
 
-    void requestJson<CaseDocument[]>(`/api/cases/${caseId}/documents`, session)
+    void requestJson<CaseDocument[]>(`/api/cases/${caseId}/documents`)
         .then((result) => {
           if (mounted) {
             setCaseDocumentsData({ caseId, items: result })
@@ -215,19 +246,18 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [authSession, selectedCase])
+  }, [currentUser, selectedCase])
 
   useEffect(() => {
-    if (!authSession || activeView !== 'organizations') return
+    if (!currentUser || activeView !== 'organizations') return
 
     let mounted = true
-    const session = authSession
 
     async function loadOrganizations() {
       setAdminLoading(true)
 
       try {
-        const loaded = await requestJson<Organization[]>('/api/organizations', session)
+        const loaded = await requestJson<Organization[]>('/api/organizations')
 
         if (!mounted) return
 
@@ -247,18 +277,16 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [authSession, activeView])
+  }, [currentUser, activeView])
 
   useEffect(() => {
-    if (!authSession || activeView !== 'organizations' || !selectedOrganizationId) return
+    if (!currentUser || activeView !== 'organizations' || !selectedOrganizationId) return
 
     let mounted = true
-    const session = authSession
     const currentOrganizationId = selectedOrganizationId
 
     void requestJson<Membership[]>(
         `/api/organizations/${currentOrganizationId}/memberships`,
-        session,
     )
         .then((loaded) => {
           if (mounted) {
@@ -277,55 +305,20 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [authSession, activeView, selectedOrganizationId])
+  }, [currentUser, activeView, selectedOrganizationId])
 
-  const beginOidcLogin = (options: { returnTo?: string; register?: boolean; toast: string }) => {
+  const goToRoute = (path: string, target: AppRoute) => {
     setLoginError(null)
     setError(null)
-
-    if (!oidcIsConfigured) {
-      const message = 'Secure authentication is not configured. Use environment variables for OIDC/Keycloak.'
-      setLoginError(message)
-      setError(message)
-      showToast(message, 'warning')
-      return
-    }
-
-    setLoginLoading(true)
-    showToast(options.toast, 'info')
-
-    const run = options.register
-        ? startRegistration({ returnTo: options.returnTo })
-        : startLogin({ returnTo: options.returnTo })
-
-    void run
-        .catch((reason: unknown) => {
-          const message = reason instanceof Error ? reason.message : 'OIDC login failed.'
-          setLoginError(message)
-          setError(message)
-          showToast(message, 'error')
-        })
-        .finally(() => setLoginLoading(false))
+    navigateTo(path)
+    setRoute(target)
   }
 
-  const handleCitizenSignIn = () =>
-      beginOidcLogin({
-        returnTo: window.location.origin,
-        toast: 'Redirecting to citizen sign-in...',
-      })
-
-  const handleCitizenRegister = () =>
-      beginOidcLogin({
-        returnTo: window.location.origin,
-        register: true,
-        toast: 'Redirecting to citizen registration...',
-      })
-
-  const handleOrganizationSignIn = () => {
-    setLoginError(null)
-    navigateTo(STAFF_LOGIN_PATH)
-    setRoute('staff-login')
-  }
+  const handleCitizenSignIn = () => goToRoute(CITIZEN_LOGIN_PATH, 'citizen-login')
+  const handleCitizenRegister = () => goToRoute(CITIZEN_REGISTER_PATH, 'citizen-register')
+  const handleOrganizationSignIn = () => goToRoute(STAFF_LOGIN_PATH, 'staff-login')
+  const handleForgotPassword = () => goToRoute(FORGOT_PASSWORD_PATH, 'forgot-password')
+  const handleVerifyEmail = () => goToRoute(VERIFY_EMAIL_PATH, 'verify-email')
 
   const handleBackToLanding = () => {
     setLoginError(null)
@@ -333,14 +326,39 @@ function App() {
     setRoute('landing')
   }
 
-  const handleLoginSubmit = () =>
-      beginOidcLogin({
-        toast: 'Redirecting to secure sign-in...',
-      })
+  const completeSignIn = (user: AuthUser) => {
+    setCurrentUser(user)
+    setLoginError(null)
+    setError(null)
+    navigateTo('/')
+    setRoute('landing')
+    showToast('Signed in successfully.', 'success')
+  }
+
+  const handleLoginSubmit = async ({ email, password }: LoginCredentials) => {
+    setLoginLoading(true)
+    setLoginError(null)
+    setError(null)
+
+    try {
+      const user = await loginRequest(email, password)
+      completeSignIn(user)
+    } catch (reason) {
+      const message =
+          reason instanceof Error ? reason.message : 'Sign-in failed. Check your email and password.'
+      setLoginError(message)
+      showToast(message, 'error')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
 
   const handleSignOut = () => {
-    logout(authSession)
-    setAuthSession(null)
+    void logoutRequest()
+    setCurrentUser(null)
+    setCases([])
+    setStaff([])
+    setOrganizations([])
     navigateTo('/')
     setRoute('landing')
     setActiveView('cases')
@@ -350,13 +368,13 @@ function App() {
   async function submitCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!authSession || !organizationId || !newTitle.trim() || !newDescription.trim()) return
+    if (!currentUser || !organizationId || !newTitle.trim() || !newDescription.trim()) return
 
     setActionLoading(true)
     setError(null)
 
     try {
-      const created = await requestJson<CaseRecord>('/api/cases', authSession, {
+      const created = await requestJson<CaseRecord>('/api/cases', {
         method: 'POST',
         body: JSON.stringify({
           title: newTitle.trim(),
@@ -380,7 +398,7 @@ function App() {
   }
 
   async function changeStatus(status: CaseStatus) {
-    if (!authSession || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
     const caseId = selectedCase.id
 
@@ -390,7 +408,6 @@ function App() {
     try {
       const updated = await requestJson<{ id: string; status: CaseStatus; updatedAt: string }>(
           `/api/cases/${caseId}/status`,
-          authSession,
           {
             method: 'PATCH',
             body: JSON.stringify({ newStatus: status }),
@@ -403,7 +420,6 @@ function App() {
 
       const loadedHistory = await requestJson<HistoryEntry[]>(
           `/api/cases/${caseId}/history`,
-          authSession,
       )
 
       setCaseHistoryData({ caseId, items: loadedHistory })
@@ -418,13 +434,13 @@ function App() {
   }
 
   async function assignCase(staffMemberId: string) {
-    if (!authSession || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-') || !staffMemberId) return
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-') || !staffMemberId) return
 
     setActionLoading(true)
     setError(null)
 
     try {
-      await requestJson(`/api/cases/${selectedCase.id}/assignment`, authSession, {
+      await requestJson(`/api/cases/${selectedCase.id}/assignment`, {
         method: 'PATCH',
         body: JSON.stringify({ staffMemberId }),
       })
@@ -439,7 +455,7 @@ function App() {
   }
 
   async function uploadDocument(file: File) {
-    if (!authSession || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
     const caseId = selectedCase.id
 
@@ -452,7 +468,6 @@ function App() {
     try {
       const uploaded = await requestJson<CaseDocument>(
           `/api/cases/${caseId}/documents`,
-          authSession,
           { method: 'POST', body: formData },
       )
 
@@ -473,7 +488,7 @@ function App() {
   }
 
   async function downloadDocument(document: CaseDocument) {
-    if (!authSession || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
     setActionLoading(true)
     setError(null)
@@ -481,7 +496,6 @@ function App() {
     try {
       const response = await apiRequest(
           `/api/cases/${selectedCase.id}/documents/${document.id}`,
-          authSession,
           organizationId,
       )
 
@@ -505,13 +519,13 @@ function App() {
   }
 
   async function createStaffMember(fullName: string, email: string) {
-    if (!authSession || !organizationId) return
+    if (!currentUser || !organizationId) return
 
     setAdminLoading(true)
     setError(null)
 
     try {
-      const created = await requestJson<StaffMember>('/api/staff', authSession, {
+      const created = await requestJson<StaffMember>('/api/staff', {
         method: 'POST',
         body: JSON.stringify({ fullName, email }),
       })
@@ -525,7 +539,7 @@ function App() {
   }
 
   async function setStaffActive(member: StaffMember) {
-    if (!authSession || !organizationId) return
+    if (!currentUser || !organizationId) return
     if (!window.confirm(`${member.isActive ? 'Deactivate' : 'Reactivate'} ${member.fullName}?`)) return
 
     setAdminLoading(true)
@@ -534,7 +548,6 @@ function App() {
     try {
       const result = await requestJson<StaffMember>(
           `/api/staff/${member.id}/${member.isActive ? 'deactivate' : 'reactivate'}`,
-          authSession,
           { method: 'PATCH' },
       )
 
@@ -547,13 +560,13 @@ function App() {
   }
 
   async function createOrganization(name: string, code: string) {
-    if (!authSession) return
+    if (!currentUser) return
 
     setAdminLoading(true)
     setError(null)
 
     try {
-      const created = await requestJson<Organization>('/api/organizations', authSession, {
+      const created = await requestJson<Organization>('/api/organizations', {
         method: 'POST',
         body: JSON.stringify({ name, code }),
       })
@@ -568,7 +581,7 @@ function App() {
   }
 
   async function updateOrganizationStatus(organization: Organization) {
-    if (!authSession) return
+    if (!currentUser) return
     if (!window.confirm(`${organization.isActive ? 'Deactivate' : 'Reactivate'} ${organization.name}?`)) return
 
     setAdminLoading(true)
@@ -577,7 +590,6 @@ function App() {
     try {
       const result = await requestJson<Organization>(
           `/api/organizations/${organization.id}/${organization.isActive ? 'deactivate' : 'reactivate'}`,
-          authSession,
           { method: 'PATCH' },
       )
 
@@ -590,7 +602,7 @@ function App() {
   }
 
   async function createMembership(userId: string, role: string) {
-    if (!authSession || !selectedOrganizationId) return
+    if (!currentUser || !selectedOrganizationId) return
 
     const currentOrganizationId = selectedOrganizationId
 
@@ -600,7 +612,6 @@ function App() {
     try {
       const created = await requestJson<Membership>(
           `/api/organizations/${currentOrganizationId}/memberships`,
-          authSession,
           {
             method: 'POST',
             body: JSON.stringify({ userId, role }),
@@ -621,7 +632,7 @@ function App() {
   }
 
   async function updateMembership(membership: Membership, action: 'role' | 'active', role?: string) {
-    if (!authSession || !selectedOrganizationId) return
+    if (!currentUser || !selectedOrganizationId) return
 
     const currentOrganizationId = selectedOrganizationId
 
@@ -633,7 +644,7 @@ function App() {
           ? `/api/organizations/${currentOrganizationId}/memberships/${membership.id}/role`
           : `/api/organizations/${currentOrganizationId}/memberships/${membership.id}/${membership.isActive ? 'deactivate' : 'reactivate'}`
 
-      const result = await requestJson<Membership>(path, authSession, {
+      const result = await requestJson<Membership>(path, {
         method: action === 'role' ? 'PUT' : 'PATCH',
         ...(action === 'role' && role ? { body: JSON.stringify({ role }) } : {}),
       })
@@ -651,18 +662,79 @@ function App() {
     }
   }
 
-  if (route === 'staff-login' && !authSession) {
+  if (!sessionChecked) {
+    return (
+      <div className="landing-page">
+        <main className="landing-main">
+          <p className="muted">Restoring session…</p>
+        </main>
+      </div>
+    )
+  }
+
+  if (!currentUser && route === 'staff-login') {
     return (
       <StaffLoginPage
         onSubmit={handleLoginSubmit}
         onBack={handleBackToLanding}
+        onForgotPassword={handleForgotPassword}
         loading={loginLoading}
         error={loginError}
       />
     )
   }
 
-  if (!authSession) {
+  if (!currentUser && route === 'citizen-login') {
+    return (
+      <CitizenLoginPage
+        onSubmit={handleLoginSubmit}
+        onBack={handleBackToLanding}
+        onRegister={handleCitizenRegister}
+        onForgotPassword={handleForgotPassword}
+        loading={loginLoading}
+        error={loginError}
+      />
+    )
+  }
+
+  if (!currentUser && route === 'citizen-register') {
+    return (
+      <CitizenRegisterPage
+        onBack={handleBackToLanding}
+        onSignIn={handleCitizenSignIn}
+        onVerifiedPending={() => handleVerifyEmail()}
+      />
+    )
+  }
+
+  if (!currentUser && route === 'verify-email') {
+    return (
+      <VerifyEmailPage
+        onBack={handleBackToLanding}
+        onSignIn={handleCitizenSignIn}
+      />
+    )
+  }
+
+  if (!currentUser && route === 'forgot-password') {
+    return (
+      <ForgotPasswordPage
+        onBack={handleBackToLanding}
+        onSignIn={handleCitizenSignIn}
+      />
+    )
+  }
+
+  if (!currentUser && route === 'reset-password') {
+    return (
+      <ResetPasswordPage
+        onBack={handleBackToLanding}
+        onSignIn={handleCitizenSignIn}
+      />
+    )
+  }
+
+  if (!currentUser) {
     return (
       <LandingPage
         onCitizenSignIn={handleCitizenSignIn}
@@ -675,23 +747,15 @@ function App() {
 
   const caseEmptyMessage = !organizationId
       ? 'Configure an organization ID to load cases.'
-      : !oidcIsConfigured
-          ? 'Configure the OpenID Connect settings to sign in and load organization cases.'
-          : !authSession
-              ? 'Sign in to load organization cases.'
-              : cases.length === 0
-                  ? 'No cases are available in this organization.'
-                  : 'No cases match the current filter.'
+      : cases.length === 0
+          ? 'No cases are available in this organization.'
+          : 'No cases match the current filter.'
 
   const dataSourceLabel = loading
       ? 'Loading from API'
       : !organizationId
           ? 'Organization configuration required'
-          : !oidcIsConfigured
-              ? 'Authentication configuration required'
-              : authSession
-                  ? 'Live organization data'
-                  : 'Sign in to load cases'
+          : 'Live organization data'
 
   return (
       <div className="app-shell">
@@ -734,8 +798,8 @@ function App() {
             <div className="profile">
               <span className="avatar">CF</span>
               <span>
-              <strong>{authSession ? 'Authenticated staff' : 'Not signed in'}</strong>
-              <small>{authSession ? 'API session active' : oidcIsConfigured ? 'Authentication required' : 'Authentication not configured'}</small>
+              <strong>{currentUser ? currentUser.fullName : 'Not signed in'}</strong>
+              <small>{currentUser ? currentUser.email : 'Sign in to continue'}</small>
             </span>
             </div>
           </div>
@@ -758,19 +822,9 @@ function App() {
             </div>
 
             <div className="topbar-actions">
-              {oidcIsConfigured && authSession ? (
-                  <button className="auth-button" onClick={handleSignOut} type="button">
-                    Sign out
-                  </button>
-              ) : (
-                  <span className="demo-badge">{oidcIsConfigured ? 'NOT SIGNED IN' : 'AUTH NOT CONFIGURED'}</span>
-              )}
-
-              {oidcIsConfigured && !authSession && (
-                  <button className="auth-button" onClick={handleLoginSubmit} type="button">
-                    Sign in
-                  </button>
-              )}
+              <button className="auth-button" onClick={handleSignOut} type="button">
+                Sign out
+              </button>
             </div>
           </header>
 
@@ -780,18 +834,18 @@ function App() {
             {activeView === 'citizen' ? (
                 <CitizenIntake />
             ) : activeView === 'citizen-profile' ? (
-                <CitizenProfilePage />
+                <CitizenProfilePage onSignIn={handleCitizenSignIn} />
             ) : activeView === 'staff' ? (
                 <StaffDirectory
                     staff={staff}
-                    authenticated={Boolean(authSession)}
+                    authenticated={Boolean(currentUser)}
                     loading={adminLoading}
                     onCreate={createStaffMember}
                     onToggle={setStaffActive}
                 />
             ) : activeView === 'organizations' ? (
                 <OrganizationAdministration
-                    authenticated={Boolean(authSession)}
+                    authenticated={Boolean(currentUser)}
                     loading={adminLoading}
                     organizations={organizations}
                     memberships={memberships}
@@ -812,7 +866,7 @@ function App() {
                     </div>
                     <button
                         className="primary-button"
-                        disabled={!authSession || !organizationId || actionLoading}
+                        disabled={!currentUser || !organizationId || actionLoading}
                         onClick={() => setShowCreateForm(true)}
                         type="button"
                     >

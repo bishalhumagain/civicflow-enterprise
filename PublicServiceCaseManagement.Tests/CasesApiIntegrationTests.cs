@@ -36,8 +36,8 @@ public class CasesApiIntegrationTests
         using var client = factory.CreateClient();
 
         client.DefaultRequestHeaders.Add(
-            "X-Test-Client-Id",
-            TestAuthenticationHandler.CitizenClientId);
+            "X-Test-Role",
+            TestAuthenticationHandler.CitizenRole);
 
         var response = await client.GetAsync(
             $"/api/cases/{Guid.NewGuid()}/history");
@@ -102,9 +102,7 @@ public class CasesApiIntegrationTests
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
         var applicationUserId = await dbContext.ApplicationUsers
-            .Where(user =>
-                user.ExternalIdentityIssuer == TestAuthenticationHandler.Issuer &&
-                user.ExternalIdentitySubject == TestAuthenticationHandler.Subject)
+            .Where(user => user.Id == TestAuthenticationHandler.DefaultUserId)
             .Select(user => user.Id)
             .SingleAsync();
 

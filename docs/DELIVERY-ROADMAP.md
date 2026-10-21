@@ -13,15 +13,14 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 - Explicit `BusinessEndpoints:Enabled` gate; production business endpoints remain disabled by default.
 - Case document metadata and local file-storage abstraction with filename/path, size, content-type, and hash validation.
 - xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests.
-- Disposable Compose fixtures for PostgreSQL roles and Keycloak clients.
-- Disposable live verification of migrations, runtime-role schema restrictions, and selected real Keycloak token flows.
-- React/TypeScript dashboard with maintained `oidc-client-ts` Authorization Code + PKCE integration.
+- Disposable Compose fixtures for PostgreSQL roles.
+- React/TypeScript dashboard with first-party cookie-based authentication (ASP.NET Core Identity) and CSRF protection.
 
 ### Implemented but limited
 
 - The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration.
 - Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready.
-- Most automated API tests use EF Core InMemory and synthetic authentication. The live PostgreSQL/Keycloak checks are currently disposable manual probes rather than CI integration tests.
+- Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. Live PostgreSQL checks are currently disposable manual probes rather than CI integration tests.
 
 ### Unstarted or blocked by a security design dependency
 
@@ -48,7 +47,7 @@ Acceptance:
 
 Status: implemented against the disposable PostgreSQL stack; automated coverage remains.
 
-The API now derives organization context only after JWT validation and active membership resolution, sets it transaction-locally, cleans it up through request commit/rollback, and enables forced RLS for tenant-owned operational tables. Convert the disposable checks into repeatable integration tests and review whether identity/membership tables require a separate policy design.
+The API now derives organization context only after authentication and active membership resolution, sets it transaction-locally, cleans it up through request commit/rollback, and enables forced RLS for tenant-owned operational tables. Convert the disposable checks into repeatable integration tests and review whether identity/membership tables require a separate policy design.
 
 Acceptance:
 
@@ -63,12 +62,12 @@ Acceptance:
 
 Status: next security milestone.
 
-Add an opt-in integration-test harness that starts from disposable services or clearly configured external services. Keep credentials outside the repository. Cover real Keycloak issuer, audience, signature, expiry, client, user, membership, role, and tenant cases. Keep the existing synthetic tests as fast regression coverage.
+Add an opt-in integration-test harness that starts from disposable services or clearly configured external services. Keep credentials outside the repository. Cover real login, lockout, email confirmation, password recovery, session expiry/revocation, cookie, anti-forgery, user, membership, role, and tenant cases (the Identity auth lifecycle and CSRF flows are already covered by automated integration tests). Keep the existing synthetic tests as fast regression coverage.
 
 Acceptance:
 
-- At least one valid real staff token flow is automated.
-- Wrong client, invalid signature, wrong issuer/audience, and expiry rejection are automated.
+- At least one valid real staff login flow is automated.
+- Unconfirmed-email, wrong-password, lockout, revoked-session, and missing/!invalid CSRF rejection are automated.
 - Viewer, CaseWorker, OrganizationAdmin, and SuperAdmin behavior is tested against the approved policy.
 - Tests do not run against persistent or production databases.
 
@@ -89,7 +88,7 @@ Acceptance:
 
 Status: unstarted.
 
-Complete ProblemDetails/error contracts, structured logs, correlation IDs, readiness dependencies, rate limits, audit review, secret manager integration, backups/recovery procedures, production HTTPS Keycloak configuration, CI integration-test stages, deployment manifests, and a non-production demonstration.
+Complete ProblemDetails/error contracts, structured logs, correlation IDs, readiness dependencies, rate limits, audit review, secret manager integration, backups/recovery procedures, production HTTPS cookie/email configuration, CI integration-test stages, deployment manifests, and a non-production demonstration.
 
 Acceptance:
 
@@ -101,9 +100,9 @@ Acceptance:
 
 Independent development should continue before requesting these actions:
 
-1. Docker Desktop or equivalent local container runtime, required for disposable PostgreSQL/Keycloak tests.
-2. Disposable Keycloak realm/client test identities, required for repeatable real-token tests.
-3. A disposable PostgreSQL database, required for RLS and privilege tests.
+1. Docker Desktop or equivalent local container runtime, required for disposable PostgreSQL tests.
+2. A disposable PostgreSQL database, required for RLS and privilege tests.
+3. An SMTP/provider email account, required before production email verification/reset delivery is exercised.
 4. An approved object-storage and malware-scanning provider/configuration, required before production document handling.
 5. Deployment environment, TLS, secret management, and monitoring decisions, required before production endpoint enablement.
 
@@ -115,7 +114,7 @@ These tests remain deferred selectively; existing security assertions must not b
 
 | Test | Risk | Reason | Trigger to complete |
 |---|---|---|---|
-| Exhaustive real-Keycloak token permutation matrix | Medium | Requires a repeatable disposable realm and credential lifecycle | Automated real-service harness is available |
+| Exhaustive real-login permutation matrix (lockout, revocation, CSRF) | Medium | Requires a repeatable disposable database and email sink | Automated real-service harness is available |
 | Full browser automation for login and all frontend workflows | Medium | Adds browser/runtime setup before the staff UI contract stabilizes | Staff workflow reaches acceptance and a browser runner is selected |
 | Visual regression and responsive screenshot suite | Low | Does not protect authorization or data correctness | Core workflow and deployment demo are stable |
 | Load/stress testing | Medium | Requires representative deployment topology and traffic model | Production-like environment and performance targets exist |

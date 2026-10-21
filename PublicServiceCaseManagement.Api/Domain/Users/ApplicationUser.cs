@@ -1,47 +1,33 @@
+using Microsoft.AspNetCore.Identity;
 
 namespace PublicServiceCaseManagement.Api.Domain.Users;
 
-public sealed class ApplicationUser
+/// <summary>
+/// Application user backed by ASP.NET Core Identity. The primary key is a
+/// <see cref="Guid"/> so existing organization memberships and citizen profiles
+/// keep referencing the same user identifier that was previously stored.
+/// </summary>
+public sealed class ApplicationUser : IdentityUser<Guid>
 {
-    private ApplicationUser()
-    {
-    }
+    public string FullName { get; set; } = string.Empty;
 
-    private ApplicationUser(
-        string fullName,
-        string email,
-        DateTimeOffset now)
-    {
-        Id = Guid.NewGuid();
-        FullName = fullName;
-        Email = email;
-        NormalizedEmail = email.ToUpperInvariant();
-        PlatformRole = PlatformRole.None;
-        IsActive = true;
-        CreatedAt = now;
-        UpdatedAt = now;
-    }
+    public PlatformRole PlatformRole { get; set; } = PlatformRole.None;
 
-    public Guid Id { get; private set; }
+    /// <summary>
+    /// Administrative activation state. Distinct from Identity lockout, which
+    /// handles temporary brute-force lockout. A deactivated account cannot
+    /// authenticate even with valid credentials.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
 
-    public string FullName { get; private set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
 
-    public string Email { get; private set; } = string.Empty;
+    public DateTimeOffset UpdatedAt { get; set; }
 
-    public string NormalizedEmail { get; private set; } = string.Empty;
-
-    public string? ExternalIdentityIssuer { get; private set; }
-
-    public string? ExternalIdentitySubject { get; private set; }
-
-    public PlatformRole PlatformRole { get; private set; }
-
-    public bool IsActive { get; private set; }
-
-    public DateTimeOffset CreatedAt { get; private set; }
-
-    public DateTimeOffset UpdatedAt { get; private set; }
-
+    /// <summary>
+    /// Creates a new user aggregate with the supplied profile details. The
+    /// credential (password hash) is set separately through Identity APIs.
+    /// </summary>
     public static ApplicationUser Create(
         string fullName,
         string email,
@@ -70,59 +56,21 @@ public sealed class ApplicationUser
                 nameof(email));
         }
 
-        return new ApplicationUser(
-            fullName.Trim(),
-            email.Trim(),
-            now);
-    }
+        var normalizedEmail = email.Trim();
 
-    public void LinkExternalIdentity(
-        string issuer,
-        string subject,
-        DateTimeOffset now)
-    {
-        if (string.IsNullOrWhiteSpace(issuer) ||
-            issuer.Trim().Length > 500 ||
-            !Uri.TryCreate(issuer.Trim(), UriKind.Absolute, out _))
+        return new ApplicationUser
         {
-            throw new ArgumentException(
-                "A valid absolute identity issuer URL is required.",
-                nameof(issuer));
-        }
-
-        if (string.IsNullOrWhiteSpace(subject) ||
-            subject.Trim().Length > 255)
-        {
-            throw new ArgumentException(
-                "An identity subject is required and must not exceed 255 characters.",
-                nameof(subject));
-        }
-
-        var normalizedIssuer = issuer.Trim();
-        var normalizedSubject = subject.Trim();
-
-        if (ExternalIdentityIssuer is not null ||
-            ExternalIdentitySubject is not null)
-        {
-            if (string.Equals(
-                    ExternalIdentityIssuer,
-                    normalizedIssuer,
-                    StringComparison.Ordinal) &&
-                string.Equals(
-                    ExternalIdentitySubject,
-                    normalizedSubject,
-                    StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                "This application user is already linked to an external identity.");
-        }
-
-        ExternalIdentityIssuer = normalizedIssuer;
-        ExternalIdentitySubject = normalizedSubject;
-        UpdatedAt = now;
+            Id = Guid.NewGuid(),
+            FullName = fullName.Trim(),
+            Email = normalizedEmail,
+            UserName = normalizedEmail,
+            NormalizedEmail = normalizedEmail.ToUpperInvariant(),
+            NormalizedUserName = normalizedEmail.ToUpperInvariant(),
+            PlatformRole = PlatformRole.None,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
     }
 
     public void SetPlatformRole(

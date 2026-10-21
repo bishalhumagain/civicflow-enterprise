@@ -1,44 +1,44 @@
 # CivicFlow web client
 
-This directory contains the React/TypeScript reviewer-facing dashboard shell for CivicFlow Enterprise.
+The React 19 + TypeScript + Vite frontend for CivicFlow Enterprise. It provides the public landing page, citizen and staff authentication pages, and the organization-scoped workspace.
 
 ## Current status
 
-Implemented and verified:
+Implemented:
 
-- Responsive organization workspace layout.
-- Case list with status filtering and selection.
-- Case detail, assignment, priority, activity, and summary-card presentation.
-- Explicit `DEMO MODE` indicator using local representative data.
-- TypeScript compilation, Vite production build, and ESLint validation.
+- Public landing page with separate Citizen (sign in / register) and Organization portal entry points.
+- Citizen pages: login, register, email verification, forgot password, reset password.
+- Staff/organization portal sign-in at the dedicated `/admin` route.
+- Session restoration on load via `GET /api/auth/me`.
+- Organization workspace: cases, staff directory, organization administration, public intake, citizen profile, with filtering, search, pagination, and case details (history, assignments, documents).
+- Toast notifications and responsive layout.
+- TypeScript compilation, Vite production build, and ESLint validation pass.
 
-Implemented locally without a third-party OIDC package:
+## Authentication model
 
-- Authorization Code + PKCE redirect flow in `src/auth.ts`.
-- State and code-verifier validation using session storage.
-- In-memory access-token handling after callback.
-- Configurable bearer API request helper in `src/api.ts`.
+Authentication is first-party and handled by the CivicFlow API using HttpOnly session cookies:
 
-The OIDC flow becomes active only when the required Vite environment values are supplied.
+- The browser session is an HttpOnly, SameSite cookie — the frontend never stores tokens or secrets in JavaScript-accessible storage.
+- API requests are made with `credentials: 'include'`.
+- State-changing requests (`POST`/`PUT`/`PATCH`/`DELETE`) attach an anti-forgery token in the `X-CSRF-TOKEN` header. The token is fetched from `GET /api/auth/csrf` and cached in memory by `authFetch` in `src/auth.ts`; on a CSRF failure the token is refreshed once and the request retried.
+- `src/api.ts` and `src/api-client.ts` build on `authFetch` and set the `X-Organization-Id` header for organization-scoped endpoints.
 
-Not yet implemented:
+There is no OIDC/bearer-token handling in the frontend.
 
-- Connecting dashboard data to API calls.
-- Protected route handling and token lifecycle management.
-- Live document upload/download and server-side case mutations.
+## Environment configuration
 
-The demo data is intentionally visible as demo data. Do not add a hidden token, client secret, or unauthenticated production API path to make the screen appear live.
-
-Example local frontend configuration:
+Vite loads environment files from this directory only. Copy the example and edit it:
 
 ```bash
-VITE_KEYCLOAK_AUTHORITY=http://localhost:8080/realms/civicflow
-VITE_KEYCLOAK_CLIENT_ID=civicflow-web
-VITE_KEYCLOAK_REDIRECT_URI=http://localhost:5173
-VITE_API_BASE_URL=https://localhost:7248
+cp .env.example .env.local
 ```
 
-These values identify a public browser client; do not add a client secret to Vite environment variables. The API still enforces its own JWT, client, application-user, membership, organization, and role checks.
+| Variable | Purpose | Local default |
+|---|---|---|
+| `VITE_API_BASE_URL` | CivicFlow API base URL | `http://localhost:5000` |
+| `VITE_CIVICFLOW_ORGANIZATION_ID` | Default workspace organization | seeded org id |
+
+`.env` and `.env.local` are gitignored; only `.env.example` is committed. The API enforces its own session, anti-forgery, membership, organization, and role checks — the frontend values are convenience defaults, not a security boundary. Restart `npm run dev` after changing these values (Vite reads them at startup).
 
 ## Commands
 
@@ -48,5 +48,3 @@ npm run dev
 npm run build
 npm run lint
 ```
-
-The next frontend implementation step is an OIDC integration using a public Keycloak client configuration, followed by a typed API client that sends bearer tokens to endpoints protected by the backend authorization policies.

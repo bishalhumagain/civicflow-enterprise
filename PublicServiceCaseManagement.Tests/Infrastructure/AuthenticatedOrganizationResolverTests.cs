@@ -15,9 +15,6 @@ public sealed class AuthenticatedOrganizationResolverTests
     private static readonly DateTimeOffset Now =
         new(2026, 10, 18, 0, 0, 0, TimeSpan.Zero);
 
-    private const string Issuer =
-        "http://localhost:8080/realms/civicflow";
-
     [Fact]
     public async Task ResolveAsync_WithActiveMembership_ReturnsOrganizationId()
     {
@@ -33,7 +30,7 @@ public sealed class AuthenticatedOrganizationResolverTests
     [Fact]
     public async Task ResolveAsync_WithUnlinkedUser_ReturnsNull()
     {
-        var scenario = await CreateScenarioAsync(linkIdentity: false);
+        var scenario = await CreateScenarioAsync(knownUser: false);
 
         await using var dbContext = scenario.DbContext;
 
@@ -168,7 +165,7 @@ public sealed class AuthenticatedOrganizationResolverTests
     [Fact]
     public async Task ResolvePlatformRoleAsync_WithUnlinkedIdentity_ReturnsNull()
     {
-        var scenario = await CreateScenarioAsync(linkIdentity: false);
+        var scenario = await CreateScenarioAsync(knownUser: false);
 
         await using var dbContext = scenario.DbContext;
 
@@ -196,7 +193,7 @@ public sealed class AuthenticatedOrganizationResolverTests
     }
 
     private static async Task<ResolverScenario> CreateScenarioAsync(
-        bool linkIdentity = true,
+        bool knownUser = true,
         bool activeMembership = true,
         bool activeOrganization = true,
         bool authenticated = true)
@@ -209,17 +206,10 @@ public sealed class AuthenticatedOrganizationResolverTests
 
         await dbContext.Database.EnsureCreatedAsync();
 
-        var subject = $"resolver-test-{Guid.NewGuid():N}";
-
         var user = ApplicationUser.Create(
             "Resolver Test User",
             $"resolver-{Guid.NewGuid():N}@example.com",
             Now);
-
-        if (linkIdentity)
-        {
-            user.LinkExternalIdentity(Issuer, subject, Now);
-        }
 
         var organization = Organization.Create(
             "Resolver Test Organization",
@@ -250,11 +240,19 @@ public sealed class AuthenticatedOrganizationResolverTests
 
         var httpContext = new DefaultHttpContext();
 
+        // When the caller is a "known user" the authenticated principal
+        // carries the seeded user id; otherwise it carries an unrelated id
+        // that does not exist in the database.
+        var authenticatedUserId = knownUser
+            ? user.Id
+            : Guid.NewGuid();
+
         var identity = new ClaimsIdentity(
             new[]
             {
-                new Claim("iss", Issuer),
-                new Claim("sub", subject)
+                new Claim(
+                    ClaimTypes.NameIdentifier,
+                    authenticatedUserId.ToString())
             },
             authenticated ? "ResolverTest" : null);
 
@@ -273,7 +271,6 @@ public sealed class AuthenticatedOrganizationResolverTests
             resolver,
             httpContext,
             user.Id,
-            subject,
             organization.Id);
     }
 
@@ -288,6 +285,5 @@ public sealed class AuthenticatedOrganizationResolverTests
         AuthenticatedOrganizationResolver Resolver,
         DefaultHttpContext HttpContext,
         Guid UserId,
-        string Subject,
         Guid OrganizationId);
 }

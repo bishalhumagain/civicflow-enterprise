@@ -1,44 +1,50 @@
 import { useState, type FormEvent } from 'react'
 import { useToast } from './use-toast'
 
+export type LoginCredentials = { email: string; password: string }
+
 export type LoginFormProps = {
-  onSubmit: (credentials: { username: string; password: string }) => void
+  onSubmit: (credentials: LoginCredentials) => void
   loading?: boolean
   error?: string | null
 }
 
 export function LoginForm({ onSubmit, loading = false, error = null }: LoginFormProps) {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const { showToast } = useToast()
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!username.trim() || !password.trim()) {
-      showToast('Username and password are required.', 'warning')
+    if (!email.trim() || !password) {
+      showToast('Email and password are required.', 'warning')
       return
     }
-    onSubmit({ username: username.trim(), password: password.trim() })
+    onSubmit({ email: email.trim(), password })
   }
 
   return (
     <form className="case-card create-form" onSubmit={handleSubmit}>
-        <h2>Sign In</h2>
-      <p className="muted">You will be redirected to the secure identity provider to authenticate.</p>
+      <h2>Sign In</h2>
+      <p className="muted">
+        Sign in with your CivicFlow account. Authentication is enforced by the
+        CivicFlow API using a secure, HttpOnly session cookie.
+      </p>
       {error && (
         <div className="auth-error" role="alert">
           {error}
         </div>
       )}
       <label>
-        Username or Email
+        Email
         <input
           required
-          autoComplete="username"
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           disabled={loading}
-          placeholder="your username or email"
+          placeholder="you@example.com"
         />
       </label>
       <label>
@@ -50,16 +56,17 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           disabled={loading}
-          placeholder="••••••••"
+          placeholder="••••••••••••"
         />
       </label>
       <div>
         <button className="primary-button" type="submit" disabled={loading}>
-          {loading ? 'Redirecting…' : 'Continue to Sign In'}
+          {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </div>
       <small className="muted">
-        Authentication and authorization remain server-authoritative via Keycloak OIDC.
+        Sessions are validated server-side; no credentials or tokens are stored
+        in the browser.
       </small>
     </form>
   )

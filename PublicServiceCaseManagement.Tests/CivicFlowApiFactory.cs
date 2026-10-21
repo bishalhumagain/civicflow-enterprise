@@ -1,6 +1,7 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
-using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Tests;
@@ -21,6 +22,17 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     private readonly PlatformRole defaultPlatformRole;
     private readonly string environmentName;
     private readonly bool enableBusinessEndpoints;
+    private readonly bool requireAntiforgery;
+
+    public CapturingEmailSender EmailSender { get; } = new();
+
+    /// <summary>
+    /// When true (default) the test authentication scheme is installed as the
+    /// default scheme so existing integration tests can drive authorization
+    /// with headers. When false the real ASP.NET Core Identity cookie scheme
+    /// is left in place, which is required for end-to-end auth flow tests.
+    /// </summary>
+    public bool UseTestAuthentication { get; set; } = true;
 
     private static readonly Guid DevelopmentOrganizationId =
         Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -28,23 +40,27 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     public CivicFlowApiFactory(
         bool useAuthenticatedOrganizationContext = false,
         string environmentName = "Development",
-        bool enableBusinessEndpoints = false)
+        bool enableBusinessEndpoints = false,
+        bool requireAntiforgery = false)
     {
         _ = useAuthenticatedOrganizationContext;
         this.environmentName = environmentName;
         this.enableBusinessEndpoints = enableBusinessEndpoints;
+        this.requireAntiforgery = requireAntiforgery;
     }
 
     public CivicFlowApiFactory(
         OrganizationRole defaultOrganizationRole,
         PlatformRole defaultPlatformRole = PlatformRole.None,
         string environmentName = "Development",
-        bool enableBusinessEndpoints = false)
+        bool enableBusinessEndpoints = false,
+        bool requireAntiforgery = false)
     {
         this.defaultOrganizationRole = defaultOrganizationRole;
         this.defaultPlatformRole = defaultPlatformRole;
         this.environmentName = environmentName;
         this.enableBusinessEndpoints = enableBusinessEndpoints;
+        this.requireAntiforgery = requireAntiforgery;
     }
 
     public new HttpClient CreateClient()
@@ -74,20 +90,15 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             "ConnectionStrings:CivicFlow",
             "Host=localhost;Database=civicflow_tests;Username=test");
         builder.UseSetting(
-            "Authentication:Authority",
-            TestAuthenticationHandler.Issuer);
-        builder.UseSetting(
-            "Authentication:Audience",
-            "civicflow-api");
-        builder.UseSetting(
-            "Authentication:StaffClientId",
-            TestAuthenticationHandler.StaffClientId);
-        builder.UseSetting(
-            "Authentication:CitizenClientId",
-            TestAuthenticationHandler.CitizenClientId);
-        builder.UseSetting(
             "BusinessEndpoints:Enabled",
             enableBusinessEndpoints.ToString());
+
+        // Anti-forgery is disabled for the general integration-test factory
+        // because the test authentication scheme bypasses the browser cookie
+        // flow. Dedicated tests re-enable it to prove CSRF protection works.
+        builder.UseSetting(
+            "Security:RequireAntiforgery",
+            requireAntiforgery ? "true" : "false");
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -96,15 +107,10 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 {
                     ["ConnectionStrings:CivicFlow"] =
                         "Host=localhost;Database=civicflow_tests;Username=test",
-                    ["Authentication:Authority"] =
-                        TestAuthenticationHandler.Issuer,
-                    ["Authentication:Audience"] = "civicflow-api",
-                    ["Authentication:StaffClientId"] =
-                        TestAuthenticationHandler.StaffClientId,
-                    ["Authentication:CitizenClientId"] =
-                        TestAuthenticationHandler.CitizenClientId,
                     ["BusinessEndpoints:Enabled"] =
                         enableBusinessEndpoints.ToString(),
+                    ["Security:RequireAntiforgery"] =
+                        requireAntiforgery ? "true" : "false",
                     ["FileStorage:RootPath"] =
                         Path.Combine(Path.GetTempPath(), databaseName)
                 });
@@ -112,19 +118,25 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
-                    TestAuthenticationHandler.SchemeName,
-                    _ => { });
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
 
-            services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(
-                options =>
-                {
-                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultScheme = TestAuthenticationHandler.SchemeName;
-                });
+            if (UseTestAuthentication)
+            {
+                services.AddAuthentication()
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                        TestAuthenticationHandler.SchemeName,
+                        _ => { });
+
+                services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(
+                    options =>
+                    {
+                        options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                        options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                        options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
+                        options.DefaultScheme = TestAuthenticationHandler.SchemeName;
+                    });
+            }
 
             services.RemoveAll<IDbContextOptionsConfiguration<CivicFlowDbContext>>();
             services.RemoveAll<DbContextOptions<CivicFlowDbContext>>();
@@ -136,6 +148,51 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         });
     }
 
+    private async Task EnsureDatabaseAsync(CivicFlowDbContext dbContext)
+    {
+        await dbContext.Database.EnsureCreatedAsync();
+
+        // In-memory databases created by EnsureCreated do not run the
+        // migration seeders, so make sure the role catalogue exists.
+        var roleManager = Services
+            .CreateScope()
+            .ServiceProvider
+            .GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
+        foreach (var role in new[]
+                 {
+                     AppRoles.Citizen,
+                     AppRoles.Staff,
+                     AppRoles.SuperAdmin
+                 })
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                await roleManager.CreateAsync(
+                    new IdentityRole<Guid>
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = role
+                    });
+            }
+        }
+    }
+
+    private static ApplicationUser CreateIntegrationTestUser(
+        string fullName,
+        DateTimeOffset now)
+    {
+        // The test authentication handler always authenticates as the
+        // well-known default user id, so align seeded users with it.
+        var user = ApplicationUser.Create(
+            fullName,
+            $"integration-{Guid.NewGuid():N}@example.com",
+            now);
+
+        user.Id = TestAuthenticationHandler.DefaultUserId;
+        return user;
+    }
+
     private async Task SeedDefaultDevelopmentIdentityAsync(
         OrganizationRole role,
         PlatformRole platformRole)
@@ -145,20 +202,29 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
 
-        await dbContext.Database.EnsureCreatedAsync();
+        await EnsureDatabaseAsync(dbContext);
 
         var organization = await dbContext.Organizations
-            .SingleAsync(item => item.Id == DevelopmentOrganizationId);
+            .SingleOrDefaultAsync(item => item.Id == DevelopmentOrganizationId);
+
+        if (organization is null)
+        {
+            organization = Organization.Create(
+                "CivicFlow Development Organization",
+                "CIVICFLOW-DEV",
+                DateTimeOffset.UtcNow);
+
+            typeof(Organization)
+                .GetProperty(nameof(Organization.Id))!
+                .SetValue(organization, DevelopmentOrganizationId);
+
+            dbContext.Organizations.Add(organization);
+            await dbContext.SaveChangesAsync();
+        }
 
         var now = DateTimeOffset.UtcNow;
-        var user = ApplicationUser.Create(
+        var user = CreateIntegrationTestUser(
             "CivicFlow Development Test User",
-            $"development-{Guid.NewGuid():N}@example.com",
-            now);
-
-        user.LinkExternalIdentity(
-            TestAuthenticationHandler.Issuer,
-            TestAuthenticationHandler.Subject,
             now);
 
         user.SetPlatformRole(platformRole, now);
@@ -184,19 +250,22 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
 
-        await dbContext.Database.EnsureCreatedAsync();
+        await EnsureDatabaseAsync(dbContext);
 
         var now = DateTimeOffset.UtcNow;
 
-        var user = ApplicationUser.Create(
-            "CivicFlow Integration Test User",
-            $"integration-{Guid.NewGuid():N}@example.com",
-            now);
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == TestAuthenticationHandler.DefaultUserId);
 
-        user.LinkExternalIdentity(
-            TestAuthenticationHandler.Issuer,
-            TestAuthenticationHandler.Subject,
-            now);
+        if (user is null)
+        {
+            user = CreateIntegrationTestUser(
+                "CivicFlow Integration Test User",
+                now);
+            dbContext.ApplicationUsers.Add(user);
+        }
 
         user.SetPlatformRole(platformRole, now);
 
@@ -211,7 +280,6 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             role,
             now);
 
-        dbContext.ApplicationUsers.Add(user);
         dbContext.Organizations.Add(organization);
         dbContext.OrganizationMemberships.Add(membership);
 
@@ -228,22 +296,24 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
 
-        await dbContext.Database.EnsureCreatedAsync();
+        await EnsureDatabaseAsync(dbContext);
 
         var now = DateTimeOffset.UtcNow;
-        var user = ApplicationUser.Create(
-            "CivicFlow Citizen Test User",
-            $"citizen-{Guid.NewGuid():N}@example.com",
-            now);
 
-        user.LinkExternalIdentity(
-            TestAuthenticationHandler.Issuer,
-            TestAuthenticationHandler.Subject,
-            now);
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == TestAuthenticationHandler.DefaultUserId);
+
+        if (user is null)
+        {
+            user = CreateIntegrationTestUser(
+                "CivicFlow Citizen Test User",
+                now);
+            dbContext.ApplicationUsers.Add(user);
+        }
 
         user.SetPlatformRole(platformRole, now);
-
-        dbContext.ApplicationUsers.Add(user);
 
         await dbContext.SaveChangesAsync();
 
@@ -259,9 +329,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             .GetRequiredService<CivicFlowDbContext>();
 
         var user = await dbContext.ApplicationUsers.SingleAsync(
-            user =>
-                user.ExternalIdentityIssuer == TestAuthenticationHandler.Issuer &&
-                user.ExternalIdentitySubject == TestAuthenticationHandler.Subject);
+            candidate =>
+                candidate.Id == TestAuthenticationHandler.DefaultUserId);
 
         var now = DateTimeOffset.UtcNow;
 
@@ -283,6 +352,7 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
         return organization.Id;
     }
+
     public async Task<Guid> SeedOrganizationWithoutMembershipAsync()
     {
         using var scope = Services.CreateScope();

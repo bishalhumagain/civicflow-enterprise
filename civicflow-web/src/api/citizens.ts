@@ -1,6 +1,4 @@
-import { getAccessToken } from "../auth";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000";
+import { authFetch } from "../auth";
 
 export interface CitizenProfile {
   id: string;
@@ -40,18 +38,6 @@ export class CitizenApiError extends Error {
   }
 }
 
-async function getAuthHeader(): Promise<HeadersInit> {
-  try {
-    const token = await getAccessToken();
-    if (token) {
-      return { Authorization: `Bearer ${token}` };
-    }
-  } catch {
-    // ignore
-  }
-  return {};
-}
-
 async function readErrorMessage(
   response: Response,
   fallback: string,
@@ -68,11 +54,7 @@ async function readErrorMessage(
 }
 
 export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
-  const headers = await getAuthHeader();
-  const response = await fetch(`${API_BASE_URL}/api/citizens/me`, {
-    headers,
-    credentials: "include",
-  });
+  const response = await authFetch("/api/citizens/me");
 
   if (response.status === 404) {
     return null;
@@ -94,14 +76,11 @@ export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
 export async function saveMyCitizenProfile(
   request: CreateCitizenProfileRequest,
 ): Promise<CitizenProfile> {
-  const headers = await getAuthHeader();
-  const response = await fetch(`${API_BASE_URL}/api/citizens/me`, {
+  const response = await authFetch("/api/citizens/me", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...headers,
     },
-    credentials: "include",
     body: JSON.stringify(request),
   });
 
