@@ -72,13 +72,18 @@ public sealed class AuthController(
                 StatusCodes.Status403Forbidden,
                 new
                 {
+                    code = "email_not_confirmed",
                     error =
                         "The account is not permitted to sign in. " +
                         "Confirm your email address first."
                 });
         }
 
-        return Unauthorized(new { error = "Invalid credentials." });
+        return Unauthorized(new
+        {
+            code = "invalid_credentials",
+            error = "Invalid credentials."
+        });
     }
 
     [HttpPost("logout")]

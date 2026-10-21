@@ -14,14 +14,14 @@ public sealed class LoggingEmailSender(
         string body,
         CancellationToken cancellationToken = default)
     {
+        // The message body contains one-time action links (email confirmation,
+        // password reset). Logging it at Information makes the flow usable in
+        // development without an SMTP server; production deployments replace
+        // this sender with a real delivery implementation.
         logger.LogInformation(
-            "Email queued for {Recipient} with subject '{Subject}'.",
+            "Email queued for {Recipient} with subject '{Subject}'. Body: {Body}",
             toEmail,
-            subject);
-
-        logger.LogDebug(
-            "Email body for {Recipient}: {Body}",
-            toEmail,
+            subject,
             body);
 
         return Task.CompletedTask;

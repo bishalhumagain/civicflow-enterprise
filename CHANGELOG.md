@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Personal access tokens (PAT) subsystem: `PersonalAccessToken` entity + `AddPersonalAccessTokens` migration, `PersonalAccessTokenService`, and `PersonalAccessTokensController` (`GET/POST/DELETE /api/auth/tokens`). Tokens are shown once, stored only as a SHA-256 hash, support an optional expiry, and can be revoked individually.
+- `PersonalAccessTokenAuthenticationHandler` plus a `CivicFlowSmart` policy scheme so `Authorization: Bearer civicflow_pat_…` authenticates alongside the session cookie and resolves to the same Identity roles and authorization policies.
+- Access-token management UI (`AccessTokensPage`) in the workspace, and `list/create/revoke` client functions in `civicflow-web/src/auth.ts`.
+- Machine-readable error codes on sign-in failures (`email_not_confirmed`, `invalid_credentials`) and a "resend the verification email" action in the sign-in form.
+
+### Changed
+- `LoggingEmailSender` now logs the message body — and therefore the email-confirmation and password-reset links — at `Information` level instead of `Debug`, so the links are visible in the development log with the default configuration.
+- Personal access token creation and revocation are recorded through the audit log as `PRIVILEGE_CHANGE` events, so they are visible under the default audit log level.
+
+### Added (auth)
 - ASP.NET Core Identity authentication replacing Keycloak: `ApplicationUser : IdentityUser<Guid>`, `CivicFlowDbContext : IdentityDbContext`, cookie sessions, and role-based authorization
 - Auth API (`/api/auth`): `csrf`, `register`, `login`, `logout`, `verify-email`, `resend-verification`, `forgot-password`, `reset-password`, `change-password`, `me`
 - Anti-forgery (CSRF) protection for unsafe `/api/*` methods with the `X-CSRF-TOKEN` header
@@ -16,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staff account provisioning (`POST /api/staff/accounts`) creating the Identity user, role, membership, and staff record atomically
 - Frontend cookie-authentication flows and pages (citizen login/register, verify email, forgot/reset password, staff login)
 - Identity migration (`MigrateToAspNetCoreIdentity`) with data backfill for previously Keycloak-managed users
-- Auth lifecycle and anti-forgery integration tests
+- Auth lifecycle, anti-forgery, and personal access token integration tests
 
 ### Removed
 - Keycloak and all OIDC/JWT integration (backend packages, `infra/keycloak`, `scripts/verify-keycloak-token.sh`, compose service, `VITE_KEYCLOAK_*` config, and `oidc-client-ts` frontend dependency)

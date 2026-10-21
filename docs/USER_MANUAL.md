@@ -11,7 +11,7 @@
 This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code.
 
 ### Application Status
-- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, case management operations, citizen self-service profile
+- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, personal access tokens for API clients, case management operations, citizen self-service profile
 - **Partially Implemented**: Public/citizen intake interface (submission/tracking depend on configuration)
 - **Not Fully Verified in this environment**: Live browser + database end-to-end runs (the code paths are covered by automated integration tests)
 - **Limitations**: Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production
@@ -45,6 +45,8 @@ Platform administration is served at a **dedicated URL** (`/admin`), not on the 
 3. Enter your email and password and submit
 4. After successful authentication, you'll be taken to the workspace
 5. Authentication and authorization are enforced server-side by the API
+
+If your email address has not been confirmed yet, sign-in is rejected with a message offering **Resend the verification email**. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
 
 #### For Citizens
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
@@ -82,6 +84,7 @@ Available views (as implemented):
 - **Organizations** - Organization and membership administration
 - **Public intake** - Citizen intake interface
 - **Citizen profile** - Create/update your own citizen profile (requires citizen authentication)
+- **Access tokens** - Create, list, and revoke personal access tokens for API clients (requires an authenticated session)
 
 ### Common Controls
 - Buttons with clear labels
@@ -183,6 +186,35 @@ Organization and membership administration are available in the "Organizations" 
 
 **Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected.
 
+### 5.9 Managing Personal Access Tokens
+Personal access tokens let an automated client (a script, an integration, a mobile app) call the API without a browser session. A token acts on behalf of the user who created it and carries that user's permissions.
+
+1. Sign in to CivicFlow (citizen or staff sign-in page)
+2. Open **Access tokens** in the navigation
+3. Enter a **name** that identifies the client or purpose (for example `nightly-sync`)
+4. Optionally choose an **expiry** (30 days, 90 days, 1 year, or never)
+5. Select **Create token**
+6. **Copy the token immediately** — it is shown exactly once and cannot be retrieved later
+7. Store it in the client's secret store; the server keeps only a hash of it
+
+**Using the token**
+Send it as an HTTP bearer credential on every request:
+
+```
+Authorization: Bearer civicflow_pat_<publicId>_<secret>
+```
+
+**Revoking a token**
+1. Open **Access tokens**
+2. Find the token in the list and select **Revoke**
+3. The token stops working immediately — requests using it receive `401`
+
+**Notes**
+- A token is limited to the permissions of the account that created it; a citizen token cannot reach staff endpoints.
+- At most 25 active tokens can exist per account. Revoke tokens you no longer use.
+- Revoking a token does not end your browser session and does not affect other tokens.
+- Tokens must be treated as passwords: anyone holding one can act as you until it is revoked or expires.
+
 ## 6. Common Errors and Troubleshooting
 
 | Error | Possible Cause | Recovery |
@@ -191,6 +223,10 @@ Organization and membership administration are available in the "Organizations" 
 | "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
 | "Please verify your email to sign in" | Email not confirmed | Open the verification link from your email (or resend it) |
 | "Too many attempts. Try again later." | Account temporarily locked | Wait ~15 minutes and retry |
+| "You have reached the maximum number of active access tokens" | 25 active tokens already exist | Revoke an unused token, then create a new one |
+| "Access token name is required" | Blank token name | Enter a name identifying the client or purpose |
+| API returns `401` for a token that used to work | Token was revoked, expired, or the account was deactivated | Create a new token, or ask the administrator to check the account |
+| API returns `403` for a token | The token's owner lacks the required role | Use an account with the required role |
 | "Sign in to load organization cases" | Not authenticated | Sign in via the staff or citizen sign-in page |
 | "Your role may not permit this action" | Insufficient permissions | Contact administrator for appropriate role |
 | Session expired / unexpected sign-out | Cookie expired or revoked | Sign in again |
@@ -204,6 +240,7 @@ Organization and membership administration are available in the "Organizations" 
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
 - Verification and password-reset emails are logged by the API in local development (see README)
+- A personal access token is displayed only once, at creation; if you lose it, revoke it and create a new one
 
 ## 7. Security and Privacy
 
@@ -218,6 +255,7 @@ Organization and membership administration are available in the "Organizations" 
 - Access is controlled by authentication and authorization
 - Server-side validation enforces permissions
 - Sessions use HttpOnly cookies with CSRF protection and are revoked on sign-out
+- Personal access tokens are stored only as a SHA-256 hash; the plaintext exists only in the response that created it and in the caller's copy
 
 **Note:** No absolute security guarantees can be made - follow your organization's security policies.
 
@@ -248,6 +286,7 @@ Organization and membership administration are available in the "Organizations" 
 - **OIDC/Identity**: CivicFlow uses first-party ASP.NET Core Identity with cookie sessions
 - **Session Cookie**: HttpOnly cookie identifying the signed-in user (not readable by JavaScript)
 - **CSRF**: Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header)
+- **Personal Access Token (PAT)**: A long-lived credential for API clients, sent as `Authorization: Bearer civicflow_pat_…`; it carries the creating user's permissions and can be revoked at any time
 - **Role**: Account permission level (`citizen`, `staff`, or `superadmin`)
 - **Assignment**: Designating a staff member to handle a case
 - **Status History**: Audit trail of case status changes

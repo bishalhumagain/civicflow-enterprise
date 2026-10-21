@@ -5,9 +5,9 @@ CivicFlow Enterprise is a public-service case management platform with a .NET 10
 > **Repository**: [https://github.com/bishalhumagain/civicflow-enterprise.git](https://github.com/bishalhumagain/civicflow-enterprise.git)
 
 ## 1) Current implementation status
-- **Implemented**: Backend API, ASP.NET Core Identity authentication with HttpOnly cookie sessions and anti-forgery (CSRF) protection, organization scoping, Cases/Staff/Organizations/Memberships features, citizen self-registration/profile (`/api/citizens/me` under the citizen policy), EF Core migrations to PostgreSQL, local file storage, and integration/unit tests in `PublicServiceCaseManagement.Tests`.
-- **Implemented (frontend)**: Cookie-based authentication flows (register, email verification, login, logout, password recovery, password change), session restoration, protected workspace, citizen/organization portals, and CSRF token handling.
-- **Verified in this repository**: `dotnet test` (194 tests) and `civicflow-web` `npm run lint` + `npm run build` pass.
+- **Implemented**: Backend API, ASP.NET Core Identity authentication with HttpOnly cookie sessions and anti-forgery (CSRF) protection, personal access tokens (PATs) for non-browser clients, organization scoping, Cases/Staff/Organizations/Memberships features, citizen self-registration/profile (`/api/citizens/me` under the citizen policy), EF Core migrations to PostgreSQL, local file storage, and integration/unit tests in `PublicServiceCaseManagement.Tests`.
+- **Implemented (frontend)**: Cookie-based authentication flows (register, email verification, login, logout, password recovery, password change), session restoration, protected workspace, citizen/organization portals, access-token management UI, and CSRF token handling.
+- **Verified in this repository**: `dotnet test` (206 tests) and `civicflow-web` `npm run lint` + `npm run build` pass. The API flows (registration → email confirmation → login → PAT creation → bearer authentication → revocation) were additionally exercised against a local PostgreSQL instance over HTTP.
 - **Not verified end-to-end in this environment**: live browser + PostgreSQL + SMTP end-to-end runs, and production HTTPS cookie behavior (the `__Host-` cookie prefix requires HTTPS).
 
 ## 2) Problem statement and goals
@@ -16,8 +16,10 @@ Provide a secure, organization-scoped platform for public service teams to intak
 ## 3) Features implemented today
 ### Backend
 - **AuthN**: ASP.NET Core Identity with first-party cookie authentication. Sign-in uses `SignInManager.PasswordSignInAsync`; the session is an HttpOnly, SameSite=Lax cookie (authoritative on the server).
+- **AuthN (API clients)**: personal access tokens (PATs) — `Authorization: Bearer civicflow_pat_<id>_<secret>` — minted by the signed-in user, stored as a SHA-256 hash, and revoked per token. PATs resolve to the same roles and policies as the cookie session.
 - **AuthZ**: Role-based policies — `CitizenClient` (`citizen`), `StaffClient` (`staff`/`superadmin`), `SuperAdmin`. The fallback policy requires an authenticated `staff` or `superadmin` user.
 - **Account lifecycle**: registration, email confirmation, login, logout, resend verification, forgot/reset password, change password. Account lockout (5 attempts / 15 minutes). Password policy: minimum 12 chars with upper, lower, digit, non-alphanumeric, and 6 unique characters. `SignIn.RequireConfirmedEmail = true`.
+- **Personal access tokens**: `POST/GET/DELETE /api/auth/tokens`. A token is created for the signed-in user, is shown in plaintext exactly once, is stored only as a SHA-256 hash, and can carry an expiry (or never expire). A token is rejected when unknown, tampered with, expired, revoked, or owned by a deactivated user. Maximum 25 active tokens per user.
 - **Security hardening**: CSRF via ASP.NET Core anti-forgery (`X-CSRF-TOKEN` header, middleware validates unsafe `/api/*` methods), fixed-window rate limiting on auth/password endpoints, enumeration-safe registration/recovery responses, audit logging (`AUTH_SUCCESS`/`AUTH_FAILURE`/`ACCOUNT_LIFECYCLE`/`PRIVILEGE_CHANGE`), security headers middleware, and CORS restricted to configured origins with credentials.
 - **Organization scoping**: Organization context resolved from the authenticated Identity user (`ClaimTypes.NameIdentifier`) plus membership and the `X-Organization-Id` header; scoping enforced server-side.
 - **Cases**: status changes with history, assignments with audit attribution, document upload/download, pagination.
@@ -29,9 +31,9 @@ Provide a secure, organization-scoped platform for public service teams to intak
 
 ### Frontend
 - **Cookie authentication**: All API calls use `credentials: 'include'`; no tokens or secrets are stored in JavaScript-accessible storage. State-changing requests attach the anti-forgery token from `GET /api/auth/csrf`.
-- **Pages**: `LandingPage`, `StaffLoginPage` (`/admin`), `CitizenLoginPage`, `CitizenRegisterPage`, `VerifyEmailPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `CitizenProfilePage`.
+- **Pages**: `LandingPage`, `StaffLoginPage` (`/admin`), `CitizenLoginPage`, `CitizenRegisterPage`, `VerifyEmailPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `CitizenProfilePage`, `AccessTokensPage`.
 - **Routes**: `/` (public landing), `/admin` (staff/platform sign-in), `/citizen/login`, `/citizen/register`, `/citizen/verify-email`, `/forgot-password`, `/reset-password`.
-- **Workspace**: Cases/Staff/Organizations/Public intake/Citizen profile views, filters/search/pagination, case details with history/assignments/documents. Session restored on load via `GET /api/auth/me`.
+- **Workspace**: Cases/Staff/Organizations/Public intake/Citizen profile/Access tokens views, filters/search/pagination, case details with history/assignments/documents. Session restored on load via `GET /api/auth/me`.
 - **Notifications**: Toast system (success/error/info/warning).
 
 ## 4) Technology stack (verified)
@@ -67,16 +69,17 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - `Infrastructure/` — `Identity/` (roles, anti-forgery, security headers, seeder, email, audit log), `Organizations/` (context/resolvers/middleware), `Persistence/` (`CivicFlowDbContext`), `Files/` (storage), `Authorization/`
 - `Migrations/` — EF Core migrations
 
-**Startup (`Program.cs`)**: Configures Identity core (`AddIdentityCore` + roles + EF stores + token providers), cookie authentication (`AddIdentityCookies`), authorization policies, anti-forgery, rate limiting, CORS, DI for services, security headers, and controller mapping.
+**Startup (`Program.cs`)**: Configures Identity core (`AddIdentityCore` + roles + EF stores + token providers), cookie authentication (`AddIdentityCookies`), the personal access token scheme and a policy scheme that routes bearer-PAT requests to it (`CivicFlowSmart`), authorization policies, anti-forgery, rate limiting, CORS, DI for services, security headers, and controller mapping.
 
-**Request flow**: HTTP → security headers → rate limiter → CORS → authentication (cookie) → authorization policies → anti-forgery (unsafe `/api/*`) → organization transaction → controllers → services → DbContext/EF Core → DB → response (JSON, enums serialized as strings).
+**Request flow**: HTTP → security headers → rate limiter → CORS → authentication (cookie, or personal access token when `Authorization: Bearer civicflow_pat_…` is present) → authorization policies → anti-forgery (unsafe `/api/*`) → organization transaction → controllers → services → DbContext/EF Core → DB → response (JSON, enums serialized as strings).
 
 ## 7) Frontend architecture
-**Entry**: `main.tsx` wraps `App` in `ToastProvider`. `App.tsx` manages session state, workspace data, and actions. API calls go through `auth.ts` (`authFetch`, CSRF + cookie handling), `api.ts`, and `api-client.ts`. There are no bearer tokens.
+**Entry**: `main.tsx` wraps `App` in `ToastProvider`. `App.tsx` manages session state, workspace data, and actions. API calls go through `auth.ts` (`authFetch`, CSRF + cookie handling), `api.ts`, and `api-client.ts`. There are no bearer tokens in the browser session; personal access tokens exist only as server-issued credentials for external clients and are never persisted by the web app.
 
 ## 8) Authentication, authorization, security
 - **Provider**: ASP.NET Core Identity (first-party). Passwords are hashed with the Identity default (PBKDF2). No external identity provider is required.
 - **Session**: HttpOnly cookie. In Development the cookie name is `civicflow.auth` with `SameSite=Lax` and `SecurePolicy.SameAsRequest`; outside Development it uses the `__Host-civicflow` prefix with `SecurePolicy.Always` (requires HTTPS). Sliding expiration with an 8-hour lifetime.
+- **Personal access tokens**: `Authorization: Bearer civicflow_pat_<publicId>_<secret>`. Only a SHA-256 hash of the token is stored (`personal_access_tokens` table); the plaintext is shown once at creation. The public id is used to look the row up, the hash is compared in constant time, and expiry/revocation/owner-activity are re-checked on every request. PATs carry the owning user's Identity roles, so the same authorization policies apply. They are a credential for non-browser clients only — the web app never stores them.
 - **CSRF**: anti-forgery cookie (`civicflow.csrf` / `__Host-civicflow-csrf`) and the `X-CSRF-TOKEN` request header. The middleware validates unsafe methods under `/api/*`.
 - **Roles**: `citizen`, `staff`, `superadmin`. Policies: `CitizenClient`, `StaffClient`, `SuperAdmin`; the fallback policy requires `staff` or `superadmin`.
 - **Enforcement**: Organization scoping and least privilege are enforced server-side. Public registration can only create `citizen` accounts; staff provisioning (staff/organization-admin gated) can never create `superadmin`.
@@ -89,6 +92,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 
 ## 10) API (endpoints by controller)
 - `AuthController` (`/api/auth`): `GET csrf`, `POST register`, `POST login`, `POST logout`, `POST verify-email`, `POST resend-verification`, `POST forgot-password`, `POST reset-password`, `POST change-password`, `GET me`.
+- `PersonalAccessTokensController` (`/api/auth/tokens`): `GET` list own tokens, `POST` create a token (returns the plaintext once), `DELETE {id}` revoke a token.
 - `CasesController`: cases CRUD/operations, status, assignment, history, documents.
 - `StaffController`: staff management and account provisioning (`POST /api/staff/accounts`).
 - `OrganizationsController`: organization management.
@@ -96,7 +100,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - `CitizensController`: `GET/POST /api/citizens/me` (citizen self-service profile).
 - `HealthController`: health checks.
 
-Login status codes: `200` success, `401` invalid credentials, `403` not allowed (e.g. email not confirmed), `423` locked out. Missing/expired sessions return `401`; insufficient role returns `403`.
+Login status codes: `200` success, `401` invalid credentials (`code: invalid_credentials`), `403` not allowed (`code: email_not_confirmed`), `423` locked out. Missing/expired sessions return `401`; insufficient role returns `403`. The `code` field is a stable, machine-readable reason the frontend uses (for example, to offer a "resend the verification email" action).
 
 ## 11) Local development setup
 ### Prerequisites
@@ -115,19 +119,26 @@ Login status codes: `200` success, `401` invalid credentials, `403` not allowed 
 3. API: `dotnet restore`, apply migrations `dotnet ef database update --project PublicServiceCaseManagement.Api`, then `dotnet run --project PublicServiceCaseManagement.Api`.
 4. Frontend: `cd civicflow-web && npm ci && npm run dev`.
 
+> **Port note**: the API listens on `http://localhost:5000` by default. macOS ships an AirPlay Receiver that also binds port `5000`; when it is enabled the API fails to start with "address already in use". Either disable it (System Settings → General → AirDrop & Handoff → AirPlay Receiver) or run the API on another port and point the frontend at it, for example `dotnet run --project PublicServiceCaseManagement.Api --urls http://localhost:5001` together with `VITE_API_BASE_URL=http://localhost:5001` in `civicflow-web/.env.local`. The frontend origin (`http://localhost:5173`) must stay in `Cors:AllowedOrigins`; the API port does not affect CORS.
+>
+> `dotnet ef` does not load .NET user-secrets, so when the connection string is kept in user-secrets pass it explicitly: `dotnet ef database update --project PublicServiceCaseManagement.Api -- --connection "<connection string>"`.
+
 ### Email delivery
-Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message (including the verification/reset link) instead of sending it — suitable for local development. Replace it with a real SMTP/provider implementation for production.
+Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message — including the verification/reset link — at `Information` level, so the link is visible in the API log during local development. Replace it with a real SMTP/provider implementation for production.
 
 ## 12) Tests
-- **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), and dedicated anti-forgery tests verify CSRF rejection and acceptance.
+- **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), dedicated anti-forgery tests verify CSRF rejection and acceptance, and the personal access token tests cover creation, hashing at rest, bearer authentication, role propagation, least privilege, tampering, expiry, and revocation.
 - **Frontend**: `cd civicflow-web && npm run lint && npm run build`.
 
 ## 13) Troubleshooting
-- **Sign-in fails**: confirm the email is verified and the API can reach PostgreSQL.
+- **Sign-in fails**: confirm the email is verified and the API can reach PostgreSQL. The API log contains the confirmation link (`Email queued for …`).
+- **"The account is not permitted to sign in"**: the email address is not confirmed yet. The sign-in form offers a "Resend the verification email" action.
+- **404 from the frontend**: `VITE_API_BASE_URL` is missing or points at the Vite origin. The frontend calls the API directly, so it must be the API base URL (for example `http://localhost:5001`), and the Vite dev server must be restarted after changing it.
 - **401/403 in the workspace**: the session cookie may be missing/expired (401) or the account lacks the required role for the organization (403).
 - **CSRF 400 on unsafe requests**: the frontend must call `GET /api/auth/csrf` and send `X-CSRF-TOKEN`.
 - **Cross-origin cookies**: add the frontend origin to `Cors:AllowedOrigins`; ensure `credentials: 'include'` (already set in `auth.ts`).
 - **Migrations**: apply via EF Core tools from the API project.
+- **API will not start ("address already in use")**: another process holds port 5000 (commonly the macOS AirPlay Receiver). See the port note above.
 
 ## 14) AI Developer Handoff
 - **Entry points**: `PublicServiceCaseManagement.Api/Program.cs`, `civicflow-web/src/main.tsx`, `civicflow-web/src/App.tsx`.

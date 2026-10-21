@@ -32,12 +32,28 @@ export type AuthOperationResult = {
 export class AuthApiError extends Error {
   readonly status: number
   readonly isCsrfFailure: boolean
+  readonly code: string | null
 
-  constructor(message: string, status: number, isCsrfFailure = false) {
+  constructor(
+    message: string,
+    status: number,
+    isCsrfFailure = false,
+    code: string | null = null,
+  ) {
     super(message)
     this.name = 'AuthApiError'
     this.status = status
     this.isCsrfFailure = isCsrfFailure
+    this.code = code
+  }
+}
+
+async function readErrorCode(response: Response): Promise<string | null> {
+  try {
+    const body = await response.clone().json()
+    return body && typeof body.code === 'string' ? body.code : null
+  } catch {
+    return null
   }
 }
 
@@ -210,6 +226,8 @@ export async function login(
     throw new AuthApiError(
       await readErrorMessage(response, 'Sign-in failed.'),
       response.status,
+      false,
+      await readErrorCode(response),
     )
   }
 
@@ -367,6 +385,73 @@ export async function changePassword(
   }
 
   return payload ?? { succeeded: true, message: 'Password changed.' }
+}
+
+export type PersonalAccessToken = {
+  id: string
+  name: string
+  publicId: string
+  createdAt: string
+  expiresAt: string | null
+  lastUsedAt: string | null
+  revokedAt: string | null
+  isActive: boolean
+}
+
+export type CreatedPersonalAccessToken = {
+  id: string
+  name: string
+  token: string
+  createdAt: string
+  expiresAt: string | null
+}
+
+export async function listPersonalAccessTokens(): Promise<PersonalAccessToken[]> {
+  const response = await authFetch('/api/auth/tokens')
+
+  if (!response.ok) {
+    throw new AuthApiError(
+      await readErrorMessage(
+        response,
+        `Unable to load access tokens (HTTP ${response.status}).`,
+      ),
+      response.status,
+    )
+  }
+
+  return (await response.json()) as PersonalAccessToken[]
+}
+
+export async function createPersonalAccessToken(
+  name: string,
+  expiresInDays: number | null,
+): Promise<CreatedPersonalAccessToken> {
+  const response = await authFetch('/api/auth/tokens', {
+    method: 'POST',
+    body: JSON.stringify({ name, expiresInDays }),
+  })
+
+  if (!response.ok) {
+    throw new AuthApiError(
+      await readErrorMessage(response, 'Unable to create the access token.'),
+      response.status,
+    )
+  }
+
+  return (await response.json()) as CreatedPersonalAccessToken
+}
+
+export async function revokePersonalAccessToken(id: string): Promise<void> {
+  const response = await authFetch(`/api/auth/tokens/${id}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok && response.status !== 404) {
+    throw new AuthApiError(
+      await readErrorMessage(response, 'Unable to revoke the access token.'),
+      response.status,
+    )
+  }
 }
 
 async function safeJson<T>(response: Response): Promise<T | null> {

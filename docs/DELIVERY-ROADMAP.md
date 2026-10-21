@@ -15,12 +15,18 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 - xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests.
 - Disposable Compose fixtures for PostgreSQL roles.
 - React/TypeScript dashboard with first-party cookie-based authentication (ASP.NET Core Identity) and CSRF protection.
+- Personal access tokens for non-browser API clients: create/list/revoke endpoints, SHA-256 hash at rest, one-time plaintext, optional expiry, per-token revocation, and bearer authentication that resolves the same Identity roles and policies as the cookie session. Covered by integration tests.
 
 ### Implemented but limited
 
 - The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration.
 - Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready.
 - Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. Live PostgreSQL checks are currently disposable manual probes rather than CI integration tests.
+
+### Implemented but limited (continued)
+
+- Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented.
+- The personal access token feature has no browser-level end-to-end run in this environment; the backend flow was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation and lint only.
 
 ### Unstarted or blocked by a security design dependency
 

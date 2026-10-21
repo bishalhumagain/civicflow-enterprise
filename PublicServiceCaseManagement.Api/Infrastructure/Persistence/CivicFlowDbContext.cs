@@ -28,6 +28,8 @@ public sealed class CivicFlowDbContext(
         Set<CitizenProfile>();
     public DbSet<OrganizationMembership> OrganizationMemberships =>
         Set<OrganizationMembership>();
+    public DbSet<PersonalAccessToken> PersonalAccessTokens =>
+        Set<PersonalAccessToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -425,6 +427,23 @@ public sealed class CivicFlowDbContext(
             entity.HasIndex(c => c.NIDNumber).IsUnique().HasFilter("\"NIDNumber\" IS NOT NULL");
             entity.HasIndex(c => c.CitizenshipNumber).IsUnique().HasFilter("\"CitizenshipNumber\" IS NOT NULL");
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(c => c.ApplicationUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PersonalAccessToken>(entity =>
+        {
+            entity.ToTable("personal_access_tokens");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.UserId).IsRequired();
+            entity.Property(t => t.Name).HasMaxLength(100).IsRequired();
+            entity.Property(t => t.PublicId).HasMaxLength(32).IsRequired();
+            entity.Property(t => t.TokenHash).HasMaxLength(128).IsRequired();
+            entity.Property(t => t.CreatedAt).IsRequired();
+            entity.HasIndex(t => t.PublicId).IsUnique();
+            entity.HasIndex(t => new { t.UserId, t.CreatedAt });
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<IdentityRole<Guid>>(entity =>

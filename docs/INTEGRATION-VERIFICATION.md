@@ -8,6 +8,14 @@ PostgreSQL migrations and runtime-role restrictions have been verified against a
 
 Citizen self-service profile endpoints (`/api/citizens/me`) are covered by automated integration tests using the synthetic authentication handler: anonymous requests return 401, staff requests return 403, unlinked identities return 401, create/update behavior and duplicate validation are asserted, and the endpoints honour `BusinessEndpoints:Enabled` gating.
 
+Personal access token endpoints (`/api/auth/tokens`) are covered by automated integration tests against the real bearer scheme: anonymous create is rejected, the plaintext token is returned exactly once and only a hash is persisted, the token authenticates `me` and carries the owner's roles, a citizen token receives `403` on a staff endpoint, revocation invalidates the credential immediately, and unknown, tampered, and expired tokens are rejected.
+
+The full auth journey was additionally exercised over HTTP against a local PostgreSQL instance: register → confirmation link in the API log → verify → login → `me` → create PAT → list → bearer `me` (`200`) → staff endpoint with a citizen PAT (`403`) → revoke (`204`) → bearer `me` (`401`). Sign-in failures were also confirmed to return the machine-readable codes `email_not_confirmed` (`403`) and `invalid_credentials` (`401`). A live browser run of the same flows was not performed in this environment.
+
+## Port note
+
+The API listens on `http://localhost:5000` by default, but macOS's AirPlay Receiver can occupy that port and make the API fail to start. When that happens, run the API with `--urls http://localhost:5001` and point the frontend at it with `VITE_API_BASE_URL=http://localhost:5001` in `civicflow-web/.env.local` (restart the Vite dev server afterwards). The frontend origin (`http://localhost:5173`) must stay in the API's `Cors:AllowedOrigins`; the API port does not affect CORS.
+
 ## Required local verification sequence
 
 Use the disposable local fixtures and local-only credentials:
@@ -29,7 +37,7 @@ dotnet test PublicServiceCaseManagement.sln \
 
 The Compose fixture initializes separate `civicflow_migrator` and `civicflow_runtime` PostgreSQL roles. Configure the API connection with the runtime role and use the migration role only for `dotnet ef database update`.
 
-Email verification and password-reset messages are produced by `IEmailSender`. The default `LoggingEmailSender` writes them to the application log (including the link), which is sufficient for local verification without an SMTP server; replace it with a real implementation for production.
+Email verification and password-reset messages are produced by `IEmailSender`. The default `LoggingEmailSender` writes them to the application log at `Information` level (including the link), which is sufficient for local verification without an SMTP server; replace it with a real implementation for production.
 
 Do not run the migration command against a persistent or production database. Do not put database passwords, email credentials, or any tokens in the repository, test output, or documentation.
 
@@ -38,7 +46,9 @@ Do not run the migration command against a persistent or production database. Do
 - Registration cannot sign in until the email is confirmed; the confirmation link enables sign-in.
 - Wrong credentials are rejected with `401`; unconfirmed email returns `403`; lockout returns `423`.
 - Registration and password-recovery responses do not disclose whether an email exists.
+- Sign-in failures return a machine-readable `code` (`email_not_confirmed`, `invalid_credentials`).
 - Unsafe requests without a valid CSRF token are rejected; a valid token is accepted.
+- A personal access token is shown once, stored only as a hash, authenticates as a bearer credential, carries the owner's roles, is rejected after revocation, and never grants more than the owning account's permissions.
 - Staff/organization endpoints require the `staff`/`superadmin` role; citizens receive `403`.
 - Active application user, membership, and organization are required.
 - Cross-organization case and document access is denied without data disclosure.

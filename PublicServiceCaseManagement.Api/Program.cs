@@ -1,6 +1,7 @@
 
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -69,8 +70,43 @@ builder.Services
     .AddDefaultTokenProviders();
 
 builder.Services
-    .AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddAuthentication(options =>
+    {
+        // A policy scheme picks the real handler per request: a bearer
+        // personal access token goes to the token handler, everything else
+        // uses the Identity application cookie. This keeps authorization
+        // policies identical for browser and API clients.
+        options.DefaultScheme = "CivicFlowSmart";
+        options.DefaultAuthenticateScheme = "CivicFlowSmart";
+        options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+        options.DefaultForbidScheme = IdentityConstants.ApplicationScheme;
+    })
     .AddIdentityCookies();
+
+builder.Services
+    .AddAuthentication()
+    .AddScheme<
+        AuthenticationSchemeOptions,
+        PersonalAccessTokenAuthenticationHandler>(
+        PersonalAccessTokenAuthenticationHandler.SchemeName,
+        _ => { })
+    .AddPolicyScheme("CivicFlowSmart", "CivicFlowSmart", options =>
+    {
+        options.ForwardDefaultSelector = context =>
+        {
+            var authorization = context.Request.Headers.Authorization.ToString();
+
+            if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
+                authorization.Contains(
+                    PersonalAccessToken.TokenPrefix + "_",
+                    StringComparison.Ordinal))
+            {
+                return PersonalAccessTokenAuthenticationHandler.SchemeName;
+            }
+
+            return IdentityConstants.ApplicationScheme;
+        };
+    });
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -210,6 +246,7 @@ builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershi
 builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 

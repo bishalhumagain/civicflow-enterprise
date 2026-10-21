@@ -6,6 +6,7 @@ export type StaffLoginPageProps = {
   onForgotPassword?: () => void
   loading?: boolean
   error?: string | null
+  errorCode?: string | null
 }
 
 export function StaffLoginPage({
@@ -14,6 +15,7 @@ export function StaffLoginPage({
   onForgotPassword,
   loading = false,
   error = null,
+  errorCode = null,
 }: StaffLoginPageProps) {
   return (
     <div className="landing-page">
@@ -37,7 +39,12 @@ export function StaffLoginPage({
             Staff, Organization Administrators, and Super Admins sign in here. This page is served at a dedicated URL
             separate from the public landing page.
           </p>
-          <LoginForm onSubmit={onSubmit} loading={loading} error={error} />
+          <LoginForm
+            onSubmit={onSubmit}
+            loading={loading}
+            error={error}
+            errorCode={errorCode}
+          />
           {onForgotPassword ? (
             <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
               <button className="link-button" type="button" onClick={onForgotPassword}>

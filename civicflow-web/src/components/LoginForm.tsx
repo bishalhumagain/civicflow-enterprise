@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { resendVerification } from '../auth'
 import { useToast } from './use-toast'
 
 export type LoginCredentials = { email: string; password: string }
@@ -7,12 +8,21 @@ export type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => void
   loading?: boolean
   error?: string | null
+  errorCode?: string | null
 }
 
-export function LoginForm({ onSubmit, loading = false, error = null }: LoginFormProps) {
+export function LoginForm({
+  onSubmit,
+  loading = false,
+  error = null,
+  errorCode = null,
+}: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [resending, setResending] = useState(false)
   const { showToast } = useToast()
+
+  const needsEmailConfirmation = errorCode === 'email_not_confirmed'
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -21,6 +31,29 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
       return
     }
     onSubmit({ email: email.trim(), password })
+  }
+
+  async function handleResend() {
+    if (!email.trim()) {
+      showToast('Enter your email address first.', 'warning')
+      return
+    }
+
+    setResending(true)
+
+    try {
+      const result = await resendVerification(email.trim())
+      showToast(result.message, 'info')
+    } catch (reason) {
+      showToast(
+        reason instanceof Error
+          ? reason.message
+          : 'Unable to resend the verification email.',
+        'error',
+      )
+    } finally {
+      setResending(false)
+    }
   }
 
   return (
@@ -33,6 +66,20 @@ export function LoginForm({ onSubmit, loading = false, error = null }: LoginForm
       {error && (
         <div className="auth-error" role="alert">
           {error}
+          {needsEmailConfirmation && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="link-button"
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+              >
+                {resending
+                  ? 'Resending…'
+                  : 'Resend the verification email'}
+              </button>
+            </div>
+          )}
         </div>
       )}
       <label>

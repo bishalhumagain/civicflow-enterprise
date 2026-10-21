@@ -7,6 +7,7 @@ export type CitizenLoginPageProps = {
   onForgotPassword: () => void
   loading?: boolean
   error?: string | null
+  errorCode?: string | null
 }
 
 export function CitizenLoginPage({
@@ -16,6 +17,7 @@ export function CitizenLoginPage({
   onForgotPassword,
   loading = false,
   error = null,
+  errorCode = null,
 }: CitizenLoginPageProps) {
   return (
     <div className="landing-page">
@@ -37,7 +39,12 @@ export function CitizenLoginPage({
             Sign in to submit service requests, track progress, and manage your
             citizen profile.
           </p>
-          <LoginForm onSubmit={onSubmit} loading={loading} error={error} />
+          <LoginForm
+            onSubmit={onSubmit}
+            loading={loading}
+            error={error}
+            errorCode={errorCode}
+          />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, flexWrap: 'wrap' }}>
             <button className="link-button" type="button" onClick={onRegister}>
               Create an account

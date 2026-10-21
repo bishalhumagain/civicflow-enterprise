@@ -97,6 +97,33 @@ public sealed class AuthApiIntegrationTests
     }
 
     [Fact]
+    public async Task Login_WithoutConfirmedEmail_ReturnsMachineReadableCode()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = $"confirmcode-{Guid.NewGuid():N}@example.com";
+
+        await RegisterAsync(client, email);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.Forbidden, loginResponse.StatusCode);
+
+        var body = await loginResponse.Content.ReadFromJsonAsync<
+            Dictionary<string, string>>();
+
+        Assert.NotNull(body);
+        Assert.Equal("email_not_confirmed", body!["code"]);
+    }
+
+    [Fact]
     public async Task Register_VerifyEmail_ThenLogin_Succeeds()
     {
         await using var factory = new CivicFlowApiFactory

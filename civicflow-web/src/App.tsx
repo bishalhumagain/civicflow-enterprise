@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiRequest } from './api'
 import {
+  AuthApiError,
   getCurrentUser,
   login as loginRequest,
   logout as logoutRequest,
@@ -42,6 +43,7 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import CitizenProfilePage from './pages/CitizenProfilePage'
+import AccessTokensPage from './pages/AccessTokensPage'
 import { useToast } from './components/use-toast'
 import type { LoginCredentials } from './components/LoginForm'
 
@@ -110,6 +112,7 @@ function App() {
   const [route, setRoute] = useState<AppRoute>(() => resolveRoute(window.location.pathname))
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginErrorCode, setLoginErrorCode] = useState<string | null>(null)
 
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
 
@@ -329,6 +332,7 @@ function App() {
   const completeSignIn = (user: AuthUser) => {
     setCurrentUser(user)
     setLoginError(null)
+    setLoginErrorCode(null)
     setError(null)
     navigateTo('/')
     setRoute('landing')
@@ -338,6 +342,7 @@ function App() {
   const handleLoginSubmit = async ({ email, password }: LoginCredentials) => {
     setLoginLoading(true)
     setLoginError(null)
+    setLoginErrorCode(null)
     setError(null)
 
     try {
@@ -347,6 +352,9 @@ function App() {
       const message =
           reason instanceof Error ? reason.message : 'Sign-in failed. Check your email and password.'
       setLoginError(message)
+      setLoginErrorCode(
+        reason instanceof AuthApiError ? reason.code : null,
+      )
       showToast(message, 'error')
     } finally {
       setLoginLoading(false)
@@ -680,6 +688,7 @@ function App() {
         onForgotPassword={handleForgotPassword}
         loading={loginLoading}
         error={loginError}
+        errorCode={loginErrorCode}
       />
     )
   }
@@ -693,6 +702,7 @@ function App() {
         onForgotPassword={handleForgotPassword}
         loading={loginLoading}
         error={loginError}
+        errorCode={loginErrorCode}
       />
     )
   }
@@ -791,6 +801,9 @@ function App() {
             <button className={activeView === 'citizen-profile' ? 'active' : ''} onClick={() => setActiveView('citizen-profile')} type="button">
               ☺ <span>Citizen profile</span>
             </button>
+            <button className={activeView === 'access-tokens' ? 'active' : ''} onClick={() => setActiveView('access-tokens')} type="button">
+              ⌗ <span>Access tokens</span>
+            </button>
           </nav>
 
           <div className="sidebar-footer">
@@ -817,7 +830,11 @@ function App() {
                         ? 'Staff & team'
                         : activeView === 'organizations'
                             ? 'Organizations'
-                            : 'Public intake'}
+                            : activeView === 'citizen'
+                                ? 'Public intake'
+                                : activeView === 'citizen-profile'
+                                    ? 'Citizen profile'
+                                    : 'Access tokens'}
               </strong>
             </div>
 
@@ -832,9 +849,11 @@ function App() {
             {error && <div className="auth-error" role="alert">{error}</div>}
 
             {activeView === 'citizen' ? (
-                <CitizenIntake />
+              <CitizenIntake />
             ) : activeView === 'citizen-profile' ? (
-                <CitizenProfilePage onSignIn={handleCitizenSignIn} />
+              <CitizenProfilePage onSignIn={handleCitizenSignIn} />
+            ) : activeView === 'access-tokens' ? (
+              <AccessTokensPage />
             ) : activeView === 'staff' ? (
                 <StaffDirectory
                     staff={staff}
