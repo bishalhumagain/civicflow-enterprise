@@ -98,8 +98,9 @@ public sealed class AuthService(
         return new AuthOperationResult(true, GenericRegistrationMessage);
     }
 
-    public async Task<SignInResult> LoginAsync(
+    public async Task<LoginOutcome> LoginAsync(
         LoginRequest request,
+        SignInPortal portal,
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -111,7 +112,7 @@ public sealed class AuthService(
             // Fail as if the password were wrong to avoid account
             // enumeration, while never leaking the deactivation state.
             auditLogger.AuthenticationFailed(email, "invalid_or_inactive");
-            return SignInResult.Failed;
+            return InvalidCredentials();
         }
 
         var result = await signInManager.PasswordSignInAsync(
@@ -122,26 +123,94 @@ public sealed class AuthService(
 
         if (result.Succeeded)
         {
+            var roles = await userManager.GetRolesAsync(user);
+
+            if (!IsAllowedForPortal(roles, portal))
+            {
+                // PasswordSignInAsync already issued the session cookie, so it
+                // has to be dropped again. A wrong-portal attempt must never
+                // leave a usable session behind.
+                await signInManager.SignOutAsync();
+
+                auditLogger.AuthenticationFailed(
+                    email,
+                    $"wrong_portal:{portal.ToString().ToLowerInvariant()}");
+
+                return WrongPortal(portal);
+            }
+
             auditLogger.AuthenticationSucceeded(
                 email,
                 user.Id,
                 "password");
-        }
-        else if (result.IsLockedOut)
-        {
-            auditLogger.AuthenticationFailed(email, "locked_out");
-        }
-        else if (result.IsNotAllowed)
-        {
-            auditLogger.AuthenticationFailed(email, "not_allowed");
-        }
-        else
-        {
-            auditLogger.AuthenticationFailed(email, "invalid_credentials");
+
+            return LoginOutcome.Success(roles);
         }
 
-        return result;
+        if (result.IsLockedOut)
+        {
+            auditLogger.AuthenticationFailed(email, "locked_out");
+
+            return LoginOutcome.Failed(
+                LoginFailureReason.LockedOut,
+                "account_locked",
+                "The account is temporarily locked.");
+        }
+
+        if (result.IsNotAllowed)
+        {
+            auditLogger.AuthenticationFailed(email, "not_allowed");
+
+            return LoginOutcome.Failed(
+                LoginFailureReason.EmailNotConfirmed,
+                "email_not_confirmed",
+                "The account is not permitted to sign in. " +
+                "Confirm your email address first.");
+        }
+
+        auditLogger.AuthenticationFailed(email, "invalid_credentials");
+
+        return InvalidCredentials();
     }
+
+    /// <summary>
+    /// Decides whether the account's roles may use the requested portal.
+    /// The citizen portal is limited to citizen accounts and the organization
+    /// portal to staff and super administrators.
+    /// </summary>
+    private static bool IsAllowedForPortal(
+        IEnumerable<string> roles,
+        SignInPortal portal)
+    {
+        var roleSet = roles.ToHashSet(StringComparer.Ordinal);
+
+        return portal switch
+        {
+            SignInPortal.Citizen => roleSet.Contains(AppRoles.Citizen),
+            SignInPortal.Organization => roleSet.Contains(AppRoles.Staff) ||
+                                         roleSet.Contains(AppRoles.SuperAdmin),
+            _ => false
+        };
+    }
+
+    private static LoginOutcome InvalidCredentials() =>
+        LoginOutcome.Failed(
+            LoginFailureReason.InvalidCredentials,
+            "invalid_credentials",
+            "Invalid credentials.");
+
+    private static LoginOutcome WrongPortal(SignInPortal portal) =>
+        portal == SignInPortal.Citizen
+            ? LoginOutcome.Failed(
+                LoginFailureReason.WrongPortal,
+                "not_a_citizen_account",
+                "This account is not a citizen account. " +
+                "Sign in through the organization portal instead.")
+            : LoginOutcome.Failed(
+                LoginFailureReason.WrongPortal,
+                "not_an_organization_account",
+                "This account is not an organization account. " +
+                "Sign in through the citizen portal instead.");
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {

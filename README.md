@@ -5,9 +5,9 @@ CivicFlow Enterprise is a public-service case management platform with a .NET 10
 > **Repository**: [https://github.com/bishalhumagain/civicflow-enterprise.git](https://github.com/bishalhumagain/civicflow-enterprise.git)
 
 ## 1) Current implementation status
-- **Implemented**: Backend API, ASP.NET Core Identity authentication with HttpOnly cookie sessions and anti-forgery (CSRF) protection, personal access tokens (PATs) for non-browser clients, organization scoping, Cases/Staff/Organizations/Memberships features, citizen self-registration/profile (`/api/citizens/me` under the citizen policy), EF Core migrations to PostgreSQL, local file storage, and integration/unit tests in `PublicServiceCaseManagement.Tests`.
-- **Implemented (frontend)**: Cookie-based authentication flows (register, email verification, login, logout, password recovery, password change), session restoration, protected workspace, citizen/organization portals, access-token management UI, and CSRF token handling.
-- **Verified in this repository**: `dotnet test` (206 tests) and `civicflow-web` `npm run lint` + `npm run build` pass. The API flows (registration → email confirmation → login → PAT creation → bearer authentication → revocation) were additionally exercised against a local PostgreSQL instance over HTTP.
+- **Implemented**: Backend API, ASP.NET Core Identity authentication with HttpOnly cookie sessions and anti-forgery (CSRF) protection, portal-scoped sign-in (separate citizen and organization sign-in endpoints), personal access tokens (PATs) for non-browser clients, organization scoping, Cases/Staff/Organizations/Memberships features, citizen self-registration/profile (`/api/citizens/me` under the citizen policy), EF Core migrations to PostgreSQL, local file storage, and integration/unit tests in `PublicServiceCaseManagement.Tests`.
+- **Implemented (frontend)**: Cookie-based authentication flows (register, email verification, login, logout, password recovery, password change), portal-scoped sign-in (citizen portal vs. organization portal), session restoration, role-specific workspaces (citizen dashboard vs. organization workspace), access-token management UI, and CSRF token handling.
+- **Verified in this repository**: `dotnet test` (213 tests), `dotnet format --verify-no-changes`, and `civicflow-web` `npm run lint` + `npm run build` pass. The API flows (registration → email confirmation → login → PAT creation → bearer authentication → revocation) and the portal/role matrix (citizen and super administrator sign-in through the wrong portal, session cleanup after a rejected attempt, role-gated endpoint access) were additionally exercised against a local PostgreSQL instance over HTTP.
 - **Not verified end-to-end in this environment**: live browser + PostgreSQL + SMTP end-to-end runs, and production HTTPS cookie behavior (the `__Host-` cookie prefix requires HTTPS).
 
 ## 2) Problem statement and goals
@@ -16,6 +16,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 ## 3) Features implemented today
 ### Backend
 - **AuthN**: ASP.NET Core Identity with first-party cookie authentication. Sign-in uses `SignInManager.PasswordSignInAsync`; the session is an HttpOnly, SameSite=Lax cookie (authoritative on the server).
+- **AuthN (portal-scoped sign-in)**: `POST /api/auth/login` accepts only accounts with the `citizen` role; `POST /api/auth/login/organization` accepts only `staff`/`superadmin`. A wrong-portal attempt is rejected with `403` and a machine-readable code (`not_a_citizen_account` / `not_an_organization_account`), and the session cookie that the password check had already issued is dropped again, so a rejected attempt never leaves a usable session behind.
 - **AuthN (API clients)**: personal access tokens (PATs) — `Authorization: Bearer civicflow_pat_<id>_<secret>` — minted by the signed-in user, stored as a SHA-256 hash, and revoked per token. PATs resolve to the same roles and policies as the cookie session.
 - **AuthZ**: Role-based policies — `CitizenClient` (`citizen`), `StaffClient` (`staff`/`superadmin`), `SuperAdmin`. The fallback policy requires an authenticated `staff` or `superadmin` user.
 - **Account lifecycle**: registration, email confirmation, login, logout, resend verification, forgot/reset password, change password. Account lockout (5 attempts / 15 minutes). Password policy: minimum 12 chars with upper, lower, digit, non-alphanumeric, and 6 unique characters. `SignIn.RequireConfirmedEmail = true`.
@@ -31,9 +32,9 @@ Provide a secure, organization-scoped platform for public service teams to intak
 
 ### Frontend
 - **Cookie authentication**: All API calls use `credentials: 'include'`; no tokens or secrets are stored in JavaScript-accessible storage. State-changing requests attach the anti-forgery token from `GET /api/auth/csrf`.
-- **Pages**: `LandingPage`, `StaffLoginPage` (`/admin`), `CitizenLoginPage`, `CitizenRegisterPage`, `VerifyEmailPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `CitizenProfilePage`, `AccessTokensPage`.
-- **Routes**: `/` (public landing), `/admin` (staff/platform sign-in), `/citizen/login`, `/citizen/register`, `/citizen/verify-email`, `/forgot-password`, `/reset-password`.
-- **Workspace**: Cases/Staff/Organizations/Public intake/Citizen profile/Access tokens views, filters/search/pagination, case details with history/assignments/documents. Session restored on load via `GET /api/auth/me`.
+- **Pages**: `LandingPage`, `StaffLoginPage` (`/admin`), `CitizenLoginPage`, `CitizenRegisterPage`, `VerifyEmailPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `CitizenDashboard`, `CitizenProfilePage`, `AccessTokensPage`.
+- **Routes**: `/` (public landing), `/admin` (staff/platform sign-in), `/citizen/login`, `/citizen/register`, `/citizen/verify-email`, `/forgot-password`, `/reset-password`, `/workspace` (the signed-in workspace of whichever portal the account belongs to).
+- **Workspaces**: Role-specific. A citizen session opens the citizen dashboard (public intake, own profile, access tokens); a staff/superadmin session opens the organization workspace (cases, staff directory, organizations for super admins, access tokens). Navigation entries, the active view, and the API calls are derived from the roles the API reports, so a citizen is never offered an organization surface. Session restored on load via `GET /api/auth/me`; the portal of a restored session is re-derived from the account roles.
 - **Notifications**: Toast system (success/error/info/warning).
 
 ## 4) Technology stack (verified)
@@ -82,6 +83,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - **Personal access tokens**: `Authorization: Bearer civicflow_pat_<publicId>_<secret>`. Only a SHA-256 hash of the token is stored (`personal_access_tokens` table); the plaintext is shown once at creation. The public id is used to look the row up, the hash is compared in constant time, and expiry/revocation/owner-activity are re-checked on every request. PATs carry the owning user's Identity roles, so the same authorization policies apply. They are a credential for non-browser clients only — the web app never stores them.
 - **CSRF**: anti-forgery cookie (`civicflow.csrf` / `__Host-civicflow-csrf`) and the `X-CSRF-TOKEN` request header. The middleware validates unsafe methods under `/api/*`.
 - **Roles**: `citizen`, `staff`, `superadmin`. Policies: `CitizenClient`, `StaffClient`, `SuperAdmin`; the fallback policy requires `staff` or `superadmin`.
+- **Portal separation**: sign-in is bound to one portal — the citizen portal accepts `citizen`, the organization portal accepts `staff`/`superadmin`. The check runs server-side after the password is verified, the rejected attempt's session cookie is removed, and the frontend re-validates the issued session against the portal before it renders a workspace. An account holding both a citizen and a staff/superadmin role may use both portals.
 - **Enforcement**: Organization scoping and least privilege are enforced server-side. Public registration can only create `citizen` accounts; staff provisioning (staff/organization-admin gated) can never create `superadmin`.
 - **Secrets**: None in the repository. The optional seed superadmin is configured via `SeedAdmin:*` (environment/user-secrets), never hard-coded.
 
@@ -91,7 +93,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 > The Identity migration assigns existing users either `citizen` or `superadmin` (based on their prior platform role) and leaves `PasswordHash` unset, so pre-existing accounts must set a password through the password-recovery flow.
 
 ## 10) API (endpoints by controller)
-- `AuthController` (`/api/auth`): `GET csrf`, `POST register`, `POST login`, `POST logout`, `POST verify-email`, `POST resend-verification`, `POST forgot-password`, `POST reset-password`, `POST change-password`, `GET me`.
+- `AuthController` (`/api/auth`): `GET csrf`, `POST register`, `POST login` (citizen portal), `POST login/organization` (organization portal), `POST logout`, `POST verify-email`, `POST resend-verification`, `POST forgot-password`, `POST reset-password`, `POST change-password`, `GET me`.
 - `PersonalAccessTokensController` (`/api/auth/tokens`): `GET` list own tokens, `POST` create a token (returns the plaintext once), `DELETE {id}` revoke a token.
 - `CasesController`: cases CRUD/operations, status, assignment, history, documents.
 - `StaffController`: staff management and account provisioning (`POST /api/staff/accounts`).
@@ -100,7 +102,7 @@ Provide a secure, organization-scoped platform for public service teams to intak
 - `CitizensController`: `GET/POST /api/citizens/me` (citizen self-service profile).
 - `HealthController`: health checks.
 
-Login status codes: `200` success, `401` invalid credentials (`code: invalid_credentials`), `403` not allowed (`code: email_not_confirmed`), `423` locked out. Missing/expired sessions return `401`; insufficient role returns `403`. The `code` field is a stable, machine-readable reason the frontend uses (for example, to offer a "resend the verification email" action).
+Login status codes: `200` success (the response reports the `portal` and the session `roles`), `401` invalid credentials (`code: invalid_credentials`), `403` email not confirmed (`code: email_not_confirmed`), `403` wrong portal (`code: not_a_citizen_account` or `code: not_an_organization_account`), `423` locked out (`code: account_locked`). Missing/expired sessions return `401`; insufficient role returns `403`. The `code` field is a stable, machine-readable reason the frontend uses (for example, to offer a "resend the verification email" action).
 
 ## 11) Local development setup
 ### Prerequisites
@@ -127,12 +129,13 @@ Login status codes: `200` success, `401` invalid credentials (`code: invalid_cre
 Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message — including the verification/reset link — at `Information` level, so the link is visible in the API log during local development. Replace it with a real SMTP/provider implementation for production.
 
 ## 12) Tests
-- **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), dedicated anti-forgery tests verify CSRF rejection and acceptance, and the personal access token tests cover creation, hashing at rest, bearer authentication, role propagation, least privilege, tampering, expiry, and revocation.
+- **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), dedicated anti-forgery tests verify CSRF rejection and acceptance, the role-scoped sign-in tests cover citizen/staff/superadmin acceptance on the matching portal, wrong-portal rejection with a stable code, session cleanup after a rejected attempt, and role-gated endpoint access, and the personal access token tests cover creation, hashing at rest, bearer authentication, role propagation, least privilege, tampering, expiry, and revocation.
 - **Frontend**: `cd civicflow-web && npm run lint && npm run build`.
 
 ## 13) Troubleshooting
 - **Sign-in fails**: confirm the email is verified and the API can reach PostgreSQL. The API log contains the confirmation link (`Email queued for …`).
 - **"The account is not permitted to sign in"**: the email address is not confirmed yet. The sign-in form offers a "Resend the verification email" action.
+- **"This account is not a citizen account" / "This account is not an organization account"**: the account was signed in through the wrong portal. Citizens sign in through the Citizen Portal (`/citizen/login`), staff and super administrators through `/admin`. The rejected attempt leaves no session behind.
 - **404 from the frontend**: `VITE_API_BASE_URL` is missing or points at the Vite origin. The frontend calls the API directly, so it must be the API base URL (for example `http://localhost:5001`), and the Vite dev server must be restarted after changing it.
 - **401/403 in the workspace**: the session cookie may be missing/expired (401) or the account lacks the required role for the organization (403).
 - **CSRF 400 on unsafe requests**: the frontend must call `GET /api/auth/csrf` and send `X-CSRF-TOKEN`.

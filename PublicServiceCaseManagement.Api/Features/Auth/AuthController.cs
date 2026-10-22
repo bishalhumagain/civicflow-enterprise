@@ -45,6 +45,10 @@ public sealed class AuthController(
             : BadRequest(result);
     }
 
+    /// <summary>
+    /// Citizen portal sign-in. Only accounts with the citizen role are
+    /// accepted here, so a staff account cannot open the citizen dashboard.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
@@ -52,38 +56,76 @@ public sealed class AuthController(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await authService.LoginAsync(request, cancellationToken);
+        return await SignIn(request, SignInPortal.Citizen, cancellationToken);
+    }
 
-        if (result.Succeeded)
+    /// <summary>
+    /// Organization portal sign-in. Only staff and super administrator
+    /// accounts are accepted here, so a citizen account cannot open the
+    /// organization workspace.
+    /// </summary>
+    [HttpPost("login/organization")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> OrganizationLogin(
+        [FromBody] LoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await SignIn(
+            request,
+            SignInPortal.Organization,
+            cancellationToken);
+    }
+
+    private async Task<IActionResult> SignIn(
+        LoginRequest request,
+        SignInPortal portal,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await authService.LoginAsync(
+            request,
+            portal,
+            cancellationToken);
+
+        if (outcome.Succeeded)
         {
-            return Ok(new { authenticated = true });
+            return Ok(new
+            {
+                authenticated = true,
+                portal = portal.ToString().ToLowerInvariant(),
+                roles = outcome.Roles
+            });
         }
 
-        if (result.IsLockedOut)
+        return outcome.FailureReason switch
         {
-            return StatusCode(
+            LoginFailureReason.LockedOut => StatusCode(
                 StatusCodes.Status423Locked,
-                new { error = "The account is temporarily locked." });
-        }
-
-        if (result.IsNotAllowed)
-        {
-            return StatusCode(
+                new
+                {
+                    code = outcome.Code,
+                    error = outcome.Message
+                }),
+            LoginFailureReason.EmailNotConfirmed => StatusCode(
                 StatusCodes.Status403Forbidden,
                 new
                 {
-                    code = "email_not_confirmed",
-                    error =
-                        "The account is not permitted to sign in. " +
-                        "Confirm your email address first."
-                });
-        }
-
-        return Unauthorized(new
-        {
-            code = "invalid_credentials",
-            error = "Invalid credentials."
-        });
+                    code = outcome.Code,
+                    error = outcome.Message
+                }),
+            LoginFailureReason.WrongPortal => StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    code = outcome.Code,
+                    error = outcome.Message
+                }),
+            _ => Unauthorized(new
+            {
+                code = outcome.Code,
+                error = outcome.Message
+            })
+        };
     }
 
     [HttpPost("logout")]

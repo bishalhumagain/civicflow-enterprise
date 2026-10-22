@@ -40,6 +40,58 @@ public sealed record LoginRequest(
     [StringLength(128)]
     string? OrganizationId = null);
 
+/// <summary>
+/// The sign-in surface a request is bound to. Each portal accepts only the
+/// roles that are meant to use it, so the same credentials can never open
+/// both dashboards.
+/// </summary>
+public enum SignInPortal
+{
+    /// <summary>The public citizen portal: accounts with the citizen role.</summary>
+    Citizen,
+
+    /// <summary>The organization portal: staff and super administrators.</summary>
+    Organization
+}
+
+/// <summary>
+/// Why a sign-in attempt did not produce a session.
+/// </summary>
+public enum LoginFailureReason
+{
+    None,
+    InvalidCredentials,
+    LockedOut,
+    EmailNotConfirmed,
+    WrongPortal
+}
+
+/// <summary>
+/// Outcome of a sign-in attempt, including the reason it failed so the API
+/// can answer with a stable status code and machine-readable code.
+/// </summary>
+public sealed record LoginOutcome(
+    bool Succeeded,
+    LoginFailureReason FailureReason,
+    string? Code,
+    string? Message,
+    IReadOnlyList<string> Roles)
+{
+    public static LoginOutcome Success(IEnumerable<string> roles) =>
+        new(
+            true,
+            LoginFailureReason.None,
+            null,
+            null,
+            roles.ToArray());
+
+    public static LoginOutcome Failed(
+        LoginFailureReason reason,
+        string code,
+        string message) =>
+        new(false, reason, code, message, Array.Empty<string>());
+}
+
 public sealed record VerifyEmailRequest(
     [Required]
     [EmailAddress]

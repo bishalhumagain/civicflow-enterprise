@@ -29,6 +29,52 @@ export type AuthOperationResult = {
   message: string
 }
 
+/**
+ * The two separate sign-in surfaces of the product. The API binds every
+ * sign-in attempt to one portal, and each portal only accepts the roles that
+ * belong to it, so the same credentials can never open both dashboards.
+ */
+export type SignInPortal = 'citizen' | 'organization'
+
+export const CITIZEN_ROLE = 'citizen'
+export const STAFF_ROLE = 'staff'
+export const SUPER_ADMIN_ROLE = 'superadmin'
+
+export function loginEndpoint(portal: SignInPortal): string {
+  return portal === 'organization'
+    ? '/api/auth/login/organization'
+    : '/api/auth/login'
+}
+
+/**
+ * The portals the account's roles entitle it to. This mirrors the server-side
+ * rule exactly so the UI never offers a dashboard the API would refuse.
+ */
+export function allowedPortals(user: AuthUser | null): SignInPortal[] {
+  if (!user) return []
+
+  const roles = user.roles ?? []
+  const portals: SignInPortal[] = []
+
+  if (roles.includes(CITIZEN_ROLE)) portals.push('citizen')
+  if (roles.includes(STAFF_ROLE) || roles.includes(SUPER_ADMIN_ROLE)) {
+    portals.push('organization')
+  }
+
+  return portals
+}
+
+export function canUsePortal(
+  user: AuthUser | null,
+  portal: SignInPortal,
+): boolean {
+  return allowedPortals(user).includes(portal)
+}
+
+export function isSuperAdmin(user: AuthUser | null): boolean {
+  return Boolean(user?.roles?.includes(SUPER_ADMIN_ROLE))
+}
+
 export class AuthApiError extends Error {
   readonly status: number
   readonly isCsrfFailure: boolean
@@ -213,11 +259,18 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return (await response.json()) as AuthUser
 }
 
+/**
+ * Signs in against the portal the account belongs to. The API rejects a
+ * sign-in whose roles do not match the portal, and this client re-checks the
+ * session afterwards so a mismatch can never leave an unusable session
+ * behind.
+ */
 export async function login(
   email: string,
   password: string,
+  portal: SignInPortal = 'citizen',
 ): Promise<AuthUser> {
-  const response = await authFetch('/api/auth/login', {
+  const response = await authFetch(loginEndpoint(portal), {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
@@ -237,6 +290,21 @@ export async function login(
     throw new AuthApiError(
       'Sign-in succeeded but the session could not be established.',
       500,
+    )
+  }
+
+  if (!canUsePortal(user, portal)) {
+    await logout()
+
+    throw new AuthApiError(
+      portal === 'citizen'
+        ? 'This account is not a citizen account. Sign in through the organization portal instead.'
+        : 'This account is not an organization account. Sign in through the citizen portal instead.',
+      403,
+      false,
+      portal === 'citizen'
+        ? 'not_a_citizen_account'
+        : 'not_an_organization_account',
     )
   }
 

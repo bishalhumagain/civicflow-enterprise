@@ -8,14 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Portal-scoped sign-in: `POST /api/auth/login` now serves the citizen portal and the new `POST /api/auth/login/organization` serves the organization portal. The API binds each attempt to one portal, so the same credentials can never open both dashboards. Supported by the new `SignInPortal`, `LoginFailureReason`, and `LoginOutcome` contracts.
+- Citizen dashboard (`CitizenDashboard`) in the frontend with self-service actions for public intake, the citizen's own profile, and access tokens.
+- Role-scoped sign-in integration tests covering citizen/staff/superadmin acceptance on the matching portal, wrong-portal rejection with a stable code, session cleanup after a rejected attempt, and role-gated endpoint access.
 - Personal access tokens (PAT) subsystem: `PersonalAccessToken` entity + `AddPersonalAccessTokens` migration, `PersonalAccessTokenService`, and `PersonalAccessTokensController` (`GET/POST/DELETE /api/auth/tokens`). Tokens are shown once, stored only as a SHA-256 hash, support an optional expiry, and can be revoked individually.
 - `PersonalAccessTokenAuthenticationHandler` plus a `CivicFlowSmart` policy scheme so `Authorization: Bearer civicflow_pat_…` authenticates alongside the session cookie and resolves to the same Identity roles and authorization policies.
 - Access-token management UI (`AccessTokensPage`) in the workspace, and `list/create/revoke` client functions in `civicflow-web/src/auth.ts`.
 - Machine-readable error codes on sign-in failures (`email_not_confirmed`, `invalid_credentials`) and a "resend the verification email" action in the sign-in form.
 
 ### Changed
+- `IAuthService.LoginAsync` takes the target portal and returns a `LoginOutcome` (replacing `SignInResult`), so the controller can answer with a stable status code and machine-readable code. A successful login response now reports the `portal` and the session `roles`.
+- Frontend workspace restructured around the roles the API reports: the navigation entries, the active view, and the data requests are derived from them, a citizen session opens the citizen dashboard and a staff/superadmin session opens the organization workspace, and sign-in redirects to the dedicated `/workspace` route.
 - `LoggingEmailSender` now logs the message body — and therefore the email-confirmation and password-reset links — at `Information` level instead of `Debug`, so the links are visible in the development log with the default configuration.
 - Personal access token creation and revocation are recorded through the audit log as `PRIVILEGE_CHANGE` events, so they are visible under the default audit log level.
+
+### Security
+- A wrong-portal sign-in attempt is rejected with `403` (`not_a_citizen_account` / `not_an_organization_account`), and the session cookie that the password check had already issued is removed again, so a rejected attempt never leaves a usable session behind.
+- The frontend re-validates an issued session against the portal it signed in through and signs out again when the roles do not match, so a dashboard is never rendered for the wrong portal.
 
 ### Added (auth)
 - ASP.NET Core Identity authentication replacing Keycloak: `ApplicationUser : IdentityUser<Guid>`, `CivicFlowDbContext : IdentityDbContext`, cookie sessions, and role-based authorization

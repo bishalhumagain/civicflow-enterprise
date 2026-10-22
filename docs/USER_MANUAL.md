@@ -3,7 +3,7 @@
 **Document Status:** Based on verified implementation. Some workflows may be limited or require proper configuration.
 
 **Audience:** Citizens, Government Officers, and Administrative users  
-**Last Updated:** 2026-10-21
+**Last Updated:** 2026-10-22
 
 ## 1. About This Manual
 
@@ -11,7 +11,7 @@
 This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code.
 
 ### Application Status
-- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, personal access tokens for API clients, case management operations, citizen self-service profile
+- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen and organization portals), personal access tokens for API clients, case management operations, citizen self-service profile and citizen dashboard
 - **Partially Implemented**: Public/citizen intake interface (submission/tracking depend on configuration)
 - **Not Fully Verified in this environment**: Live browser + database end-to-end runs (the code paths are covered by automated integration tests)
 - **Limitations**: Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production
@@ -39,11 +39,20 @@ Platform administration is served at a **dedicated URL** (`/admin`), not on the 
 
 ### Authentication
 
+CivicFlow has two separate sign-in surfaces, and each one only accepts the account type that belongs to it:
+
+| Portal | Where to sign in | Who can use it |
+|---|---|---|
+| **Citizen Portal** | `/citizen/login` (or the Citizen Portal on the landing page) | Citizen accounts |
+| **Organization Portal** | `/admin` | Staff, Organization Administrators, and Super Admins |
+
+If you use the wrong portal, the sign-in is refused with a message such as *"This account is not a citizen account. Sign in through the organization portal instead."* Nothing is signed in when this happens, so you can immediately try the correct portal.
+
 #### For Government Officers (Staff, Organization Admin, Super Admin)
 1. Navigate to the dedicated staff sign-in URL: `https://<your-civicflow-host>/admin`
 2. You'll see the **staff sign-in form** with email and password fields
 3. Enter your email and password and submit
-4. After successful authentication, you'll be taken to the workspace
+4. After successful authentication, you'll be taken to the organization workspace
 5. Authentication and authorization are enforced server-side by the API
 
 If your email address has not been confirmed yet, sign-in is rejected with a message offering **Resend the verification email**. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
@@ -52,9 +61,10 @@ If your email address has not been confirmed yet, sign-in is rejected with a mes
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
 3. Confirm your email using the verification link, then sign in
-4. After signing in, open **Citizen profile** in the navigation to create or update your profile
-5. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
-6. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
+4. After signing in, you land on your **citizen dashboard**, which shows your account status and the actions available to you
+5. Open **My profile** to create or update your profile
+6. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
+7. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
 
 **Citizen route shortcuts:** `/citizen/login` and `/citizen/register` open the citizen flows directly.
 
@@ -78,13 +88,19 @@ The staff workspace consists of:
 - **Main content**: View-specific content
 
 ### Navigation Menu
-Available views (as implemented):
+The navigation only shows the views your account is entitled to. Entries are determined by the roles the server reports for your session, so a citizen never sees organization surfaces and a staff member never sees the citizen dashboard.
+
+**Citizen accounts (citizen portal):**
+- **Dashboard** - Citizen dashboard with your account status and available actions (default view)
+- **Public intake** - Submit a public service request
+- **My profile** - Create or update your own citizen profile
+- **Access tokens** - Create, list, and revoke personal access tokens for API clients
+
+**Staff and Super Admin accounts (organization portal):**
 - **Cases** - Case management (default view)
 - **Staff & team** - Staff directory management
-- **Organizations** - Organization and membership administration
-- **Public intake** - Citizen intake interface
-- **Citizen profile** - Create/update your own citizen profile (requires citizen authentication)
-- **Access tokens** - Create, list, and revoke personal access tokens for API clients (requires an authenticated session)
+- **Organizations** - Organization and membership administration (Super Admin only)
+- **Access tokens** - Create, list, and revoke personal access tokens for API clients
 
 ### Common Controls
 - Buttons with clear labels
@@ -108,11 +124,16 @@ Available views (as implemented):
 - Manage organizations and memberships (if authorized)
 
 ### Citizen User
-**Status:** Citizens can sign in through the **Citizen Portal** and maintain a self-service profile. Public intake interface exists, but full end-to-end submission/tracking workflows depend on configuration and authentication setup. Check with your system administrator for current capabilities.
+**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: a citizen dashboard, the public intake interface, their own profile, and access tokens for their own account. Case management, staff administration, and organization administration are never part of a citizen session. Public submission/tracking workflows still depend on configuration — check with your system administrator for current capabilities.
+
+**Citizen Dashboard workflow:**
+1. Sign in through the **Citizen Portal**
+2. The dashboard opens and shows your account status, the portal you are signed in to, and the available actions
+3. Use the action cards to open **Public intake**, **My profile**, or **Access tokens**
 
 **Citizen Profile workflow:**
 1. Sign in through the **Citizen Portal**
-2. Open **Citizen profile** in the navigation
+2. Open **My profile** in the navigation (or the dashboard action card)
 3. Provide **Full Name** and **Email** (required); optionally add phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
 4. Submit to create the profile; submitting again updates the existing profile
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
@@ -178,7 +199,7 @@ Organization and membership administration are available in the "Organizations" 
 
 ### 5.8 Managing Your Citizen Profile
 1. Sign in through the **Citizen Portal**
-2. Navigate to **Citizen profile**
+2. Navigate to **My profile** (from the dashboard action card or the sidebar)
 3. If you are not signed in, you will be prompted to **Sign in**
 4. Fill in the required fields (**Full Name**, **Email**) and any optional details
 5. Submit to create or update your profile
@@ -221,6 +242,9 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 |---|---|---|
 | "Configure an organization ID to load cases" | Missing `VITE_CIVICFLOW_ORGANIZATION_ID` | Configure environment variables (see README) |
 | "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
+| "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
+| "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |
+| "Organization workspace unavailable" | A citizen session opened `/admin` | Use **Go to my dashboard**, or sign in through `/admin` with a staff account |
 | "Please verify your email to sign in" | Email not confirmed | Open the verification link from your email (or resend it) |
 | "Too many attempts. Try again later." | Account temporarily locked | Wait ~15 minutes and retry |
 | "You have reached the maximum number of active access tokens" | 25 active tokens already exist | Revoke an unused token, then create a new one |
@@ -263,7 +287,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 
 ### Current Limitations
 - **Email delivery**: Verification and password-reset emails require a configured email sender in production (local development logs them)
-- **Citizen portal incomplete**: Public submission/tracking workflows may be limited
+- **Citizen portal scope**: The citizen portal is self-service only (dashboard, public intake, own profile, access tokens); public submission/tracking workflows may be limited
 - **Environment dependent**: Many features require proper backend/frontend configuration
 - **No offline support**: Requires network connectivity
 - **File restrictions**: Document upload/download may have type/size limitations based on API configuration
@@ -288,6 +312,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - **CSRF**: Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header)
 - **Personal Access Token (PAT)**: A long-lived credential for API clients, sent as `Authorization: Bearer civicflow_pat_…`; it carries the creating user's permissions and can be revoked at any time
 - **Role**: Account permission level (`citizen`, `staff`, or `superadmin`)
+- **Portal**: The sign-in surface an account is bound to — the Citizen Portal for citizen accounts, the Organization Portal for staff and super administrators. An account can only sign in through the portal its roles belong to.
 - **Assignment**: Designating a staff member to handle a case
 - **Status History**: Audit trail of case status changes
 - **Assignment History**: Audit trail of case assignments

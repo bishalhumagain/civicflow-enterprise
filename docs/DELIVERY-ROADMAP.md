@@ -16,6 +16,8 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 - Disposable Compose fixtures for PostgreSQL roles.
 - React/TypeScript dashboard with first-party cookie-based authentication (ASP.NET Core Identity) and CSRF protection.
 - Personal access tokens for non-browser API clients: create/list/revoke endpoints, SHA-256 hash at rest, one-time plaintext, optional expiry, per-token revocation, and bearer authentication that resolves the same Identity roles and policies as the cookie session. Covered by integration tests.
+- Portal-scoped authentication: separate citizen and organization sign-in endpoints, each bound to the roles it serves, with wrong-portal attempts rejected and the issued session removed. Covered by integration tests and an over-HTTP role matrix.
+- Role-specific frontend workspaces: a citizen dashboard for citizen accounts and the organization workspace for staff/super administrators, with navigation and data requests derived from the roles the API reports.
 
 ### Implemented but limited
 
@@ -27,6 +29,8 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 
 - Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented.
 - The personal access token feature has no browser-level end-to-end run in this environment; the backend flow was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation and lint only.
+- The portal-scoped sign-in and the role-specific workspaces have no browser-level end-to-end run in this environment; the backend behaviour was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation and lint only.
+- An account that holds both a citizen and a staff/super administrator role may use both portals. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`.
 
 ### Unstarted or blocked by a security design dependency
 

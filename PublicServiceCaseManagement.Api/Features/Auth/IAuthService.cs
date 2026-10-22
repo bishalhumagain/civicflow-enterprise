@@ -9,8 +9,9 @@ public interface IAuthService
         Func<string, string, string> linkBuilder,
         CancellationToken cancellationToken = default);
 
-    Task<SignInResult> LoginAsync(
+    Task<LoginOutcome> LoginAsync(
         LoginRequest request,
+        SignInPortal portal,
         CancellationToken cancellationToken = default);
 
     Task LogoutAsync(CancellationToken cancellationToken = default);

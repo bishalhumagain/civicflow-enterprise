@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiRequest } from './api'
 import {
   AuthApiError,
+  allowedPortals,
+  canUsePortal,
   getCurrentUser,
+  isSuperAdmin,
   login as loginRequest,
   logout as logoutRequest,
   type AuthUser,
+  type SignInPortal,
 } from './auth'
 import './App.css'
 
@@ -35,6 +39,7 @@ import { CaseDetails } from './components/CaseDetails'
 import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
 import { CitizenIntake } from './components/CitizenIntake'
+import { CitizenDashboard } from './components/CitizenDashboard'
 import { LandingPage } from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
 import CitizenLoginPage from './pages/CitizenLoginPage'
@@ -53,6 +58,7 @@ const CITIZEN_REGISTER_PATH = '/citizen/register'
 const VERIFY_EMAIL_PATH = '/citizen/verify-email'
 const FORGOT_PASSWORD_PATH = '/forgot-password'
 const RESET_PASSWORD_PATH = '/reset-password'
+const WORKSPACE_PATH = '/workspace'
 
 type AppRoute =
   | 'landing'
@@ -62,6 +68,7 @@ type AppRoute =
   | 'verify-email'
   | 'forgot-password'
   | 'reset-password'
+  | 'workspace'
 
 function resolveRoute(pathname: string): AppRoute {
   const path = pathname.replace(/\/+$/, '').toLowerCase()
@@ -72,6 +79,7 @@ function resolveRoute(pathname: string): AppRoute {
   if (path === VERIFY_EMAIL_PATH) return 'verify-email'
   if (path === FORGOT_PASSWORD_PATH) return 'forgot-password'
   if (path === RESET_PASSWORD_PATH) return 'reset-password'
+  if (path === WORKSPACE_PATH) return 'workspace'
 
   return 'landing'
 }
@@ -80,6 +88,52 @@ function navigateTo(path: string) {
   if (window.location.pathname !== path) {
     window.history.pushState({}, document.title, path)
   }
+}
+
+const PORTAL_STORAGE_KEY = 'civicflow.portal'
+
+/**
+ * The portal the account last signed in through. It is only a UI preference
+ * (never a credential), and it is always validated against the roles the API
+ * reports before it is used.
+ */
+function readRememberedPortal(): SignInPortal | null {
+  try {
+    const stored = window.sessionStorage.getItem(PORTAL_STORAGE_KEY)
+    return stored === 'citizen' || stored === 'organization' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+function rememberPortal(portal: SignInPortal): void {
+  try {
+    window.sessionStorage.setItem(PORTAL_STORAGE_KEY, portal)
+  } catch {
+    // Storage can be unavailable in private browsing modes. The portal is
+    // then derived from the account roles on the next load.
+  }
+}
+
+function forgetPortal(): void {
+  try {
+    window.sessionStorage.removeItem(PORTAL_STORAGE_KEY)
+  } catch {
+    // Ignore storage failures; the portal is derived from roles anyway.
+  }
+}
+
+/**
+ * Picks the portal a restored session belongs to. The remembered choice only
+ * wins when the account's roles actually allow that portal.
+ */
+function resolveSessionPortal(user: AuthUser): SignInPortal {
+  const portals = allowedPortals(user)
+  const remembered = readRememberedPortal()
+
+  if (remembered && portals.includes(remembered)) return remembered
+
+  return portals.includes('citizen') ? 'citizen' : 'organization'
 }
 
 function App() {
@@ -105,7 +159,8 @@ function App() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
-  const [activeView, setActiveView] = useState<WorkspaceView>('cases')
+  const [viewSelection, setViewSelection] = useState<WorkspaceView>('citizen-dashboard')
+  const [activePortal, setActivePortal] = useState<SignInPortal | null>(null)
   const [casePage, setCasePage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [adminLoading, setAdminLoading] = useState(false)
@@ -115,6 +170,65 @@ function App() {
   const [loginErrorCode, setLoginErrorCode] = useState<string | null>(null)
 
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
+
+  // The API reports the roles the session actually carries. Every dashboard,
+  // navigation entry, and data request below is derived from them so the UI
+  // can never offer a surface the API would refuse.
+  const citizenAccess = canUsePortal(currentUser, 'citizen')
+  const organizationAccess = canUsePortal(currentUser, 'organization')
+  const superAdminAccess = isSuperAdmin(currentUser)
+
+  const availableViews = useMemo<WorkspaceView[]>(() => {
+    if (!currentUser) return []
+
+    const views: WorkspaceView[] = []
+
+    if (citizenAccess) {
+      views.push('citizen-dashboard', 'citizen', 'citizen-profile')
+    }
+
+    if (organizationAccess) {
+      views.push('cases', 'staff')
+
+      if (superAdminAccess) views.push('organizations')
+    }
+
+    views.push('access-tokens')
+
+    return views
+  }, [currentUser, citizenAccess, organizationAccess, superAdminAccess])
+
+  // The view is derived from the roles the API reports, so a citizen can
+  // never land on an organization-only surface, even if a stale selection
+  // survives a sign-out or a role change.
+  const activeView: WorkspaceView = availableViews.includes(viewSelection)
+    ? viewSelection
+    : (availableViews[0] ?? 'access-tokens')
+
+  const navigationItems = useMemo(() => {
+    if (!currentUser) return []
+
+    const items: { view: WorkspaceView; label: string; icon: string }[] = []
+
+    if (citizenAccess) {
+      items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: '⌂' })
+      items.push({ view: 'citizen', label: 'Public intake', icon: '✎' })
+      items.push({ view: 'citizen-profile', label: 'My profile', icon: '☺' })
+    }
+
+    if (organizationAccess) {
+      items.push({ view: 'cases', label: 'Cases', icon: '▣' })
+      items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
+
+      if (superAdminAccess) {
+        items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
+      }
+    }
+
+    items.push({ view: 'access-tokens', label: 'Access tokens', icon: '⌗' })
+
+    return items
+  }, [currentUser, citizenAccess, organizationAccess, superAdminAccess])
 
   const history = caseHistoryData && caseHistoryData.caseId === selectedCase?.id
       ? caseHistoryData.items
@@ -152,7 +266,14 @@ function App() {
     void getCurrentUser()
         .then((user) => {
           if (!mounted) return
+
           setCurrentUser(user)
+
+          if (user) {
+            const portal = resolveSessionPortal(user)
+            setActivePortal(portal)
+            setViewSelection(portal === 'citizen' ? 'citizen-dashboard' : 'cases')
+          }
         })
         .catch(() => {
           if (!mounted) return
@@ -167,8 +288,10 @@ function App() {
     }
   }, [])
 
+  // The active view always has to stay inside the set the current roles allow,
+  // so a citizen can never land on an organization-only surface.
   useEffect(() => {
-    if (!currentUser || !organizationId) return
+    if (!currentUser || !organizationAccess || !organizationId) return
 
     let mounted = true
 
@@ -208,10 +331,10 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, casePage])
+  }, [currentUser, organizationAccess, casePage])
 
   useEffect(() => {
-    if (!currentUser || !selectedCase || selectedCase.id.startsWith('demo-')) return
+    if (!currentUser || !organizationAccess || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
     let mounted = true
     const caseId = selectedCase.id
@@ -249,10 +372,10 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, selectedCase])
+  }, [currentUser, organizationAccess, selectedCase])
 
   useEffect(() => {
-    if (!currentUser || activeView !== 'organizations') return
+    if (!currentUser || !superAdminAccess || activeView !== 'organizations') return
 
     let mounted = true
 
@@ -280,10 +403,10 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, activeView])
+  }, [currentUser, superAdminAccess, activeView])
 
   useEffect(() => {
-    if (!currentUser || activeView !== 'organizations' || !selectedOrganizationId) return
+    if (!currentUser || !superAdminAccess || activeView !== 'organizations' || !selectedOrganizationId) return
 
     let mounted = true
     const currentOrganizationId = selectedOrganizationId
@@ -308,7 +431,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, activeView, selectedOrganizationId])
+  }, [currentUser, superAdminAccess, activeView, selectedOrganizationId])
 
   const goToRoute = (path: string, target: AppRoute) => {
     setLoginError(null)
@@ -329,25 +452,31 @@ function App() {
     setRoute('landing')
   }
 
-  const completeSignIn = (user: AuthUser) => {
+  const completeSignIn = (user: AuthUser, portal: SignInPortal) => {
     setCurrentUser(user)
+    setActivePortal(portal)
+    setViewSelection(portal === 'citizen' ? 'citizen-dashboard' : 'cases')
     setLoginError(null)
     setLoginErrorCode(null)
     setError(null)
-    navigateTo('/')
-    setRoute('landing')
+    rememberPortal(portal)
+    navigateTo(WORKSPACE_PATH)
+    setRoute('workspace')
     showToast('Signed in successfully.', 'success')
   }
 
-  const handleLoginSubmit = async ({ email, password }: LoginCredentials) => {
+  const handleLoginSubmit = async (
+    { email, password }: LoginCredentials,
+    portal: SignInPortal,
+  ) => {
     setLoginLoading(true)
     setLoginError(null)
     setLoginErrorCode(null)
     setError(null)
 
     try {
-      const user = await loginRequest(email, password)
-      completeSignIn(user)
+      const user = await loginRequest(email, password, portal)
+      completeSignIn(user, portal)
     } catch (reason) {
       const message =
           reason instanceof Error ? reason.message : 'Sign-in failed. Check your email and password.'
@@ -361,15 +490,23 @@ function App() {
     }
   }
 
+  const handleCitizenLoginSubmit = (credentials: LoginCredentials) =>
+    handleLoginSubmit(credentials, 'citizen')
+
+  const handleOrganizationLoginSubmit = (credentials: LoginCredentials) =>
+    handleLoginSubmit(credentials, 'organization')
+
   const handleSignOut = () => {
     void logoutRequest()
     setCurrentUser(null)
     setCases([])
     setStaff([])
     setOrganizations([])
+    setActivePortal(null)
+    forgetPortal()
     navigateTo('/')
     setRoute('landing')
-    setActiveView('cases')
+    setViewSelection('citizen-dashboard')
     showToast('Signed out.', 'info')
   }
 
@@ -683,7 +820,7 @@ function App() {
   if (!currentUser && route === 'staff-login') {
     return (
       <StaffLoginPage
-        onSubmit={handleLoginSubmit}
+        onSubmit={handleOrganizationLoginSubmit}
         onBack={handleBackToLanding}
         onForgotPassword={handleForgotPassword}
         loading={loginLoading}
@@ -696,7 +833,7 @@ function App() {
   if (!currentUser && route === 'citizen-login') {
     return (
       <CitizenLoginPage
-        onSubmit={handleLoginSubmit}
+        onSubmit={handleCitizenLoginSubmit}
         onBack={handleBackToLanding}
         onRegister={handleCitizenRegister}
         onForgotPassword={handleForgotPassword}
@@ -755,6 +892,51 @@ function App() {
     )
   }
 
+  // The organization portal is only reachable for staff and super
+  // administrator accounts. A citizen that navigates to it is told why and
+  // is returned to the citizen workspace instead of the staff views.
+  if (route === 'staff-login' && !organizationAccess) {
+    return (
+      <div className="landing-page">
+        <header className="landing-header">
+          <div className="landing-brand">
+            <span className="landing-brand-mark">C</span>
+            <span className="landing-brand-name">CivicFlow</span>
+          </div>
+        </header>
+        <main className="landing-main">
+          <section style={{ maxWidth: 520, margin: '0 auto', width: '100%' }}>
+            <h2 style={{ marginTop: 0 }}>Organization workspace unavailable</h2>
+            <p className="muted">
+              This account is signed in as a citizen account. Citizen accounts
+              only have access to the citizen portal, so the organization
+              workspace, case management, and staff administration stay closed.
+            </p>
+            <div className="landing-card-actions">
+              <button
+                className="landing-button primary"
+                onClick={() => {
+                  setViewSelection('citizen-dashboard')
+                  navigateTo(WORKSPACE_PATH)
+                  setRoute('workspace')
+                }}
+                type="button"
+              >
+                Go to my dashboard
+              </button>
+              <button className="landing-button" onClick={handleSignOut} type="button">
+                Sign out
+              </button>
+            </div>
+          </section>
+        </main>
+        <footer className="landing-footer">
+          <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
+        </footer>
+      </div>
+    )
+  }
+
   const caseEmptyMessage = !organizationId
       ? 'Configure an organization ID to load cases.'
       : cases.length === 0
@@ -766,6 +948,26 @@ function App() {
       : !organizationId
           ? 'Organization configuration required'
           : 'Live organization data'
+
+  const workspaceLabel = activePortal === 'citizen'
+      ? 'Citizen portal'
+      : superAdminAccess
+          ? 'Platform administration'
+          : 'Organization workspace'
+
+  const workspaceCaption = activePortal === 'citizen'
+      ? currentUser.email
+      : organizationId || 'Configure an organization ID'
+
+  const viewLabels: Record<WorkspaceView, string> = {
+    'citizen-dashboard': 'Dashboard',
+    citizen: 'Public intake',
+    'citizen-profile': 'My profile',
+    cases: 'Cases',
+    staff: 'Staff & team',
+    organizations: 'Organizations',
+    'access-tokens': 'Access tokens',
+  }
 
   return (
       <div className="app-shell">
@@ -780,30 +982,23 @@ function App() {
           <div className="organization-switcher">
             <span className="organization-icon">CF</span>
             <span>
-            <strong>Organization workspace</strong>
-            <small>{organizationId || 'Configure an organization ID'}</small>
+            <strong>{workspaceLabel}</strong>
+            <small>{workspaceCaption}</small>
           </span>
           </div>
 
           <nav className="navigation" aria-label="Primary navigation">
-            <button className={activeView === 'cases' ? 'active' : ''} onClick={() => setActiveView('cases')} type="button">
-              ▣ <span>Cases</span><b>{cases.length}</b>
-            </button>
-            <button className={activeView === 'staff' ? 'active' : ''} onClick={() => setActiveView('staff')} type="button">
-              ♙ <span>Staff &amp; team</span>
-            </button>
-            <button className={activeView === 'organizations' ? 'active' : ''} onClick={() => setActiveView('organizations')} type="button">
-              ⌂ <span>Organizations</span>
-            </button>
-            <button className={activeView === 'citizen' ? 'active' : ''} onClick={() => setActiveView('citizen')} type="button">
-              ⌂ <span>Public intake</span>
-            </button>
-            <button className={activeView === 'citizen-profile' ? 'active' : ''} onClick={() => setActiveView('citizen-profile')} type="button">
-              ☺ <span>Citizen profile</span>
-            </button>
-            <button className={activeView === 'access-tokens' ? 'active' : ''} onClick={() => setActiveView('access-tokens')} type="button">
-              ⌗ <span>Access tokens</span>
-            </button>
+            {navigationItems.map((item) => (
+              <button
+                className={activeView === item.view ? 'active' : ''}
+                key={item.view}
+                onClick={() => setViewSelection(item.view)}
+                type="button"
+              >
+                {item.icon} <span>{item.label}</span>
+                {item.view === 'cases' && <b>{cases.length}</b>}
+              </button>
+            ))}
           </nav>
 
           <div className="sidebar-footer">
@@ -821,21 +1016,9 @@ function App() {
         <main className="main-content">
           <header className="topbar">
             <div className="breadcrumb">
-              <span>Workspace</span>
+              <span>{workspaceLabel}</span>
               <span>/</span>
-              <strong>
-                {activeView === 'cases'
-                    ? 'Cases'
-                    : activeView === 'staff'
-                        ? 'Staff & team'
-                        : activeView === 'organizations'
-                            ? 'Organizations'
-                            : activeView === 'citizen'
-                                ? 'Public intake'
-                                : activeView === 'citizen-profile'
-                                    ? 'Citizen profile'
-                                    : 'Access tokens'}
-              </strong>
+              <strong>{viewLabels[activeView]}</strong>
             </div>
 
             <div className="topbar-actions">
@@ -848,13 +1031,22 @@ function App() {
           <section className="content">
             {error && <div className="auth-error" role="alert">{error}</div>}
 
-            {activeView === 'citizen' ? (
+            {activeView === 'citizen-dashboard' ? (
+              <CitizenDashboard
+                fullName={currentUser.fullName}
+                email={currentUser.email}
+                emailConfirmed={currentUser.emailConfirmed}
+                onOpenIntake={() => setViewSelection('citizen')}
+                onOpenProfile={() => setViewSelection('citizen-profile')}
+                onOpenAccessTokens={() => setViewSelection('access-tokens')}
+              />
+            ) : activeView === 'citizen' ? (
               <CitizenIntake />
             ) : activeView === 'citizen-profile' ? (
               <CitizenProfilePage onSignIn={handleCitizenSignIn} />
             ) : activeView === 'access-tokens' ? (
               <AccessTokensPage />
-            ) : activeView === 'staff' ? (
+            ) : activeView === 'staff' && organizationAccess ? (
                 <StaffDirectory
                     staff={staff}
                     authenticated={Boolean(currentUser)}
@@ -862,7 +1054,7 @@ function App() {
                     onCreate={createStaffMember}
                     onToggle={setStaffActive}
                 />
-            ) : activeView === 'organizations' ? (
+            ) : activeView === 'organizations' && superAdminAccess ? (
                 <OrganizationAdministration
                     authenticated={Boolean(currentUser)}
                     loading={adminLoading}
@@ -875,7 +1067,7 @@ function App() {
                     onCreateMembership={createMembership}
                     onUpdateMembership={updateMembership}
                 />
-            ) : (
+            ) : organizationAccess ? (
                 <>
                   <div className="page-heading">
                     <div>
@@ -1061,6 +1253,15 @@ function App() {
                     />
                   </div>
                 </>
+            ) : (
+                <CitizenDashboard
+                    fullName={currentUser.fullName}
+                    email={currentUser.email}
+                    emailConfirmed={currentUser.emailConfirmed}
+                    onOpenIntake={() => setViewSelection('citizen')}
+                    onOpenProfile={() => setViewSelection('citizen-profile')}
+                    onOpenAccessTokens={() => setViewSelection('access-tokens')}
+                />
             )}
 
             <p className="footer-note">

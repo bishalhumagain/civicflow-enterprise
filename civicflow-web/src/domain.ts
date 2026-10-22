@@ -1,6 +1,6 @@
 export type CaseStatus = 'Submitted' | 'UnderReview' | 'Assigned' | 'InProgress' | 'AwaitingInformation' | 'Resolved' | 'Closed' | 'Rejected'
 export type CasePriority = 'High' | 'Normal' | 'Low'
-export type WorkspaceView = 'cases' | 'staff' | 'organizations' | 'citizen' | 'citizen-profile' | 'access-tokens'
+export type WorkspaceView = 'citizen-dashboard' | 'citizen' | 'citizen-profile' | 'cases' | 'staff' | 'organizations' | 'access-tokens'
 
 export type CaseRecord = {
   id: string

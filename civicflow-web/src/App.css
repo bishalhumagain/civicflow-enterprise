@@ -80,3 +80,11 @@
   .toast-container{left:16px;right:16px;bottom:16px}
   .toast{max-width:100%}
 }
+
+.citizen-stat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.citizen-action-card{padding:22px;display:flex;flex-direction:column;gap:12px}
+.citizen-action-card h3{margin:0;font-size:15px;color:#172033}
+.citizen-action-card p{margin:0;font-size:12px;line-height:1.6;color:#667085}
+.citizen-action-card .primary-button{margin-top:auto;align-self:flex-start}
+@media(max-width:1050px){.citizen-stat-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.citizen-stat-grid{grid-template-columns:1fr}}
