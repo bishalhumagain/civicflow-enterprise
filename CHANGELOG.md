@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Access-token management UI (`AccessTokensPage`) in the workspace, and `list/create/revoke` client functions in `civicflow-web/src/auth.ts`.
 - Machine-readable error codes on sign-in failures (`email_not_confirmed`, `invalid_credentials`) and a "resend the verification email" action in the sign-in form.
 
+### Fixed
+- Staff account provisioning (`POST /api/staff/accounts`) now works end to end. The request contract carried its validation metadata on the generated record properties instead of the primary constructor parameters, which made ASP.NET Core reject the request with a `500` before the action ran; the metadata now sits on the constructor parameters like every other request record.
+- Provisioned staff accounts are confirmed up front, so the temporary password can be used to sign in on the organization portal right away instead of being blocked by the email confirmation rule.
+- Staff account provisioning no longer opens a second transaction on the same connection. The organization transaction owned by the request pipeline is used instead, which keeps the write inside the row-level-security scope of the organization.
+
 ### Changed
 - `IAuthService.LoginAsync` takes the target portal and returns a `LoginOutcome` (replacing `SignInResult`), so the controller can answer with a stable status code and machine-readable code. A successful login response now reports the `portal` and the session `roles`.
 - Frontend workspace restructured around the roles the API reports: the navigation entries, the active view, and the data requests are derived from them, a citizen session opens the citizen dashboard and a staff/superadmin session opens the organization workspace, and sign-in redirects to the dedicated `/workspace` route.

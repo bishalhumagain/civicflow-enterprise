@@ -128,6 +128,17 @@ Login status codes: `200` success (the response reports the `portal` and the ses
 ### Email delivery
 Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message — including the verification/reset link — at `Information` level, so the link is visible in the API log during local development. Replace it with a real SMTP/provider implementation for production.
 
+### Getting an organization (staff) login
+Public registration only creates citizen accounts, so an organization login has to be provisioned. Every unsafe call needs the anti-forgery header (`X-CSRF-TOKEN` from `GET /api/auth/csrf`).
+
+1. **Super administrator** — seed one with `SeedAdmin:Email`/`SeedAdmin:Password`/`SeedAdmin:FullName` (environment variables: `SeedAdmin__Email=…`, `SeedAdmin__Password=…`, `SeedAdmin__FullName=…`) before the first API start, then sign in at `/admin`. The seeder only creates the account when it does not exist yet; it never resets the password of an existing account.
+2. **Organization** — `POST /api/organizations` with `{ "name": "…", "code": "…" }` (super administrator only).
+3. **Organization administrator membership** — `POST /api/organizations/{organizationId}/memberships` with `{ "userId": "<user id from GET /api/auth/me>", "role": "OrganizationAdmin" }`. A platform super administrator may administer any organization.
+4. **Staff login** — `POST /api/staff/accounts` with the header `X-Organization-Id: {organizationId}` and the body `{ "fullName": "…", "email": "…", "temporaryPassword": "…", "role": "CaseWorker" }`. The caller must be an organization administrator of that organization; the role is one of `Viewer`, `CaseWorker`, `OrganizationAdmin`.
+5. The new account signs in at `/admin` (`POST /api/auth/login/organization`) with the temporary password.
+
+Set `VITE_CIVICFLOW_ORGANIZATION_ID` to the created organization id so the workspace loads that organization's data.
+
 ## 12) Tests
 - **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), dedicated anti-forgery tests verify CSRF rejection and acceptance, the role-scoped sign-in tests cover citizen/staff/superadmin acceptance on the matching portal, wrong-portal rejection with a stable code, session cleanup after a rejected attempt, and role-gated endpoint access, and the personal access token tests cover creation, hashing at rest, bearer authentication, role propagation, least privilege, tampering, expiry, and revocation.
 - **Frontend**: `cd civicflow-web && npm run lint && npm run build`.

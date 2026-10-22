@@ -4,17 +4,17 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
 public sealed record ProvisionStaffAccountRequest(
-    [property: Required]
-    [property: StringLength(150, MinimumLength = 1)]
+    [Required]
+    [StringLength(150, MinimumLength = 1)]
     string FullName,
-    [property: Required]
-    [property: EmailAddress]
-    [property: StringLength(254)]
+    [Required]
+    [EmailAddress]
+    [StringLength(254)]
     string Email,
-    [property: Required]
-    [property: StringLength(128, MinimumLength = 12)]
+    [Required]
+    [StringLength(128, MinimumLength = 12)]
     string TemporaryPassword,
-    [property: Required]
+    [Required]
     string Role);
 
 public sealed record ProvisionStaffAccountResponse(

@@ -43,13 +43,19 @@ public sealed class StaffAccountService(
 
         var now = timeProvider.GetUtcNow();
 
-        await using var transaction =
-            await dbContext.Database.BeginTransactionAsync(cancellationToken);
-
+        // The organization transaction is owned by the request pipeline, so
+        // this service must not open a second transaction on the same
+        // connection. The pipeline commits the work when the request succeeds
+        // and rolls it back otherwise.
         var user = ApplicationUser.Create(
             request.FullName,
             email,
             now);
+
+        // An administrator vouches for the address when the account is
+        // provisioned, so the account is confirmed up front. Without this the
+        // staff member would be locked out by the email confirmation rule.
+        user.EmailConfirmed = true;
 
         var createResult = await userManager.CreateAsync(
             user,
@@ -84,7 +90,6 @@ public sealed class StaffAccountService(
         dbContext.StaffMembers.Add(staffMember);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
         auditLogger.AccountLifecycle(
             user.Email ?? email,

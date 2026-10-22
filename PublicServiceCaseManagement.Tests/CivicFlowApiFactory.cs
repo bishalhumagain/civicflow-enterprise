@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -143,7 +144,9 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<CivicFlowDbContext>();
 
             services.AddDbContext<CivicFlowDbContext>(options =>
-                options.UseInMemoryDatabase(databaseName));
+                options.UseInMemoryDatabase(databaseName)
+                    .ConfigureWarnings(warnings =>
+                        warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
 
         });
     }
