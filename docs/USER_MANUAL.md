@@ -1,41 +1,68 @@
-# CivicFlow Enterprise - User Manual
+# CivicFlow Enterprise — User Manual
 
 **Document Status:** Based on verified implementation. Some workflows may be limited or require proper configuration.
 
-**Audience:** Citizens, Government Officers, and Administrative users  
+**Audience:** Citizens, Government Officers (Staff), Organization Administrators, and Platform Super Administrators
+
 **Last Updated:** 2026-10-22
+
+---
+
+## Table of Contents
+
+- [1. About This Manual](#1-about-this-manual)
+- [2. Accessing CivicFlow](#2-accessing-civicflow)
+- [3. Understanding the Interface](#3-understanding-the-interface)
+- [4. Role-Specific Instructions](#4-role-specific-instructions)
+- [5. Core Workflows](#5-core-workflows)
+- [6. Common Errors and Troubleshooting](#6-common-errors-and-troubleshooting)
+- [7. Security and Privacy](#7-security-and-privacy)
+- [8. Known Limitations](#8-known-limitations)
+- [9. Glossary](#9-glossary)
+- [Support](#support)
+
+---
 
 ## 1. About This Manual
 
 ### Purpose
-This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code.
+
+This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code and integration tests. For developer setup and architecture, see the [README](../README.md).
 
 ### Application Status
-- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen and organization portals), personal access tokens for API clients, case management operations, citizen self-service profile and citizen dashboard, a persisted audit trail with an organization activity log and a platform-wide audit log, a platform directory, organization management (including deletion), and optional staff/invitation phone numbers
-- **Partially Implemented**: Public/citizen intake interface (submission/tracking depend on configuration)
-- **Not Fully Verified in this environment**: Live browser + database end-to-end runs (the code paths are covered by automated integration tests)
-- **Limitations**: Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production
+
+| Status | Features |
+|---|---|
+| **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, and optional staff/invitation phone numbers |
+| **Partially Implemented** | Public/citizen intake interface (submission/tracking depend on configuration) |
+| **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
+| **Limitations** | Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production |
 
 ### Supported Environment
-- Modern web browser (Chrome, Firefox, Edge, Safari - recent versions)
+
+- Modern web browser (Chrome, Firefox, Edge, Safari — recent versions)
 - JavaScript enabled
 - Network access to the CivicFlow application
+
+---
 
 ## 2. Accessing CivicFlow
 
 ### Launching the Application
+
 In a local development environment:
-1. Start the backend API and dependencies (see [README.md](../README.md))
+1. Start the backend API and dependencies (see [README](../README.md) → Getting Started)
 2. Start the frontend dev server
 3. Navigate to the frontend URL (typically `http://localhost:5173` in development)
 
 ### Landing Page
+
 When accessing CivicFlow without an active session, the public landing page (`/`) shows:
 - **CivicFlow branding** and description
-- **Citizen Portal** - For public service requests and citizen self-service profile, with two buttons: **Sign in** (existing citizen) and **Register** (new citizen account)
-- **Organization Portal** - For staff and Organization Administrators
+- **Citizen Portal** — For public service requests and citizen self-service profile, with two buttons: **Sign in** (existing citizen) and **Register** (new citizen account)
+- **Organization Portal** — For staff and Organization Administrators
 
-Platform administration is served at a **dedicated URL** (`/admin` for organization staff, `/super-platform-admin` for platform administrators), not on the public landing page.
+Platform administration is served at a **dedicated URL** (`/super-platform-admin`), intentionally not linked from the public landing page.
 
 ### Authentication
 
@@ -50,6 +77,7 @@ CivicFlow has three separate sign-in surfaces, and each one only accepts the acc
 If you use the wrong portal, the sign-in is refused with a message such as *"This account is not a citizen account…"* or *"This account is not an organization account…"* (a super administrator at `/admin` is told to use the platform portal). Nothing is signed in when this happens, so you can immediately try the correct portal.
 
 #### For Government Officers (Staff and Organization Admin)
+
 1. Navigate to the dedicated staff sign-in URL: `https://<your-civicflow-host>/admin`
 2. You'll see the **staff sign-in form** with email and password fields
 3. Enter your email and password and submit
@@ -59,23 +87,26 @@ If you use the wrong portal, the sign-in is refused with a message such as *"Thi
 If your email address has not been confirmed yet, sign-in is rejected with a message offering **Resend the verification email**. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
 
 #### For Platform Super Administrators
+
 1. Navigate to `https://<your-civicflow-host>/super-platform-admin` (this page is intentionally not linked from the public site)
 2. Sign in with your platform administrator email and password
-3. You land in **Platform administration**, where you can manage organizations, memberships, invitations, and your access tokens
+3. You land in **Platform administration**, where you can manage organizations, memberships, invitations, view the directory, audit log, error tracker, dashboard, and your access tokens
 
 A platform administrator cannot use `/admin` or the citizen portal with those same credentials; each portal is bound to its role.
 
 #### Joining an Organization (Invited Staff)
+
 Staff do not receive a temporary password. An administrator sends an invitation, and the invitee chooses their own password:
 
-1. Open the **single-use link** in the invitation email. It looks like `/setup-password?token=…`.
-2. Review the inviting organization, your name, email, and role.
-3. Choose a password (minimum 12 characters with upper case, lower case, a number, and a symbol) and confirm it.
-4. After the account is created, sign in at `/admin` with that password.
+1. Open the **single-use link** in the invitation email. It looks like `/setup-password?token=…`
+2. Review the inviting organization, your name, email, role, and expiry date
+3. Choose a password (minimum 12 characters with upper case, lower case, a number, and a symbol) and confirm it
+4. After the account is created, sign in at `/admin` with that password
 
 Invitations expire (72 hours by default) and stop working after the first successful use. If the link is invalid, expired, revoked, or already used, the page says so and asks you to contact the administrator for a new invitation. Resending an invitation invalidates the previous link.
 
 #### For Citizens
+
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
 3. Confirm your email using the verification link, then sign in
@@ -87,73 +118,98 @@ Invitations expire (72 hours by default) and stop working after the first succes
 **Citizen route shortcuts:** `/citizen/login` and `/citizen/register` open the citizen flows directly.
 
 #### Password Recovery
+
 1. On the citizen or staff sign-in page, choose **Forgot password**
 2. Enter your email; a reset link is sent if the account exists
 3. Open the reset link and choose a new password
 
 #### Logging Out
+
 1. In the workspace, click **"Sign out"** in the top bar
 2. You'll be returned to the landing page
 
 **Note:** Authentication is server-authoritative using an HttpOnly session cookie with CSRF protection. No authentication tokens are stored in the browser's JavaScript-accessible storage.
 
+---
+
 ## 3. Understanding the Interface
 
-### Workspace Layout (Authenticated Staff)
-The staff workspace consists of:
+### Workspace Layout
+
+The workspace consists of:
 - **Sidebar** (left): Branding, workspace info, navigation menu, footer with user info and "Back to landing" option
 - **Top bar**: Breadcrumb navigation, auth status, sign in/out button
 - **Main content**: View-specific content
 
 ### Navigation Menu
+
 The navigation only shows the views your account is entitled to. Entries are determined by the roles the server reports for your session, so a citizen never sees organization surfaces and a staff member never sees the citizen dashboard.
 
 **Citizen accounts (citizen portal):**
-- **Dashboard** - Citizen dashboard with your account status and available actions (default view)
-- **Public intake** - Submit a public service request
-- **My profile** - Create or update your own citizen profile
-- **Access tokens** - Create, list, and revoke personal access tokens for API clients
-- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
+
+| Navigation entry | Description |
+|---|---|
+| **Dashboard** | Citizen dashboard with account status and available actions (default view) |
+| **Public intake** | Submit a public service request |
+| **My profile** | Create or update your own citizen profile |
+| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
+| **Profile** | Unified self-service profile (civil registry details for citizens, contact details for staff) |
 
 **Staff accounts (organization portal):**
-- **Cases** - Case management (default view)
-- **Staff & team** - Staff directory, invitations (send, resend, revoke), staff phone numbers
-- **Activity log** - Audit trail of your organization's events (organization administrators)
-- **Access tokens** - Create, list, and revoke personal access tokens for API clients
-- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
+
+| Navigation entry | Description |
+|---|---|
+| **Cases** | Case management (default view) |
+| **Staff & team** | Staff directory, invitations (send, resend, revoke), staff phone numbers |
+| **Activity log** | Audit trail of your organization's events (organization administrators) |
+| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
+| **Profile** | Unified self-service profile (contact details for staff) |
 
 **Platform administrator accounts (platform administration):**
-- **Organizations** - Organization, membership, and invitation administration across all organizations (default view). Includes organization creation, renaming, activation/deactivation, deletion, membership management (add/update roles/activate/deactivate), and invitation management
-- **Directory** - Platform overview counters, all accounts, and all staff memberships
-- **Audit log** - Platform-wide audit trail
-- **Access tokens** - Create, list, and revoke personal access tokens for API clients
-- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
+
+| Navigation entry | Description |
+|---|---|
+| **Organizations** | Organization, membership, and invitation administration across all organizations (default view) |
+| **Directory** | Platform overview counters, all accounts, and all staff memberships |
+| **Audit log** | Platform-wide audit trail |
+| **Errors** | Application error list with filter (all/unhandled/handled) and mark-as-handled |
+| **Dashboard** | Platform-wide case statistics (total, per-status, per-priority, weekly/monthly trends) |
+| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
+| **Profile** | Unified self-service profile (contact details for staff) |
 
 ### Common Controls
+
 - Buttons with clear labels
 - Forms with validation
 - Tables with sorting/filtering (where implemented)
 - Toast notifications for feedback (success/error/info/warning)
 - Loading states
 
+---
+
 ## 4. Role-Specific Instructions
 
 ### Government Officer / Staff User
-**Access requirements:** Authenticated staff account with the `staff` role; must have appropriate organization membership/role as enforced by the API. Platform super administrators use the separate platform administration portal.
+
+**Access requirements:** Authenticated staff account with the `staff` role; must have appropriate organization membership/role as enforced by the API.
 
 **Available actions:**
-- View and manage cases
-- Update case status
+- View and manage cases (create, list, search, filter, view detail)
+- Update case status through the state machine
 - Assign cases to staff members
 - Upload and download case documents
-- View case history and assignment history
+- View case status history and assignment history
 - Manage the staff directory (deactivate/reactivate)
 - Invite staff (send, resend, or revoke single-use invitations)
 - Collect a phone number when inviting a staff member
 - View and correct a staff member's phone number (organization administrators)
 - Read the organization activity log (organization administrators)
+- View organization dashboard statistics
+- Manage personal access tokens
+- Update own profile
 
 ### Platform Administrator
+
 **Access requirements:** Authenticated platform super administrator account, signed in at `/super-platform-admin`.
 
 **Available actions:**
@@ -162,27 +218,31 @@ The navigation only shows the views your account is entitled to. Entries are det
 - Invite staff to any organization and manage those invitations (send, resend, revoke)
 - Browse the platform directory (overview counters, all accounts, all staff memberships)
 - Read the platform-wide audit log
-- Manage your own access tokens
-
-**Administrator Functions**
-Organization, membership, and invitation administration are available in the **Organizations** view for platform administrators and, within their own organization, for Organization Administrators. Specific permissions are enforced server-side by the API based on roles and organization memberships.
+- View platform dashboard statistics (total cases, per-status, per-priority, weekly/monthly trends)
+- Track and manage application errors (list, filter, view detail, mark as handled)
+- Manage personal access tokens
+- Update own profile
 
 **Organization Administration UI Details**
-- The Organizations view consists of two main sections: "Organizations" and "Memberships"
+
+The Organizations view consists of two main sections: "Organizations" and "Memberships".
+
 - **Organizations section**:
   - Dropdown to select an organization (displays name and code)
   - Action buttons for the selected organization: Rename, Deactivate/Reactivate, Delete
   - Inline form for renaming: requires organization name (max 200 characters) and code (max 50 characters)
   - Form for creating new organizations: requires name and code
+
 - **Memberships section**:
   - Form to add memberships: requires application user ID and role selection
   - Membership list showing user ID, role, active status, and activation toggle
   - Role options: Viewer, CaseWorker, OrganizationAdmin
+
 - **InvitationManager section** (integrated component):
-  - Form to send invitations: requires full name (1-150 characters), email (max 254 characters), optional phone number (max 30 characters), and role
+  - Form to send invitations: requires full name (1–150 characters), email (max 254 characters), optional phone number (max 30 characters), and role
   - Invitation list showing name, email, role, expiry date, phone number (if provided), and status
   - Actions: Resend (for pending invitations) and Revoke (for pending invitations)
-  - Note: No password is created or emailed; the invitee sets their own password from the single-use link
+  - No password is created or emailed; the invitee sets their own password from the single-use link
 
 **Deleting an organization**
 1. Open the **Organizations** view and select the organization
@@ -191,7 +251,23 @@ Organization, membership, and invitation administration are available in the **O
 4. The organization, its memberships, its staff records, and its pending invitations are removed
 5. The action is refused while the organization still holds cases — resolve or move those cases first, then delete the organization
 
+**Viewing the dashboard**
+1. Open **Dashboard** in the platform administration navigation
+2. Review the platform-wide case statistics:
+   - Total cases
+   - Cases per status (Submitted, UnderReview, Assigned, InProgress, AwaitingInformation, Resolved, Closed, Rejected)
+   - Cases per priority (Low, Normal, High, Critical)
+   - Weekly and monthly created/resolved case counts
+
+**Tracking application errors**
+1. Open **Errors** in the platform administration navigation
+2. Review the list of unhandled application errors (stack traces, request paths, user context)
+3. Filter by status: all, unhandled, or handled
+4. Click an error to view full detail (message, stack trace, source, method, request path, user, organization, additional data)
+5. Mark an error as handled once investigated and resolved
+
 ### Citizen User
+
 **Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: a citizen dashboard, the public intake interface, their own profile, and access tokens for their own account. Case management, staff administration, and organization administration are never part of a citizen session. Public submission/tracking workflows still depend on configuration — check with your system administrator for current capabilities.
 
 **Citizen Dashboard workflow:**
@@ -206,9 +282,12 @@ Organization, membership, and invitation administration are available in the **O
 4. Submit to create the profile; submitting again updates the existing profile
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
 
+---
+
 ## 5. Core Workflows
 
 ### 5.1 Viewing and Managing Cases
+
 1. Navigate to **Cases** in the sidebar (default view)
 2. Use the search box to find cases by reference number or title
 3. Use the status filter dropdown to filter by case status
@@ -216,21 +295,26 @@ Organization, membership, and invitation administration are available in the **O
 5. View case information, status history, assignment history, and documents
 
 ### 5.2 Creating a Case
+
 1. Go to **Cases** view
 2. Click **"+ New case"** button
-3. Fill in **Title** (required, 3-200 characters) and **Description** (required, 10-5000 characters)
+3. Fill in **Title** (required, 3–200 characters) and **Description** (required, 10–5000 characters)
 4. Click **"Create case"**
 5. You'll receive a toast notification on success/failure
 6. The new case will appear in the list
 
 ### 5.3 Updating Case Status
+
 1. Select a case from the cases list
 2. In the case details panel, use the status dropdown
 3. Select the new status
-4. The status will update (demo cases may have restrictions)
+4. The status will update according to the state machine:
+   - Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected
 5. Status history will be refreshed
+6. Closed and rejected cases cannot be edited
 
 ### 5.4 Assigning a Case
+
 1. Select a case from the cases list
 2. In the case details panel, use the assignment controls
 3. Select a staff member from the dropdown
@@ -238,11 +322,12 @@ Organization, membership, and invitation administration are available in the **O
 5. Assignment history will reflect the change
 
 ### 5.5 Managing Documents
+
 **Uploading:**
 1. Select a case
 2. In the documents section, use the file upload control
-3. Select a file to upload
-4. Upload will proceed if permitted (demo cases may be restricted)
+3. Select a file to upload (max 10MB; allowed: .pdf, .jpg, .jpeg, .png, .doc, .docx)
+4. Upload will proceed if permitted
 
 **Downloading:**
 1. Select a case with documents
@@ -250,6 +335,7 @@ Organization, membership, and invitation administration are available in the **O
 3. The file will download through your browser
 
 ### 5.6 Managing Staff
+
 1. Navigate to **Staff & team**
 2. Use the invitation form to add new staff members (full name, email, and an optional phone number); the invitee receives a single-use link and chooses their own password
 3. Review the invitation list (pending, accepted, expired, revoked) and resend or revoke invitations
@@ -260,6 +346,7 @@ Organization, membership, and invitation administration are available in the **O
 **Note on phone numbers:** A phone number is optional and must be 6–30 characters with at least 6 digits. When an invitation carries a number, it is stored on the new account and staff record; for an account that already exists the number is only filled in when the account has none of its own, so a number someone entered themselves is never overwritten.
 
 ### 5.7 Managing Organizations
+
 1. Navigate to **Organizations** (available to platform administrators in the platform workspace)
 2. Use the dropdown to select an organization from the list
 3. **Create a new organization**: Enter the organization name and code, then click "Create organization"
@@ -273,6 +360,7 @@ Organization, membership, and invitation administration are available in the **O
 8. **Manage invitations**: Use the InvitationManager to send, resend, or revoke invitations for the selected organization
 
 ### 5.8 Reviewing the Platform Directory
+
 1. Sign in as a platform administrator and open **Directory**
 2. Read the overview counters (accounts, active accounts, staff, active staff, organizations, active organizations, invitations, pending invitations)
 3. Browse the **Accounts** table for every account with its roles, platform role, phone number, and organization memberships
@@ -280,6 +368,7 @@ Organization, membership, and invitation administration are available in the **O
 5. Use the search field to narrow the tables
 
 ### 5.9 Reviewing the Audit Log
+
 1. Platform administrators: open **Audit log** for the platform-wide trail. Organization administrators: open **Activity log** for their own organization.
 2. Filter by category (authentication, account, organization, membership, staff, case, access token), by action, by free text, or by date range
 3. Page through the results with the pagination controls
@@ -287,7 +376,32 @@ Organization, membership, and invitation administration are available in the **O
 
 **Note:** The platform audit log is only available to platform super administrators, and an organization's activity log only to that organization's administrators. The audit trail is read-only.
 
-### 5.10 Managing Your Citizen Profile
+### 5.10 Reviewing the Dashboard
+
+1. Platform administrators: open **Dashboard** for platform-wide statistics. Staff: open **Dashboard** for organization-scoped statistics.
+2. Review the overview cards showing total cases and per-status breakdown
+3. Review the per-priority distribution (Low, Normal, High, Critical)
+4. Review the weekly and monthly created/resolved case trends
+
+### 5.11 Tracking Application Errors
+
+1. Sign in as a platform administrator and open **Errors**
+2. Review the list of application errors, filtered by status:
+   - **All** — all errors regardless of status
+   - **Unhandled** — errors that have not been addressed yet (default)
+   - **Handled** — errors that have been investigated and marked as resolved
+3. Click an error to view full detail:
+   - Error message and stack trace
+   - Source and method name
+   - Request path, method, and query string
+   - User email and organization (if available)
+   - Additional data (JSON)
+   - Whether the error was handled by the application
+   - When it occurred
+4. Mark an error as **Handled** once investigated and resolved
+
+### 5.12 Managing Your Citizen Profile
+
 1. Sign in through the **Citizen Portal**
 2. Navigate to **My profile** (from the dashboard action card or the sidebar)
 3. If you are not signed in, you will be prompted to **Sign in**
@@ -297,10 +411,24 @@ Organization, membership, and invitation administration are available in the **O
 
 **Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected.
 
-### 5.11 Managing Personal Access Tokens
+### 5.13 Updating Your Unified Profile
+
+The **Profile** page is a unified self-service profile available to both citizens and staff:
+
+1. Open **Profile** in the navigation
+2. The page detects your account type (citizen or staff) from your roles
+3. For citizens: edit civil registry details (full name, email, phone, NID, citizenship number, age, gender, addresses)
+4. For staff: edit contact details (full name, phone number)
+5. Submit to save changes
+6. Changes are validated server-side and recorded in the audit trail
+
+**Note:** Super administrators do not have access to the Profile page (they use the platform administration surfaces only).
+
+### 5.14 Managing Personal Access Tokens
+
 Personal access tokens let an automated client (a script, an integration, a mobile app) call the API without a browser session. A token acts on behalf of the user who created it and carries that user's permissions.
 
-1. Sign in to CivicFlow (citizen or staff sign-in page)
+1. Sign in to CivicFlow (citizen, staff, or platform admin sign-in page)
 2. Open **Access tokens** in the navigation
 3. Enter a **name** that identifies the client or purpose (for example `nightly-sync`)
 4. Optionally choose an **expiry** (30 days, 90 days, 1 year, or never)
@@ -309,6 +437,7 @@ Personal access tokens let an automated client (a script, an integration, a mobi
 7. Store it in the client's secret store; the server keeps only a hash of it
 
 **Using the token**
+
 Send it as an HTTP bearer credential on every request:
 
 ```
@@ -316,6 +445,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 ```
 
 **Revoking a token**
+
 1. Open **Access tokens**
 2. Find the token in the list and select **Revoke**
 3. The token stops working immediately — requests using it receive `401`
@@ -326,11 +456,13 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - Revoking a token does not end your browser session and does not affect other tokens.
 - Tokens must be treated as passwords: anyone holding one can act as you until it is revoked or expires.
 
+---
+
 ## 6. Common Errors and Troubleshooting
 
 | Error | Possible Cause | Recovery |
 |---|---|---|
-| "Configure an organization ID to load cases" | Missing `VITE_CIVICFLOW_ORGANIZATION_ID` | Configure environment variables (see README) |
+| "Configure an organization ID to load cases" | Missing `VITE_CIVICFLOW_ORGANIZATION_ID` | Configure environment variables (see [README](../README.md)) |
 | "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
 | "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
 | "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |
@@ -358,66 +490,95 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | Case creation/update fails | Network/API issues or permissions | Check connection and permissions; retry |
 
 **Tips:**
-- Watch for toast notifications - they provide real-time feedback
+- Watch for toast notifications — they provide real-time feedback
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
-- Verification and password-reset emails are logged by the API in local development (see README)
+- Verification and password-reset emails are logged by the API in local development (see [README](../README.md))
 - A personal access token is displayed only once, at creation; if you lose it, revoke it and create a new one
+
+---
 
 ## 7. Security and Privacy
 
 ### Safe Usage
+
 - **Always sign out** when finished, especially on shared devices
-- **Keep credentials secure** - never share login information
-- **Verify URLs** - only access CivicFlow through trusted URLs
-- **Be cautious with documents** - only upload/download appropriate files
+- **Keep credentials secure** — never share login information
+- **Verify URLs** — only access CivicFlow through trusted URLs
+- **Be cautious with documents** — only upload/download appropriate files
+- **Treat access tokens as passwords** — anyone holding one can act as you until revoked or expired
 
 ### Data Handling
-- Cases and documents are organization-scoped
+
+- Cases and documents are organization-scoped — cross-organization access is prevented by server-side authorization and PostgreSQL row-level security
 - Access is controlled by authentication and authorization
 - Server-side validation enforces permissions
 - Sessions use HttpOnly cookies with CSRF protection and are revoked on sign-out
 - Personal access tokens are stored only as a SHA-256 hash; the plaintext exists only in the response that created it and in the caller's copy
-- Every sign-in, account, invitation, membership, organization, staff, and case change is recorded in the audit trail with the actor and a timestamp
+- Every sign-in, account, invitation, membership, organization, staff, case, and access-token change is recorded in the audit trail with the actor and a timestamp
 - Phone numbers are optional, are only visible to administrators of the relevant organization (and to platform administrators), and are never required to sign in
+- Application errors are persisted with full context (stack trace, request path, user) and are accessible only to platform super administrators
 
-**Note:** No absolute security guarantees can be made - follow your organization's security policies.
+**Note:** No absolute security guarantees can be made — follow your organization's security policies.
+
+---
 
 ## 8. Known Limitations
 
 ### Current Limitations
-- **Email delivery**: Verification and password-reset emails require a configured email sender in production (local development logs them)
-- **Citizen portal scope**: The citizen portal is self-service only (dashboard, public intake, own profile, access tokens); public submission/tracking workflows may be limited
-- **Environment dependent**: Many features require proper backend/frontend configuration
-- **No offline support**: Requires network connectivity
-- **File restrictions**: Document upload/download may have type/size limitations based on API configuration
-- **Role enforcement**: UI may show options that API will reject if permissions insufficient
+
+| Area | Limitation |
+|---|---|
+| **Email delivery** | Verification and password-reset emails require a configured email sender in production (local development logs them) |
+| **Citizen portal scope** | The citizen portal is self-service only (dashboard, public intake, own profile, access tokens); public submission/tracking workflows may be limited |
+| **Environment dependent** | Many features require proper backend/frontend configuration |
+| **No offline support** | Requires network connectivity |
+| **File restrictions** | Document upload limited to .pdf, .jpg, .jpeg, .png, .doc, .docx, max 10MB |
+| **Role enforcement** | UI may show options that API will reject if permissions insufficient |
+| **Audit trail** | Append-only and read-only; no retention, export, or alerting policies implemented |
+| **Error tracking** | No automated alerting on new errors; manual review required |
 
 ### Not Implemented
-- Advanced reporting and analytics
+
+- Advanced reporting and analytics (beyond the dashboard statistics)
 - Real-time notifications (beyond toasts)
 - Bulk operations
 - Mobile app
 - Advanced search capabilities
 - Email/SMS notifications
 - Workflow automation
+- Per-token scopes for personal access tokens
+- Per-organization sign-in selection (multi-org staff use `X-Organization-Id` header)
+
+---
 
 ## 9. Glossary
 
-- **Case**: A service request or issue tracked through the system
-- **Organization**: A government department/agency using CivicFlow
-- **Membership**: Association between a user and an organization with a specific role
-- **OIDC/Identity**: CivicFlow uses first-party ASP.NET Core Identity with cookie sessions
-- **Session Cookie**: HttpOnly cookie identifying the signed-in user (not readable by JavaScript)
-- **CSRF**: Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header)
-- **Personal Access Token (PAT)**: A long-lived credential for API clients, sent as `Authorization: Bearer civicflow_pat_…`; it carries the creating user's permissions and can be revoked at any time
-- **Role**: Account permission level (`citizen`, `staff`, or `superadmin`)
-- **Portal**: The sign-in surface an account is bound to — the Citizen Portal for citizen accounts, the Organization Portal for staff accounts, and Platform Administration for super administrators. An account can only sign in through the portal its roles belong to.
-- **Invitation**: An administrator's request for someone to join an organization. It is delivered as a single-use, expiring link; the invitee chooses their own password, so no temporary password is ever emailed.
-- **Assignment**: Designating a staff member to handle a case
-- **Status History**: Audit trail of case status changes
-- **Assignment History**: Audit trail of case assignments
+| Term | Definition |
+|---|---|
+| **Case** | A service request or issue tracked through the system |
+| **Case Status** | The current state of a case: Submitted, UnderReview, Assigned, InProgress, AwaitingInformation, Resolved, Closed, or Rejected |
+| **Case Priority** | The urgency level of a case: Low, Normal, High, or Critical |
+| **Organization** | A government department/agency using CivicFlow |
+| **Membership** | Association between a user and an organization with a specific role (Viewer, CaseWorker, OrganizationAdmin) |
+| **Application Error** | An unhandled exception persisted with full context (stack trace, request path, user, org) for review by super administrators |
+| **Audit Event** | A structured record of an action (authentication, account, invitation, membership, organization, staff, case, or access-token event) with actor, organization, entity, and detail |
+| **ASP.NET Core Identity** | CivicFlow uses first-party ASP.NET Core Identity with cookie sessions (no external identity provider) |
+| **Session Cookie** | HttpOnly cookie identifying the signed-in user (not readable by JavaScript) |
+| **CSRF** | Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header) |
+| **Personal Access Token (PAT)** | A long-lived credential for API clients, sent as `Authorization: Bearer civicflow_pat_…`; it carries the creating user's permissions and can be revoked at any time |
+| **Role** | Account permission level: `citizen`, `staff`, or `superadmin` |
+| **Portal** | The sign-in surface an account is bound to — the Citizen Portal for citizen accounts, the Organization Portal for staff accounts, and Platform Administration for super administrators |
+| **Invitation** | An administrator's request for someone to join an organization. It is delivered as a single-use, expiring link; the invitee chooses their own password |
+| **Assignment** | Designating a staff member to handle a case |
+| **Status History** | Audit trail of case status changes |
+| **Assignment History** | Audit trail of case assignments |
+| **Dashboard** | Platform-wide or organization-scoped case statistics (total, per-status, per-priority, weekly/monthly trends) |
+| **Unified Profile** | A single self-service profile surface for both citizens and staff, replacing separate profile flows |
+| **Row-Level Security (RLS)** | PostgreSQL feature enforcing organization-scoped data isolation at the database level |
+
+---
 
 ## Support
 
-For technical issues, check the [README](../README.md) for setup instructions or contact your system administrator. For questions about workflows, refer to the relevant sections of this manual.
+For technical issues, check the [README](../README.md) for setup instructions or contact your system administrator. For questions about workflows, refer to the relevant sections of this manual. For implementation status and roadmap, see the [Delivery Roadmap](DELIVERY-ROADMAP.md).

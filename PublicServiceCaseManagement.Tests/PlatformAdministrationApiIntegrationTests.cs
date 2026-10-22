@@ -282,6 +282,61 @@ public sealed class PlatformAdministrationApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetPlatformStatistics_AsSuperAdmin_ReturnsCaseStatistics()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            PlatformRole.SuperAdmin);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/dashboard/platform");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.True(json.RootElement.GetProperty("totalCases").GetInt32() >= 0);
+        Assert.True(json.RootElement.GetProperty("casesCreatedThisWeek").GetInt32() >= 0);
+    }
+
+    [Fact]
+    public async Task GetPlatformStatistics_WithoutSuperAdmin_ReturnsForbidden()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/dashboard/platform");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetOrganizationStatistics_AsStaff_ReturnsCaseStatistics()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+
+        client.DefaultRequestHeaders.Remove("X-Organization-Id");
+        client.DefaultRequestHeaders.Add("X-Organization-Id", organizationId.ToString());
+
+        var response = await client.GetAsync(
+            $"/api/dashboard/organization?organizationId={organizationId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.True(json.RootElement.GetProperty("totalCases").GetInt32() >= 0);
+    }
+
+    [Fact]
     public async Task UpdateStaffPhone_WithInvalidPhone_ReturnsBadRequest()
     {
         await using var factory = new CivicFlowApiFactory(
