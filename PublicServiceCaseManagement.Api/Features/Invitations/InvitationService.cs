@@ -1,0 +1,581 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Staff;
+using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+
+namespace PublicServiceCaseManagement.Api.Features.Invitations;
+
+/// <summary>
+/// Creates and redeems single-use staff invitations. The invitee always
+/// chooses their own password through the emailed link; no credential is ever
+/// generated, emailed, or stored in plaintext.
+/// </summary>
+public sealed class InvitationService(
+    CivicFlowDbContext dbContext,
+    UserManager<ApplicationUser> userManager,
+    IEmailSender emailSender,
+    IAuditLogger auditLogger,
+    IConfiguration configuration,
+    TimeProvider timeProvider) : IInvitationService
+{
+    private const int DefaultExpiryHours = 72;
+    private const int MinimumExpiryHours = 1;
+    private const int MaximumExpiryHours = 720;
+
+    private static readonly string[] AllowedRoles =
+    [
+        nameof(OrganizationRole.Viewer),
+        nameof(OrganizationRole.CaseWorker),
+        nameof(OrganizationRole.OrganizationAdmin)
+    ];
+
+    public async Task<InvitationResponse> CreateAsync(
+        Guid organizationId,
+        Guid createdByUserId,
+        CreateInvitationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var role = ParseRole(request.Role);
+        var email = NormalizeEmail(request.Email);
+        var fullName = request.FullName.Trim();
+
+        var organization = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == organizationId,
+                cancellationToken);
+
+        if (organization is null || !organization.IsActive)
+        {
+            throw new KeyNotFoundException("The organization does not exist.");
+        }
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            throw new ArgumentException(
+                "Full name is required.",
+                nameof(request.FullName));
+        }
+
+        var existingUser = await userManager.FindByEmailAsync(email);
+
+        if (existingUser is not null &&
+            await IsActiveMemberAsync(
+                existingUser.Id,
+                organizationId,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "This person is already a member of the organization.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+
+        var hasPendingInvitation = await dbContext.AccountInvitations
+            .AnyAsync(
+                invitation =>
+                    invitation.OrganizationId == organizationId &&
+                    invitation.NormalizedEmail == email.ToUpperInvariant() &&
+                    invitation.UsedAt == null &&
+                    invitation.RevokedAt == null &&
+                    invitation.ExpiresAt > now,
+                cancellationToken);
+
+        if (hasPendingInvitation)
+        {
+            throw new InvalidOperationException(
+                "An invitation is already pending for this email address.");
+        }
+
+        var token = InvitationToken.Create();
+        var invitation = AccountInvitation.Create(
+            organizationId,
+            email,
+            fullName,
+            role,
+            InvitationToken.Hash(token),
+            createdByUserId,
+            now,
+            now.AddHours(GetExpiryHours()));
+
+        dbContext.AccountInvitations.Add(invitation);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await SendInvitationEmailAsync(
+            invitation,
+            organization.Name,
+            token,
+            cancellationToken);
+
+        auditLogger.AccountLifecycle(
+            email,
+            null,
+            "invitation_created");
+
+        return ToResponse(invitation, now);
+    }
+
+    public async Task<IReadOnlyList<InvitationResponse>> GetAllAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        var now = timeProvider.GetUtcNow();
+
+        var invitations = await dbContext.AccountInvitations
+            .AsNoTracking()
+            .Where(invitation =>
+                invitation.OrganizationId == organizationId &&
+                invitation.RevokedAt == null)
+            .OrderByDescending(invitation => invitation.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return invitations
+            .Select(invitation => ToResponse(invitation, now))
+            .ToList();
+    }
+
+    public async Task<InvitationResponse?> ResendAsync(
+        Guid organizationId,
+        Guid invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        var invitation = await dbContext.AccountInvitations
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == invitationId &&
+                    candidate.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (invitation is null)
+        {
+            return null;
+        }
+
+        if (invitation.IsUsed || invitation.IsRevoked)
+        {
+            throw new InvalidOperationException(
+                "Only a pending invitation can be resent.");
+        }
+
+        var organization = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == organizationId,
+                cancellationToken);
+
+        if (organization is null || !organization.IsActive)
+        {
+            throw new KeyNotFoundException("The organization does not exist.");
+        }
+
+        var token = InvitationToken.Create();
+        var now = timeProvider.GetUtcNow();
+
+        invitation.Reissue(
+            InvitationToken.Hash(token),
+            now.AddHours(GetExpiryHours()),
+            now);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await SendInvitationEmailAsync(
+            invitation,
+            organization.Name,
+            token,
+            cancellationToken);
+
+        auditLogger.AccountLifecycle(
+            invitation.Email,
+            null,
+            "invitation_resent");
+
+        return ToResponse(invitation, now);
+    }
+
+    public async Task<bool> RevokeAsync(
+        Guid organizationId,
+        Guid invitationId,
+        CancellationToken cancellationToken = default)
+    {
+        var invitation = await dbContext.AccountInvitations
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == invitationId &&
+                    candidate.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (invitation is null)
+        {
+            return false;
+        }
+
+        invitation.Revoke(timeProvider.GetUtcNow());
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        auditLogger.AccountLifecycle(
+            invitation.Email,
+            null,
+            "invitation_revoked");
+
+        return true;
+    }
+
+    public async Task<InvitationDetailsResponse?> GetDetailsAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var tokenHash = InvitationToken.Hash(token);
+
+        var invitation = await dbContext.AccountInvitations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.TokenHash == tokenHash,
+                cancellationToken);
+
+        if (invitation is null || !invitation.IsAvailable(now))
+        {
+            return null;
+        }
+
+        var organization = await dbContext.Organizations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.Id == invitation.OrganizationId &&
+                    candidate.IsActive,
+                cancellationToken);
+
+        if (organization is null)
+        {
+            return null;
+        }
+
+        return new InvitationDetailsResponse(
+            invitation.Email,
+            invitation.FullName,
+            organization.Name,
+            invitation.OrganizationRole.ToString(),
+            invitation.ExpiresAt);
+    }
+
+    public async Task<AcceptInvitationOutcome> AcceptAsync(
+        AcceptInvitationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var now = timeProvider.GetUtcNow();
+        var tokenHash = InvitationToken.Hash(request.Token);
+
+        var invitation = await dbContext.AccountInvitations
+            .SingleOrDefaultAsync(
+                candidate => candidate.TokenHash == tokenHash,
+                cancellationToken);
+
+        if (invitation is null || !invitation.IsAvailable(now))
+        {
+            return AcceptInvitationOutcome.Unavailable();
+        }
+
+        var organization = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == invitation.OrganizationId,
+                cancellationToken);
+
+        if (organization is null || !organization.IsActive)
+        {
+            return AcceptInvitationOutcome.Unavailable();
+        }
+
+        var email = invitation.Email;
+        var user = await userManager.FindByEmailAsync(email);
+        var isNewAccount = user is null;
+
+        if (user is not null && !user.IsActive)
+        {
+            return AcceptInvitationOutcome.AccountInactive();
+        }
+
+        var passwordErrors = await ValidatePasswordAsync(
+            user,
+            request.Password);
+
+        if (passwordErrors.Count > 0)
+        {
+            return AcceptInvitationOutcome.InvalidPassword(
+                string.Join(
+                    " ",
+                    passwordErrors
+                        .Select(error => error.Description)
+                        .Distinct(StringComparer.Ordinal)));
+        }
+
+        if (user is null)
+        {
+            user = ApplicationUser.Create(
+                invitation.FullName,
+                email,
+                now);
+
+            // Possession of the emailed token proves control of the address.
+            user.EmailConfirmed = true;
+
+            var createResult = await userManager.CreateAsync(
+                user,
+                request.Password);
+
+            if (!createResult.Succeeded)
+            {
+                return AcceptInvitationOutcome.InvalidPassword(
+                    DescribeFailures(createResult));
+            }
+        }
+        else
+        {
+            var setPasswordResult = await SetPasswordAsync(
+                user,
+                request.Password);
+
+            if (!setPasswordResult.Succeeded)
+            {
+                return AcceptInvitationOutcome.InvalidPassword(
+                    DescribeFailures(setPasswordResult));
+            }
+
+            if (!user.EmailConfirmed)
+            {
+                user.EmailConfirmed = true;
+                await userManager.UpdateAsync(user);
+            }
+
+            // A credential change invalidates every existing session.
+            await userManager.UpdateSecurityStampAsync(user);
+        }
+
+        if (!await userManager.IsInRoleAsync(user, AppRoles.Staff))
+        {
+            await userManager.AddToRoleAsync(user, AppRoles.Staff);
+        }
+
+        await EnsureOrganizationMembershipAsync(
+            user,
+            invitation,
+            now,
+            cancellationToken);
+
+        invitation.MarkUsed(user.Id, now);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        auditLogger.AccountLifecycle(
+            email,
+            user.Id,
+            isNewAccount
+                ? "invitation_accepted_account_created"
+                : "invitation_accepted_account_linked");
+
+        auditLogger.PrivilegeChange(
+            user.Id,
+            $"role=staff organizationRole={invitation.OrganizationRole} " +
+            $"organizationId={invitation.OrganizationId} via=invitation");
+
+        return AcceptInvitationOutcome.Success(email);
+    }
+
+    private async Task EnsureOrganizationMembershipAsync(
+        ApplicationUser user,
+        AccountInvitation invitation,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var membership = await dbContext.OrganizationMemberships
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.UserId == user.Id &&
+                    candidate.OrganizationId == invitation.OrganizationId,
+                cancellationToken);
+
+        if (membership is null)
+        {
+            dbContext.OrganizationMemberships.Add(
+                OrganizationMembership.Create(
+                    user.Id,
+                    invitation.OrganizationId,
+                    invitation.OrganizationRole,
+                    now));
+        }
+        else if (!membership.IsActive)
+        {
+            membership.Reactivate(now);
+        }
+
+        var staffMember = await dbContext.StaffMembers
+            .SingleOrDefaultAsync(
+                candidate =>
+                    candidate.OrganizationId == invitation.OrganizationId &&
+                    candidate.Email == invitation.Email,
+                cancellationToken);
+
+        if (staffMember is null)
+        {
+            dbContext.StaffMembers.Add(
+                StaffMember.Create(
+                    invitation.OrganizationId,
+                    invitation.FullName,
+                    invitation.Email,
+                    now));
+        }
+        else if (!staffMember.IsActive)
+        {
+            staffMember.Reactivate(now);
+        }
+    }
+
+    private async Task<IReadOnlyList<IdentityError>> ValidatePasswordAsync(
+        ApplicationUser? user,
+        string password)
+    {
+        var candidate = user ?? new ApplicationUser();
+        var errors = new List<IdentityError>();
+
+        foreach (var validator in userManager.PasswordValidators)
+        {
+            var result = await validator.ValidateAsync(
+                userManager,
+                candidate,
+                password);
+
+            if (!result.Succeeded)
+            {
+                errors.AddRange(result.Errors);
+            }
+        }
+
+        return errors;
+    }
+
+    private async Task<IdentityResult> SetPasswordAsync(
+        ApplicationUser user,
+        string password)
+    {
+        if (await userManager.HasPasswordAsync(user))
+        {
+            var removeResult = await userManager.RemovePasswordAsync(user);
+
+            if (!removeResult.Succeeded)
+            {
+                return removeResult;
+            }
+        }
+
+        return await userManager.AddPasswordAsync(user, password);
+    }
+
+    private async Task<bool> IsActiveMemberAsync(
+        Guid userId,
+        Guid organizationId,
+        CancellationToken cancellationToken) =>
+        await dbContext.OrganizationMemberships
+            .AnyAsync(
+                membership =>
+                    membership.UserId == userId &&
+                    membership.OrganizationId == organizationId &&
+                    membership.IsActive,
+                cancellationToken);
+
+    private async Task SendInvitationEmailAsync(
+        AccountInvitation invitation,
+        string organizationName,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var frontendBaseUrl =
+            configuration["Frontend:BaseUrl"]?.TrimEnd('/')
+            ?? "http://localhost:5173";
+
+        var link =
+            $"{frontendBaseUrl}/setup-password" +
+            $"?token={Uri.EscapeDataString(token)}";
+
+        var body = string.Join(
+            Environment.NewLine,
+            $"You have been invited to join {organizationName} on CivicFlow " +
+            $"as {invitation.OrganizationRole}.",
+            string.Empty,
+            "Choose your password using this single-use link:",
+            link,
+            string.Empty,
+            $"The link expires {invitation.ExpiresAt:yyyy-MM-dd HH:mm} UTC.",
+            "If you were not expecting this invitation, you can ignore this email.");
+
+        await emailSender.SendAsync(
+            invitation.Email,
+            $"You're invited to join {organizationName} on CivicFlow",
+            body,
+            cancellationToken);
+    }
+
+    private int GetExpiryHours()
+    {
+        var configured = configuration.GetValue<int?>(
+            "Invitations:ExpiryHours");
+
+        if (!configured.HasValue)
+        {
+            return DefaultExpiryHours;
+        }
+
+        return Math.Clamp(
+            configured.Value,
+            MinimumExpiryHours,
+            MaximumExpiryHours);
+    }
+
+    private static OrganizationRole ParseRole(string role)
+    {
+        if (!Enum.TryParse<OrganizationRole>(
+                role,
+                ignoreCase: true,
+                out var parsed) ||
+            !Enum.IsDefined(parsed) ||
+            !AllowedRoles.Contains(
+                parsed.ToString(),
+                StringComparer.Ordinal))
+        {
+            throw new ArgumentException(
+                "The role must be one of: Viewer, CaseWorker, OrganizationAdmin.",
+                nameof(role));
+        }
+
+        return parsed;
+    }
+
+    private static string NormalizeEmail(string email) =>
+        email.Trim().ToLowerInvariant();
+
+    private static InvitationResponse ToResponse(
+        AccountInvitation invitation,
+        DateTimeOffset now) =>
+        new(
+            invitation.Id,
+            invitation.OrganizationId,
+            invitation.Email,
+            invitation.FullName,
+            invitation.OrganizationRole.ToString(),
+            invitation.CreatedAt,
+            invitation.ExpiresAt,
+            invitation.IsExpired(now),
+            invitation.IsUsed,
+            invitation.IsRevoked);
+
+    private static string DescribeFailures(IdentityResult result) =>
+        string.Join(
+            " ",
+            result.Errors
+                .Select(error => error.Description)
+                .Distinct(StringComparer.Ordinal));
+}

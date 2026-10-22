@@ -16,12 +16,14 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 - Disposable Compose fixtures for PostgreSQL roles.
 - React/TypeScript dashboard with first-party cookie-based authentication (ASP.NET Core Identity) and CSRF protection.
 - Personal access tokens for non-browser API clients: create/list/revoke endpoints, SHA-256 hash at rest, one-time plaintext, optional expiry, per-token revocation, and bearer authentication that resolves the same Identity roles and policies as the cookie session. Covered by integration tests.
-- Portal-scoped authentication: separate citizen and organization sign-in endpoints, each bound to the roles it serves, with wrong-portal attempts rejected and the issued session removed. Covered by integration tests and an over-HTTP role matrix.
-- Role-specific frontend workspaces: a citizen dashboard for citizen accounts and the organization workspace for staff/super administrators, with navigation and data requests derived from the roles the API reports.
+- Portal-scoped authentication: three exclusive sign-in endpoints (citizen, organization, platform administration), each bound to the roles it serves, with wrong-portal attempts rejected and the issued session removed. Covered by integration tests and an over-HTTP role matrix.
+- Role-specific frontend workspaces: a citizen dashboard for citizen accounts, the organization workspace for staff accounts, and platform administration for platform super administrators, with navigation and data requests derived from the roles the API reports.
+- Invitation-based staff onboarding: single-use, expiring invitation links (only a token hash is stored), self-selected password at redemption, atomic account/membership/staff creation, resend and revoke. Covered by integration tests and an over-HTTP run.
+- Hardened Super Admin bootstrap: fail-fast on a partially configured or policy-violating seed, repair of an existing platform account, and no silent password reset (an explicit `SeedAdmin:ResetPassword` switch is required). Covered by integration tests.
 
 ### Implemented but limited
 
-- The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration.
+- The frontend now loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, manages invitations (send/resend/revoke), and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration.
 - Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready.
 - Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. Live PostgreSQL checks are currently disposable manual probes rather than CI integration tests.
 
@@ -29,8 +31,9 @@ This is the implementation-first roadmap. Work proceeds in dependency order, wit
 
 - Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented.
 - The personal access token feature has no browser-level end-to-end run in this environment; the backend flow was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation and lint only.
-- The portal-scoped sign-in and the role-specific workspaces have no browser-level end-to-end run in this environment; the backend behaviour was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation and lint only.
-- An account that holds both a citizen and a staff/super administrator role may use both portals. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`.
+- The portal-scoped sign-in, the invitation redemption flow, and the role-specific workspaces have no browser-level end-to-end run in this environment; the backend behaviour was verified over HTTP against a local PostgreSQL instance, and the UI is covered by TypeScript compilation, lint, and a production build only.
+- An account that holds both a citizen and a staff role may use both of those portals; a super administrator may only use the platform portal, because organization and platform administration are separated. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`.
+- Invitation delivery uses the development `LoggingEmailSender`; a real SMTP/provider implementation is still required for production delivery, and the emailed link is therefore logged at `Information` level locally.
 
 ### Unstarted or blocked by a security design dependency
 
@@ -52,6 +55,19 @@ Acceptance:
 - A configured staff user can sign in, list cases, open a case, inspect status history, create a case, change an allowed status, and assign an active staff member.
 - A viewer or unauthorized session receives a clear denied state and cannot be made privileged by frontend configuration.
 - Demo mode never implies that a live API request succeeded.
+
+### 1b. Complete the invitation lifecycle in production delivery
+
+Status: implemented and verified over HTTP; production email delivery remains.
+
+The invitation path removes administrator-handled passwords entirely: the API emails a single-use link, the invitee chooses their own password, and acceptance creates or links the account, membership, and staff record atomically. Still required for production: a real `IEmailSender` implementation, a documented invitation expiry policy per organization, and operational handling for expired or revoked invitations (for example a verified resend path for the invitee rather than only for administrators).
+
+Acceptance:
+
+- No invitation is redeemable twice, after expiry, or after revocation.
+- A redeeming account can only obtain the role the invitation granted; `superadmin` is never invitable.
+- A replayed or leaked token discloses nothing about the invitee beyond the invitation itself.
+- Production email delivery and bounce handling are exercised against a real provider.
 
 ### 2. Establish and verify the database tenant boundary
 
@@ -125,6 +141,7 @@ These tests remain deferred selectively; existing security assertions must not b
 | Test | Risk | Reason | Trigger to complete |
 |---|---|---|---|
 | Exhaustive real-login permutation matrix (lockout, revocation, CSRF) | Medium | Requires a repeatable disposable database and email sink | Automated real-service harness is available |
+| Browser-level run of the invitation redemption flow | Medium | No browser runner is available in this environment | A browser runner is selected and the `/setup-password` contract is stable |
 | Full browser automation for login and all frontend workflows | Medium | Adds browser/runtime setup before the staff UI contract stabilizes | Staff workflow reaches acceptance and a browser runner is selected |
 | Visual regression and responsive screenshot suite | Low | Does not protect authorization or data correctness | Core workflow and deployment demo are stable |
 | Load/stress testing | Medium | Requires representative deployment topology and traffic model | Production-like environment and performance targets exist |

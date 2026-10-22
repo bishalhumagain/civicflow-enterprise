@@ -30,20 +30,25 @@ export type AuthOperationResult = {
 }
 
 /**
- * The two separate sign-in surfaces of the product. The API binds every
+ * The three separate sign-in surfaces of the product. The API binds every
  * sign-in attempt to one portal, and each portal only accepts the roles that
- * belong to it, so the same credentials can never open both dashboards.
+ * belong to it, so the same credentials can never open another dashboard.
  */
-export type SignInPortal = 'citizen' | 'organization'
+export type SignInPortal = 'citizen' | 'organization' | 'platform-admin'
 
 export const CITIZEN_ROLE = 'citizen'
 export const STAFF_ROLE = 'staff'
 export const SUPER_ADMIN_ROLE = 'superadmin'
 
 export function loginEndpoint(portal: SignInPortal): string {
-  return portal === 'organization'
-    ? '/api/auth/login/organization'
-    : '/api/auth/login'
+  switch (portal) {
+    case 'organization':
+      return '/api/auth/login/organization'
+    case 'platform-admin':
+      return '/api/auth/login/platform-admin'
+    default:
+      return '/api/auth/login'
+  }
 }
 
 /**
@@ -57,9 +62,8 @@ export function allowedPortals(user: AuthUser | null): SignInPortal[] {
   const portals: SignInPortal[] = []
 
   if (roles.includes(CITIZEN_ROLE)) portals.push('citizen')
-  if (roles.includes(STAFF_ROLE) || roles.includes(SUPER_ADMIN_ROLE)) {
-    portals.push('organization')
-  }
+  if (roles.includes(STAFF_ROLE)) portals.push('organization')
+  if (roles.includes(SUPER_ADMIN_ROLE)) portals.push('platform-admin')
 
   return portals
 }
@@ -69,10 +73,6 @@ export function canUsePortal(
   portal: SignInPortal,
 ): boolean {
   return allowedPortals(user).includes(portal)
-}
-
-export function isSuperAdmin(user: AuthUser | null): boolean {
-  return Boolean(user?.roles?.includes(SUPER_ADMIN_ROLE))
 }
 
 export class AuthApiError extends Error {
@@ -296,16 +296,26 @@ export async function login(
   if (!canUsePortal(user, portal)) {
     await logout()
 
-    throw new AuthApiError(
+    const mismatch =
       portal === 'citizen'
-        ? 'This account is not a citizen account. Sign in through the organization portal instead.'
-        : 'This account is not an organization account. Sign in through the citizen portal instead.',
-      403,
-      false,
-      portal === 'citizen'
-        ? 'not_a_citizen_account'
-        : 'not_an_organization_account',
-    )
+        ? {
+            message:
+              'This account is not a citizen account. Sign in through the correct portal instead.',
+            code: 'not_a_citizen_account',
+          }
+        : portal === 'platform-admin'
+          ? {
+              message:
+                'This account is not a platform administrator. Sign in through the organization or citizen portal instead.',
+              code: 'not_a_platform_admin',
+            }
+          : {
+              message:
+                'This account is not an organization account. Sign in through the citizen or platform administration portal instead.',
+              code: 'not_an_organization_account',
+            }
+
+    throw new AuthApiError(mismatch.message, 403, false, mismatch.code)
   }
 
   return user
@@ -453,6 +463,78 @@ export async function changePassword(
   }
 
   return payload ?? { succeeded: true, message: 'Password changed.' }
+}
+
+/**
+ * Details of a pending invitation, shown before the invitee chooses a
+ * password. The lookup never returns the token or a password.
+ */
+export type InvitationDetails = {
+  email: string
+  fullName: string
+  organizationName: string
+  role: string
+  expiresAt: string
+}
+
+export type AcceptInvitationResult = {
+  succeeded: boolean
+  email: string
+  portal: string
+  message: string
+}
+
+/**
+ * Looks up a password-setup link. A missing, expired, revoked, or used link
+ * is reported as the same `invitation_unavailable` error so the response
+ * cannot be used to probe for valid tokens.
+ */
+export async function lookupInvitation(
+  token: string,
+): Promise<InvitationDetails> {
+  const response = await authFetch('/api/auth/invitations/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+
+  if (!response.ok) {
+    throw new AuthApiError(
+      await readErrorMessage(
+        response,
+        'This invitation link is invalid, expired, or has already been used.',
+      ),
+      response.status,
+      false,
+      await readErrorCode(response),
+    )
+  }
+
+  return (await response.json()) as InvitationDetails
+}
+
+/**
+ * Redeems a single-use invitation with a password chosen by the invitee. The
+ * API stores only a salted hash and never generates or emails a password.
+ */
+export async function acceptInvitation(
+  token: string,
+  password: string,
+): Promise<AcceptInvitationResult> {
+  const response = await authFetch('/api/auth/invitations/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+  })
+
+  if (!response.ok) {
+    throw new AuthApiError(
+      await readErrorMessage(response, 'The invitation could not be accepted.'),
+      response.status,
+      false,
+      await readErrorCode(response),
+    )
+  }
+
+  return (await response.json()) as AcceptInvitationResult
 }
 
 export type PersonalAccessToken = {

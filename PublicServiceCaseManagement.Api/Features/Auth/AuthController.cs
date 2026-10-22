@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 namespace PublicServiceCaseManagement.Api.Features.Auth;
@@ -12,6 +13,7 @@ namespace PublicServiceCaseManagement.Api.Features.Auth;
 [Route(AuthRoutes.Base)]
 public sealed class AuthController(
     IAuthService authService,
+    IInvitationService invitationService,
     IAntiforgery antiforgery,
     IConfiguration configuration) : ControllerBase
 {
@@ -60,9 +62,9 @@ public sealed class AuthController(
     }
 
     /// <summary>
-    /// Organization portal sign-in. Only staff and super administrator
-    /// accounts are accepted here, so a citizen account cannot open the
-    /// organization workspace.
+    /// Organization portal sign-in. Only staff accounts are accepted here, so
+    /// a citizen account cannot open the organization workspace and a super
+    /// administrator cannot reach platform administration through it.
     /// </summary>
     [HttpPost("login/organization")]
     [AllowAnonymous]
@@ -75,6 +77,89 @@ public sealed class AuthController(
             request,
             SignInPortal.Organization,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Dedicated platform administration portal. It is served at an unlisted
+    /// route and only accepts super-administrator accounts.
+    /// </summary>
+    [HttpPost("login/platform-admin")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> PlatformAdminLogin(
+        [FromBody] LoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await SignIn(
+            request,
+            SignInPortal.PlatformAdmin,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the safe, non-secret details of an invitation so the
+    /// password-setup page can show who was invited and where.
+    /// </summary>
+    [HttpPost("invitations/lookup")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LookupInvitation(
+        [FromBody] InvitationLookupRequest request,
+        CancellationToken cancellationToken)
+    {
+        var details = await invitationService.GetDetailsAsync(
+            request.Token,
+            cancellationToken);
+
+        if (details is null)
+        {
+            return StatusCode(
+                StatusCodes.Status410Gone,
+                new
+                {
+                    code = "invitation_unavailable",
+                    error = "This invitation link is invalid, expired, or has already been used."
+                });
+        }
+
+        return Ok(details);
+    }
+
+    /// <summary>
+    /// Redeems a single-use invitation and lets the invitee choose a password.
+    /// The invitation is marked used before any session can be created, and
+    /// no password is ever generated or emailed.
+    /// </summary>
+    [HttpPost("invitations/accept")]
+    [AllowAnonymous]
+    [EnableRateLimiting("password")]
+    public async Task<IActionResult> AcceptInvitation(
+        [FromBody] AcceptInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await invitationService.AcceptAsync(
+            request,
+            cancellationToken);
+
+        if (outcome.Succeeded)
+        {
+            return Ok(new AcceptInvitationResponse(
+                true,
+                outcome.Email ?? string.Empty,
+                "organization",
+                outcome.Message));
+        }
+
+        return outcome.Code switch
+        {
+            "invitation_unavailable" => StatusCode(
+                StatusCodes.Status410Gone,
+                new { code = outcome.Code, error = outcome.Message }),
+            "account_inactive" => StatusCode(
+                StatusCodes.Status403Forbidden,
+                new { code = outcome.Code, error = outcome.Message }),
+            _ => BadRequest(new { code = outcome.Code, error = outcome.Message })
+        };
     }
 
     private async Task<IActionResult> SignIn(

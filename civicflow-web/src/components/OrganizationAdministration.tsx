@@ -1,28 +1,37 @@
 import { useState } from 'react'
-import type { Membership, Organization } from '../domain'
+import type { AccountInvitation, Membership, Organization } from '../domain'
+import { InvitationManager } from './InvitationManager'
 
 export function OrganizationAdministration({
   authenticated,
   loading,
   organizations,
   memberships,
+  invitations,
   selectedOrganizationId,
   onSelectOrganization,
   onCreateOrganization,
   onToggleOrganization,
   onCreateMembership,
   onUpdateMembership,
+  onInvite,
+  onResendInvitation,
+  onRevokeInvitation,
 }: {
   authenticated: boolean
   loading: boolean
   organizations: Organization[]
   memberships: Membership[]
+  invitations: AccountInvitation[]
   selectedOrganizationId: string
   onSelectOrganization: (id: string) => void
   onCreateOrganization: (name: string, code: string) => Promise<void>
   onToggleOrganization: (organization: Organization) => Promise<void>
   onCreateMembership: (userId: string, role: string) => Promise<void>
   onUpdateMembership: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void>
+  onInvite: (fullName: string, email: string, role: string) => Promise<boolean>
+  onResendInvitation: (invitationId: string) => Promise<void>
+  onRevokeInvitation: (invitationId: string) => Promise<void>
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -148,6 +157,17 @@ export function OrganizationAdministration({
               </div>
             )}
           </section>
+
+          {selectedOrganizationId && (
+            <InvitationManager
+              disabled={!selectedOrganizationId}
+              invitations={invitations}
+              loading={loading}
+              onInvite={onInvite}
+              onResend={onResendInvitation}
+              onRevoke={onRevokeInvitation}
+            />
+          )}
         </>
       )}
     </>

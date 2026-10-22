@@ -33,22 +33,23 @@ In a local development environment:
 When accessing CivicFlow without an active session, the public landing page (`/`) shows:
 - **CivicFlow branding** and description
 - **Citizen Portal** - For public service requests and citizen self-service profile, with two buttons: **Sign in** (existing citizen) and **Register** (new citizen account)
-- **Organization Portal** - For staff, Organization Administrators, and Super Admins
+- **Organization Portal** - For staff and Organization Administrators
 
-Platform administration is served at a **dedicated URL** (`/admin`), not on the public landing page. Staff sign in there directly.
+Platform administration is served at a **dedicated URL** (`/admin` for organization staff, `/super-platform-admin` for platform administrators), not on the public landing page.
 
 ### Authentication
 
-CivicFlow has two separate sign-in surfaces, and each one only accepts the account type that belongs to it:
+CivicFlow has three separate sign-in surfaces, and each one only accepts the account type that belongs to it:
 
 | Portal | Where to sign in | Who can use it |
 |---|---|---|
 | **Citizen Portal** | `/citizen/login` (or the Citizen Portal on the landing page) | Citizen accounts |
-| **Organization Portal** | `/admin` | Staff, Organization Administrators, and Super Admins |
+| **Organization Portal** | `/admin` | Staff and Organization Administrators |
+| **Platform Administration** | `/super-platform-admin` | Platform super administrators only |
 
-If you use the wrong portal, the sign-in is refused with a message such as *"This account is not a citizen account. Sign in through the organization portal instead."* Nothing is signed in when this happens, so you can immediately try the correct portal.
+If you use the wrong portal, the sign-in is refused with a message such as *"This account is not a citizen account…"* or *"This account is not an organization account…"* (a super administrator at `/admin` is told to use the platform portal). Nothing is signed in when this happens, so you can immediately try the correct portal.
 
-#### For Government Officers (Staff, Organization Admin, Super Admin)
+#### For Government Officers (Staff and Organization Admin)
 1. Navigate to the dedicated staff sign-in URL: `https://<your-civicflow-host>/admin`
 2. You'll see the **staff sign-in form** with email and password fields
 3. Enter your email and password and submit
@@ -56,6 +57,23 @@ If you use the wrong portal, the sign-in is refused with a message such as *"Thi
 5. Authentication and authorization are enforced server-side by the API
 
 If your email address has not been confirmed yet, sign-in is rejected with a message offering **Resend the verification email**. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
+
+#### For Platform Super Administrators
+1. Navigate to `https://<your-civicflow-host>/super-platform-admin` (this page is intentionally not linked from the public site)
+2. Sign in with your platform administrator email and password
+3. You land in **Platform administration**, where you can manage organizations, memberships, invitations, and your access tokens
+
+A platform administrator cannot use `/admin` or the citizen portal with those same credentials; each portal is bound to its role.
+
+#### Joining an Organization (Invited Staff)
+Staff do not receive a temporary password. An administrator sends an invitation, and the invitee chooses their own password:
+
+1. Open the **single-use link** in the invitation email. It looks like `/setup-password?token=…`.
+2. Review the inviting organization, your name, email, and role.
+3. Choose a password (minimum 12 characters with upper case, lower case, a number, and a symbol) and confirm it.
+4. After the account is created, sign in at `/admin` with that password.
+
+Invitations expire (72 hours by default) and stop working after the first successful use. If the link is invalid, expired, revoked, or already used, the page says so and asks you to contact the administrator for a new invitation. Resending an invitation invalidates the previous link.
 
 #### For Citizens
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
@@ -96,10 +114,13 @@ The navigation only shows the views your account is entitled to. Entries are det
 - **My profile** - Create or update your own citizen profile
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
 
-**Staff and Super Admin accounts (organization portal):**
+**Staff accounts (organization portal):**
 - **Cases** - Case management (default view)
-- **Staff & team** - Staff directory management
-- **Organizations** - Organization and membership administration (Super Admin only)
+- **Staff & team** - Staff directory, invitations (send, resend, revoke)
+- **Access tokens** - Create, list, and revoke personal access tokens for API clients
+
+**Platform administrator accounts (platform administration):**
+- **Organizations** - Organization, membership, and invitation administration across all organizations (default view)
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
 
 ### Common Controls
@@ -112,7 +133,7 @@ The navigation only shows the views your account is entitled to. Entries are det
 ## 4. Role-Specific Instructions
 
 ### Government Officer / Staff User
-**Access requirements:** Authenticated staff account with the `staff` (or `superadmin`) role; must have appropriate organization membership/role as enforced by the API.
+**Access requirements:** Authenticated staff account with the `staff` role; must have appropriate organization membership/role as enforced by the API. Platform super administrators use the separate platform administration portal.
 
 **Available actions:**
 - View and manage cases
@@ -120,8 +141,20 @@ The navigation only shows the views your account is entitled to. Entries are det
 - Assign cases to staff members
 - Upload and download case documents
 - View case history and assignment history
-- Manage staff directory (create/deactivate/reactivate)
-- Manage organizations and memberships (if authorized)
+- Manage the staff directory (deactivate/reactivate)
+- Invite staff (send, resend, or revoke single-use invitations)
+
+### Platform Administrator
+**Access requirements:** Authenticated platform super administrator account, signed in at `/super-platform-admin`.
+
+**Available actions:**
+- Create, deactivate, and reactivate organizations
+- Manage memberships and roles within any organization
+- Invite staff to any organization and manage those invitations
+- Manage your own access tokens
+
+**Administrator Functions**
+Organization, membership, and invitation administration are available in the **Organizations** view for platform administrators and, within their own organization, for Organization Administrators. Specific permissions are enforced server-side by the API based on roles and organization memberships.
 
 ### Citizen User
 **Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: a citizen dashboard, the public intake interface, their own profile, and access tokens for their own account. Case management, staff administration, and organization administration are never part of a citizen session. Public submission/tracking workflows still depend on configuration — check with your system administrator for current capabilities.
@@ -137,9 +170,6 @@ The navigation only shows the views your account is entitled to. Entries are det
 3. Provide **Full Name** and **Email** (required); optionally add phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
 4. Submit to create the profile; submitting again updates the existing profile
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
-
-### Administrator Functions
-Organization and membership administration are available in the "Organizations" view for authorized users. Specific permissions are enforced server-side by the API based on roles and organization memberships.
 
 ## 5. Core Workflows
 
@@ -244,7 +274,11 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
 | "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
 | "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |
-| "Organization workspace unavailable" | A citizen session opened `/admin` | Use **Go to my dashboard**, or sign in through `/admin` with a staff account |
+| "This account is not a platform administrator" | Signed in at `/super-platform-admin` with a staff or citizen account | Staff use `/admin`; citizens use `/citizen/login` |
+| "Platform administration unavailable" | A staff or citizen session opened `/super-platform-admin` | Use **Go to my workspace**, or sign in with a platform administrator account |
+| "Organization workspace unavailable" | A citizen or platform-administrator session opened `/admin` | Use **Go to my dashboard** (citizens) or the platform portal (super administrators) |
+| "This invitation link is invalid, expired, or has already been used" | Invitation was used, revoked, or passed its expiry | Ask an administrator to resend the invitation |
+| "The account for this email address is inactive" | The invited address belongs to a deactivated account | Contact the platform administrator |
 | "Please verify your email to sign in" | Email not confirmed | Open the verification link from your email (or resend it) |
 | "Too many attempts. Try again later." | Account temporarily locked | Wait ~15 minutes and retry |
 | "You have reached the maximum number of active access tokens" | 25 active tokens already exist | Revoke an unused token, then create a new one |
@@ -312,7 +346,8 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - **CSRF**: Cross-Site Request Forgery protection using an anti-forgery token (`X-CSRF-TOKEN` header)
 - **Personal Access Token (PAT)**: A long-lived credential for API clients, sent as `Authorization: Bearer civicflow_pat_…`; it carries the creating user's permissions and can be revoked at any time
 - **Role**: Account permission level (`citizen`, `staff`, or `superadmin`)
-- **Portal**: The sign-in surface an account is bound to — the Citizen Portal for citizen accounts, the Organization Portal for staff and super administrators. An account can only sign in through the portal its roles belong to.
+- **Portal**: The sign-in surface an account is bound to — the Citizen Portal for citizen accounts, the Organization Portal for staff accounts, and Platform Administration for super administrators. An account can only sign in through the portal its roles belong to.
+- **Invitation**: An administrator's request for someone to join an organization. It is delivered as a single-use, expiring link; the invitee chooses their own password, so no temporary password is ever emailed.
 - **Assignment**: Designating a staff member to handle a case
 - **Status History**: Audit trail of case status changes
 - **Assignment History**: Audit trail of case assignments

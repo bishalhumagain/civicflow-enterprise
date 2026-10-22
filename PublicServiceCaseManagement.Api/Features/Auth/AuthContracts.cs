@@ -50,8 +50,15 @@ public enum SignInPortal
     /// <summary>The public citizen portal: accounts with the citizen role.</summary>
     Citizen,
 
-    /// <summary>The organization portal: staff and super administrators.</summary>
-    Organization
+    /// <summary>The organization portal: staff accounts only.</summary>
+    Organization,
+
+    /// <summary>
+    /// The platform administration portal: super-administrator accounts only.
+    /// It is a separate, unlisted surface so an organization login can never
+    /// reach platform-wide administration.
+    /// </summary>
+    PlatformAdmin
 }
 
 /// <summary>

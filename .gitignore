@@ -14,8 +14,9 @@
 *.user
 *.suo
 
-# Local development settings
+# Local development settings and secrets
 appsettings.Development.json
+appsettings.json
 
 # Local document storage
 **/App_Data/

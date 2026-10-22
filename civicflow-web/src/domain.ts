@@ -18,6 +18,25 @@ export type AssignmentEntry = { id: string; previousStaffMemberId: string | null
 export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
 export type Organization = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string }
 export type Membership = { id: string; userId: string; organizationId: string; role: string; isActive: boolean; createdAt: string; updatedAt: string }
+export type AccountInvitation = {
+  id: string
+  organizationId: string
+  email: string
+  fullName: string
+  role: string
+  createdAt: string
+  expiresAt: string
+  isExpired: boolean
+  isUsed: boolean
+  isRevoked: boolean
+}
+export type InvitationDetails = {
+  email: string
+  fullName: string
+  organizationName: string
+  role: string
+  expiresAt: string
+}
 
 export type CaseHistoryData = { caseId: string; items: HistoryEntry[] }
 export type AssignmentHistoryData = { caseId: string; items: AssignmentEntry[] }

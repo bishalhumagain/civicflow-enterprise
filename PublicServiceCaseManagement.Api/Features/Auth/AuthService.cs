@@ -136,7 +136,7 @@ public sealed class AuthService(
                     email,
                     $"wrong_portal:{portal.ToString().ToLowerInvariant()}");
 
-                return WrongPortal(portal);
+                return WrongPortal(portal, roles);
             }
 
             auditLogger.AuthenticationSucceeded(
@@ -175,8 +175,9 @@ public sealed class AuthService(
 
     /// <summary>
     /// Decides whether the account's roles may use the requested portal.
-    /// The citizen portal is limited to citizen accounts and the organization
-    /// portal to staff and super administrators.
+    /// Every portal is exclusive: citizens use the citizen portal, staff use
+    /// the organization portal, and super administrators use the dedicated
+    /// platform administration portal.
     /// </summary>
     private static bool IsAllowedForPortal(
         IEnumerable<string> roles,
@@ -187,8 +188,8 @@ public sealed class AuthService(
         return portal switch
         {
             SignInPortal.Citizen => roleSet.Contains(AppRoles.Citizen),
-            SignInPortal.Organization => roleSet.Contains(AppRoles.Staff) ||
-                                         roleSet.Contains(AppRoles.SuperAdmin),
+            SignInPortal.Organization => roleSet.Contains(AppRoles.Staff),
+            SignInPortal.PlatformAdmin => roleSet.Contains(AppRoles.SuperAdmin),
             _ => false
         };
     }
@@ -199,18 +200,61 @@ public sealed class AuthService(
             "invalid_credentials",
             "Invalid credentials.");
 
-    private static LoginOutcome WrongPortal(SignInPortal portal) =>
-        portal == SignInPortal.Citizen
-            ? LoginOutcome.Failed(
+    private static LoginOutcome WrongPortal(
+        SignInPortal portal,
+        IEnumerable<string> roles)
+    {
+        var roleSet = roles.ToHashSet(StringComparer.Ordinal);
+
+        if (portal == SignInPortal.Citizen)
+        {
+            // The message has to name the portal the account can actually
+            // use, otherwise a super administrator would be sent to a portal
+            // that refuses them just as well.
+            var target = roleSet.Contains(AppRoles.SuperAdmin)
+                ? "the platform administration portal"
+                : roleSet.Contains(AppRoles.Staff)
+                    ? "the organization portal"
+                    : "the correct portal";
+
+            return LoginOutcome.Failed(
                 LoginFailureReason.WrongPortal,
                 "not_a_citizen_account",
-                "This account is not a citizen account. " +
-                "Sign in through the organization portal instead.")
-            : LoginOutcome.Failed(
+                $"This account is not a citizen account. " +
+                $"Sign in through {target} instead.");
+        }
+
+        if (portal == SignInPortal.Organization &&
+            roleSet.Contains(AppRoles.SuperAdmin))
+        {
+            return LoginOutcome.Failed(
                 LoginFailureReason.WrongPortal,
-                "not_an_organization_account",
-                "This account is not an organization account. " +
-                "Sign in through the citizen portal instead.");
+                "use_platform_admin_portal",
+                "Super administrator accounts sign in through the dedicated " +
+                "platform administration portal.");
+        }
+
+        if (portal == SignInPortal.PlatformAdmin)
+        {
+            var target = roleSet.Contains(AppRoles.Staff)
+                ? "the organization portal"
+                : roleSet.Contains(AppRoles.Citizen)
+                    ? "the citizen portal"
+                    : "the correct portal";
+
+            return LoginOutcome.Failed(
+                LoginFailureReason.WrongPortal,
+                "not_a_platform_admin",
+                $"This account is not a platform administrator account. " +
+                $"Sign in through {target} instead.");
+        }
+
+        return LoginOutcome.Failed(
+            LoginFailureReason.WrongPortal,
+            "not_an_organization_account",
+            "This account is not an organization account. " +
+            "Sign in through the citizen portal instead.");
+    }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {

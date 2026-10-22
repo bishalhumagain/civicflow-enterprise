@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Invitation-based staff onboarding: `AccountInvitation` entity + `AddAccountInvitations` migration, `InvitationService`, and `InvitationsController` (`POST/GET /api/organizations/{organizationId}/invitations`, `POST {id}/resend`, `DELETE {id}`). Invitations store only a SHA-256 token hash, expire after `Invitations:ExpiryHours` (default 72, clamped 1–720), are single-use, and can be resent or revoked. No temporary password is generated or emailed.
+- Anonymous invitation redemption endpoints: `POST /api/auth/invitations/lookup` and `POST /api/auth/invitations/accept`. Acceptance creates or links the Identity account, grants the `staff` role, creates/reactivates the membership and staff record, and requires a password chosen by the invitee (validated against the Identity password policy before anything is mutated).
+- Dedicated platform-administrator portal: `POST /api/auth/login/platform-admin` and `SignInPortal.PlatformAdmin`. `superadmin` is now rejected by both the citizen and organization login endpoints (`use_platform_admin_portal`), and staff/citizens are rejected by the platform endpoint (`not_a_platform_admin`).
+- Frontend: `/super-platform-admin` sign-in page (intentionally unlinked), `/setup-password` invitation-redemption page, invitation management (send/resend/revoke + status list) in the staff directory and platform organization administration, and portal-aware navigation/guards for the platform administrator workspace.
+- Tests: invitation lifecycle/integration tests (hashing at rest, lookup, password setup, reuse/expiry/revocation, duplicates, membership conflicts, role escalation, cross-organization denial, existing-account linking), super-admin seeding tests (fresh seed, weak/partial configuration failure, skip, repair, password-change preservation), and cross-portal sign-in tests.
+
+### Fixed
+- Super administrator bootstrap: `IdentityDataSeeder` now fails startup loudly on a partially configured or policy-violating seed instead of leaving an unusable account, and repairs an existing account's platform role, confirmation state, active state, normalized email, username, and role membership. `SeedAdmin:ResetPassword=true` provides an explicit one-time password sync; otherwise an existing password is never overwritten.
+- `CapturingEmailSender.ExtractToken` stops at whitespace/newlines, so invitation links followed by a newline parse correctly in tests.
+
+### Changed
 - Portal-scoped sign-in: `POST /api/auth/login` now serves the citizen portal and the new `POST /api/auth/login/organization` serves the organization portal. The API binds each attempt to one portal, so the same credentials can never open both dashboards. Supported by the new `SignInPortal`, `LoginFailureReason`, and `LoginOutcome` contracts.
 - Citizen dashboard (`CitizenDashboard`) in the frontend with self-service actions for public intake, the citizen's own profile, and access tokens.
 - Role-scoped sign-in integration tests covering citizen/staff/superadmin acceptance on the matching portal, wrong-portal rejection with a stable code, session cleanup after a rejected attempt, and role-gated endpoint access.
@@ -43,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auth lifecycle, anti-forgery, and personal access token integration tests
 
 ### Removed
+- `POST /api/staff/accounts`, `IStaffAccountService`, `StaffAccountService`, and `ProvisionStaffAccountContracts`. Staff accounts are now created only by redeeming an invitation, so no administrator ever handles or transmits another person's password.
+- The tracked `PublicServiceCaseManagement.Api/appsettings.json`. The file is now gitignored (keep your local copy) and `appsettings.template.json` documents the configuration keys with placeholders.
 - Keycloak and all OIDC/JWT integration (backend packages, `infra/keycloak`, `scripts/verify-keycloak-token.sh`, compose service, `VITE_KEYCLOAK_*` config, and `oidc-client-ts` frontend dependency)
 
 ### Added (prior)

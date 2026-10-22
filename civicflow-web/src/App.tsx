@@ -5,7 +5,6 @@ import {
   allowedPortals,
   canUsePortal,
   getCurrentUser,
-  isSuperAdmin,
   login as loginRequest,
   logout as logoutRequest,
   type AuthUser,
@@ -17,6 +16,7 @@ import {
   organizationId,
   statusLabels,
   statusOptions,
+  type AccountInvitation,
   type AssignmentEntry,
   type AssignmentHistoryData,
   type CaseDocument,
@@ -42,6 +42,8 @@ import { CitizenIntake } from './components/CitizenIntake'
 import { CitizenDashboard } from './components/CitizenDashboard'
 import { LandingPage } from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
+import PlatformAdminLoginPage from './pages/PlatformAdminLoginPage'
+import SetupPasswordPage from './pages/SetupPasswordPage'
 import CitizenLoginPage from './pages/CitizenLoginPage'
 import { CitizenRegisterPage } from './pages/CitizenRegisterPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
@@ -53,6 +55,8 @@ import { useToast } from './components/use-toast'
 import type { LoginCredentials } from './components/LoginForm'
 
 const STAFF_LOGIN_PATH = '/admin'
+const PLATFORM_ADMIN_LOGIN_PATH = '/super-platform-admin'
+const SETUP_PASSWORD_PATH = '/setup-password'
 const CITIZEN_LOGIN_PATH = '/citizen/login'
 const CITIZEN_REGISTER_PATH = '/citizen/register'
 const VERIFY_EMAIL_PATH = '/citizen/verify-email'
@@ -63,6 +67,8 @@ const WORKSPACE_PATH = '/workspace'
 type AppRoute =
   | 'landing'
   | 'staff-login'
+  | 'platform-admin-login'
+  | 'setup-password'
   | 'citizen-login'
   | 'citizen-register'
   | 'verify-email'
@@ -74,6 +80,8 @@ function resolveRoute(pathname: string): AppRoute {
   const path = pathname.replace(/\/+$/, '').toLowerCase()
 
   if (path === STAFF_LOGIN_PATH) return 'staff-login'
+  if (path === PLATFORM_ADMIN_LOGIN_PATH) return 'platform-admin-login'
+  if (path === SETUP_PASSWORD_PATH) return 'setup-password'
   if (path === CITIZEN_LOGIN_PATH) return 'citizen-login'
   if (path === CITIZEN_REGISTER_PATH) return 'citizen-register'
   if (path === VERIFY_EMAIL_PATH) return 'verify-email'
@@ -100,7 +108,11 @@ const PORTAL_STORAGE_KEY = 'civicflow.portal'
 function readRememberedPortal(): SignInPortal | null {
   try {
     const stored = window.sessionStorage.getItem(PORTAL_STORAGE_KEY)
-    return stored === 'citizen' || stored === 'organization' ? stored : null
+    return stored === 'citizen' ||
+      stored === 'organization' ||
+      stored === 'platform-admin'
+      ? stored
+      : null
   } catch {
     return null
   }
@@ -133,7 +145,9 @@ function resolveSessionPortal(user: AuthUser): SignInPortal {
 
   if (remembered && portals.includes(remembered)) return remembered
 
-  return portals.includes('citizen') ? 'citizen' : 'organization'
+  if (portals.includes('platform-admin')) return 'platform-admin'
+  if (portals.includes('citizen')) return 'citizen'
+  return 'organization'
 }
 
 function App() {
@@ -150,6 +164,10 @@ function App() {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [membershipsData, setMembershipsData] = useState<MembershipsData | null>(null)
+  const [invitationsData, setInvitationsData] = useState<{
+    organizationId: string
+    items: AccountInvitation[]
+  } | null>(null)
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(organizationId ?? '')
   const [selectedStatus, setSelectedStatus] = useState<'All' | CaseStatus>('All')
   const [search, setSearch] = useState('')
@@ -176,7 +194,7 @@ function App() {
   // can never offer a surface the API would refuse.
   const citizenAccess = canUsePortal(currentUser, 'citizen')
   const organizationAccess = canUsePortal(currentUser, 'organization')
-  const superAdminAccess = isSuperAdmin(currentUser)
+  const platformAdminAccess = canUsePortal(currentUser, 'platform-admin')
 
   const availableViews = useMemo<WorkspaceView[]>(() => {
     if (!currentUser) return []
@@ -189,14 +207,16 @@ function App() {
 
     if (organizationAccess) {
       views.push('cases', 'staff')
+    }
 
-      if (superAdminAccess) views.push('organizations')
+    if (platformAdminAccess) {
+      views.push('organizations')
     }
 
     views.push('access-tokens')
 
     return views
-  }, [currentUser, citizenAccess, organizationAccess, superAdminAccess])
+  }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
   // The view is derived from the roles the API reports, so a citizen can
   // never land on an organization-only surface, even if a stale selection
@@ -219,16 +239,16 @@ function App() {
     if (organizationAccess) {
       items.push({ view: 'cases', label: 'Cases', icon: '▣' })
       items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
+    }
 
-      if (superAdminAccess) {
-        items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
-      }
+    if (platformAdminAccess) {
+      items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
     }
 
     items.push({ view: 'access-tokens', label: 'Access tokens', icon: '⌗' })
 
     return items
-  }, [currentUser, citizenAccess, organizationAccess, superAdminAccess])
+  }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
   const history = caseHistoryData && caseHistoryData.caseId === selectedCase?.id
       ? caseHistoryData.items
@@ -244,6 +264,14 @@ function App() {
   const memberships = membershipsData?.organizationId === selectedOrganizationId
   && activeView === 'organizations'
       ? membershipsData.items
+      : []
+  const organizationInvitations =
+    invitationsData && invitationsData.organizationId === selectedOrganizationId
+      ? invitationsData.items
+      : []
+  const staffInvitations =
+    invitationsData && invitationsData.organizationId === organizationId
+      ? invitationsData.items
       : []
 
   const visibleCases = useMemo(() => cases.filter((item) => {
@@ -375,7 +403,7 @@ function App() {
   }, [currentUser, organizationAccess, selectedCase])
 
   useEffect(() => {
-    if (!currentUser || !superAdminAccess || activeView !== 'organizations') return
+    if (!currentUser || !platformAdminAccess || activeView !== 'organizations') return
 
     let mounted = true
 
@@ -403,10 +431,10 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, superAdminAccess, activeView])
+  }, [currentUser, platformAdminAccess, activeView])
 
   useEffect(() => {
-    if (!currentUser || !superAdminAccess || activeView !== 'organizations' || !selectedOrganizationId) return
+    if (!currentUser || !platformAdminAccess || activeView !== 'organizations' || !selectedOrganizationId) return
 
     let mounted = true
     const currentOrganizationId = selectedOrganizationId
@@ -431,7 +459,165 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, superAdminAccess, activeView, selectedOrganizationId])
+  }, [currentUser, platformAdminAccess, activeView, selectedOrganizationId])
+
+  const invitationsOrganizationId =
+    activeView === 'organizations'
+      ? selectedOrganizationId
+      : activeView === 'staff'
+        ? organizationId ?? ''
+        : ''
+
+  useEffect(() => {
+    if (!currentUser || !invitationsOrganizationId) return
+    if (activeView === 'organizations' && !platformAdminAccess) return
+    if (activeView === 'staff' && !organizationAccess) return
+
+    let mounted = true
+    const targetOrganizationId = invitationsOrganizationId
+
+    void requestJson<AccountInvitation[]>(
+      `/api/organizations/${targetOrganizationId}/invitations`,
+      undefined,
+      targetOrganizationId,
+    )
+      .then((loaded) => {
+        if (mounted) {
+          setInvitationsData({
+            organizationId: targetOrganizationId,
+            items: loaded,
+          })
+        }
+      })
+      .catch((reason: unknown) => {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Invitations could not be loaded.',
+          )
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [
+    currentUser,
+    activeView,
+    platformAdminAccess,
+    organizationAccess,
+    invitationsOrganizationId,
+  ])
+
+  async function inviteStaff(
+    organizationIdForRequest: string,
+    fullName: string,
+    email: string,
+    role: string,
+  ): Promise<boolean> {
+    if (!currentUser || !organizationIdForRequest) return false
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      const created = await requestJson<AccountInvitation>(
+        `/api/organizations/${organizationIdForRequest}/invitations`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ fullName, email, role }),
+        },
+        organizationIdForRequest,
+      )
+
+      setInvitationsData((current) => ({
+        organizationId: organizationIdForRequest,
+        items: current?.organizationId === organizationIdForRequest
+          ? [created, ...current.items]
+          : [created],
+      }))
+      showToast('Invitation sent.', 'success')
+      return true
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'The invitation could not be sent.'
+      setError(message)
+      showToast(message, 'error')
+      return false
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  async function resendInvitation(
+    organizationIdForRequest: string,
+    invitationId: string,
+  ) {
+    if (!currentUser || !organizationIdForRequest) return
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      const updated = await requestJson<AccountInvitation>(
+        `/api/organizations/${organizationIdForRequest}/invitations/${invitationId}/resend`,
+        { method: 'POST' },
+        organizationIdForRequest,
+      )
+
+      setInvitationsData((current) => ({
+        organizationId: organizationIdForRequest,
+        items: current?.organizationId === organizationIdForRequest
+          ? current.items.map((item) => item.id === updated.id ? updated : item)
+          : [updated],
+      }))
+      showToast('Invitation resent.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'The invitation could not be resent.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  async function revokeInvitation(
+    organizationIdForRequest: string,
+    invitationId: string,
+  ) {
+    if (!currentUser || !organizationIdForRequest) return
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      await requestJson<void>(
+        `/api/organizations/${organizationIdForRequest}/invitations/${invitationId}`,
+        { method: 'DELETE' },
+        organizationIdForRequest,
+      )
+
+      setInvitationsData((current) => ({
+        organizationId: organizationIdForRequest,
+        items: current?.organizationId === organizationIdForRequest
+          ? current.items.filter((item) => item.id !== invitationId)
+          : [],
+      }))
+      showToast('Invitation revoked.', 'info')
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'The invitation could not be revoked.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
 
   const goToRoute = (path: string, target: AppRoute) => {
     setLoginError(null)
@@ -455,7 +641,13 @@ function App() {
   const completeSignIn = (user: AuthUser, portal: SignInPortal) => {
     setCurrentUser(user)
     setActivePortal(portal)
-    setViewSelection(portal === 'citizen' ? 'citizen-dashboard' : 'cases')
+    setViewSelection(
+      portal === 'citizen'
+        ? 'citizen-dashboard'
+        : portal === 'platform-admin'
+          ? 'organizations'
+          : 'cases',
+    )
     setLoginError(null)
     setLoginErrorCode(null)
     setError(null)
@@ -495,6 +687,9 @@ function App() {
 
   const handleOrganizationLoginSubmit = (credentials: LoginCredentials) =>
     handleLoginSubmit(credentials, 'organization')
+
+  const handlePlatformAdminLoginSubmit = (credentials: LoginCredentials) =>
+    handleLoginSubmit(credentials, 'platform-admin')
 
   const handleSignOut = () => {
     void logoutRequest()
@@ -663,26 +858,6 @@ function App() {
     }
   }
 
-  async function createStaffMember(fullName: string, email: string) {
-    if (!currentUser || !organizationId) return
-
-    setAdminLoading(true)
-    setError(null)
-
-    try {
-      const created = await requestJson<StaffMember>('/api/staff', {
-        method: 'POST',
-        body: JSON.stringify({ fullName, email }),
-      })
-
-      setStaff((current) => [...current, created])
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Staff creation failed.')
-    } finally {
-      setAdminLoading(false)
-    }
-  }
-
   async function setStaffActive(member: StaffMember) {
     if (!currentUser || !organizationId) return
     if (!window.confirm(`${member.isActive ? 'Deactivate' : 'Reactivate'} ${member.fullName}?`)) return
@@ -817,6 +992,28 @@ function App() {
     )
   }
 
+  if (route === 'setup-password') {
+    return (
+      <SetupPasswordPage
+        onBack={handleBackToLanding}
+        onSignIn={handleOrganizationSignIn}
+      />
+    )
+  }
+
+  if (!currentUser && route === 'platform-admin-login') {
+    return (
+      <PlatformAdminLoginPage
+        onSubmit={handlePlatformAdminLoginSubmit}
+        onBack={handleBackToLanding}
+        onForgotPassword={handleForgotPassword}
+        loading={loginLoading}
+        error={loginError}
+        errorCode={loginErrorCode}
+      />
+    )
+  }
+
   if (!currentUser && route === 'staff-login') {
     return (
       <StaffLoginPage
@@ -892,9 +1089,9 @@ function App() {
     )
   }
 
-  // The organization portal is only reachable for staff and super
-  // administrator accounts. A citizen that navigates to it is told why and
-  // is returned to the citizen workspace instead of the staff views.
+  // The organization workspace is only reachable for staff accounts. Citizen
+  // and platform-administrator accounts that navigate to it are told why and
+  // are returned to their own portal.
   if (route === 'staff-login' && !organizationAccess) {
     return (
       <div className="landing-page">
@@ -937,6 +1134,50 @@ function App() {
     )
   }
 
+  // The platform administration portal is only reachable for super
+  // administrator accounts. Staff and citizen accounts that navigate to it
+  // are told why and are returned to their own portal.
+  if (route === 'platform-admin-login' && !platformAdminAccess) {
+    return (
+      <div className="landing-page">
+        <header className="landing-header">
+          <div className="landing-brand">
+            <span className="landing-brand-mark">C</span>
+            <span className="landing-brand-name">CivicFlow</span>
+          </div>
+        </header>
+        <main className="landing-main">
+          <section style={{ maxWidth: 520, margin: '0 auto', width: '100%' }}>
+            <h2 style={{ marginTop: 0 }}>Platform administration unavailable</h2>
+            <p className="muted">
+              This account is not a platform administrator. Platform
+              administration is limited to super administrator accounts; staff
+              use the organization portal and citizens use the citizen portal.
+            </p>
+            <div className="landing-card-actions">
+              <button
+                className="landing-button primary"
+                onClick={() => {
+                  navigateTo(WORKSPACE_PATH)
+                  setRoute('workspace')
+                }}
+                type="button"
+              >
+                Go to my workspace
+              </button>
+              <button className="landing-button" onClick={handleSignOut} type="button">
+                Sign out
+              </button>
+            </div>
+          </section>
+        </main>
+        <footer className="landing-footer">
+          <p>CivicFlow Enterprise · Platform administration</p>
+        </footer>
+      </div>
+    )
+  }
+
   const caseEmptyMessage = !organizationId
       ? 'Configure an organization ID to load cases.'
       : cases.length === 0
@@ -951,7 +1192,7 @@ function App() {
 
   const workspaceLabel = activePortal === 'citizen'
       ? 'Citizen portal'
-      : superAdminAccess
+      : activePortal === 'platform-admin'
           ? 'Platform administration'
           : 'Organization workspace'
 
@@ -1049,23 +1290,36 @@ function App() {
             ) : activeView === 'staff' && organizationAccess ? (
                 <StaffDirectory
                     staff={staff}
+                    invitations={staffInvitations}
                     authenticated={Boolean(currentUser)}
                     loading={adminLoading}
-                    onCreate={createStaffMember}
+                    onInvite={(fullName, email, role) =>
+                      inviteStaff(organizationId ?? '', fullName, email, role)}
+                    onResend={(invitationId) =>
+                      resendInvitation(organizationId ?? '', invitationId)}
+                    onRevoke={(invitationId) =>
+                      revokeInvitation(organizationId ?? '', invitationId)}
                     onToggle={setStaffActive}
                 />
-            ) : activeView === 'organizations' && superAdminAccess ? (
+            ) : activeView === 'organizations' && platformAdminAccess ? (
                 <OrganizationAdministration
                     authenticated={Boolean(currentUser)}
                     loading={adminLoading}
                     organizations={organizations}
                     memberships={memberships}
+                    invitations={organizationInvitations}
                     selectedOrganizationId={selectedOrganizationId}
                     onSelectOrganization={setSelectedOrganizationId}
                     onCreateOrganization={createOrganization}
                     onToggleOrganization={updateOrganizationStatus}
                     onCreateMembership={createMembership}
                     onUpdateMembership={updateMembership}
+                    onInvite={(fullName, email, role) =>
+                      inviteStaff(selectedOrganizationId, fullName, email, role)}
+                    onResendInvitation={(invitationId) =>
+                      resendInvitation(selectedOrganizationId, invitationId)}
+                    onRevokeInvitation={(invitationId) =>
+                      revokeInvitation(selectedOrganizationId, invitationId)}
                 />
             ) : organizationAccess ? (
                 <>

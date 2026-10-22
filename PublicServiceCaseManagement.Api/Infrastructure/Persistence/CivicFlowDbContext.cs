@@ -28,6 +28,8 @@ public sealed class CivicFlowDbContext(
         Set<CitizenProfile>();
     public DbSet<OrganizationMembership> OrganizationMemberships =>
         Set<OrganizationMembership>();
+    public DbSet<AccountInvitation> AccountInvitations =>
+        Set<AccountInvitation>();
     public DbSet<PersonalAccessToken> PersonalAccessTokens =>
         Set<PersonalAccessToken>();
 
@@ -366,6 +368,69 @@ public sealed class CivicFlowDbContext(
                 m.IsActive,
                 m.Role
             });
+        });
+
+        modelBuilder.Entity<AccountInvitation>(entity =>
+        {
+            entity.ToTable("account_invitations");
+
+            entity.HasKey(invitation => invitation.Id);
+
+            entity.Property(invitation => invitation.OrganizationId)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.Email)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.NormalizedEmail)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.FullName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.OrganizationRole)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.TokenHash)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.CreatedByUserId)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.CreatedAt)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.UpdatedAt)
+                .IsRequired();
+
+            entity.Property(invitation => invitation.ExpiresAt)
+                .IsRequired();
+
+            entity.HasIndex(invitation => invitation.TokenHash)
+                .IsUnique();
+
+            entity.HasIndex(invitation => new
+            {
+                invitation.OrganizationId,
+                invitation.NormalizedEmail
+            });
+
+            entity.HasIndex(invitation => new
+            {
+                invitation.OrganizationId,
+                invitation.CreatedAt
+            });
+
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(invitation => invitation.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Organization>(entity =>

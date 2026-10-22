@@ -1,67 +1,55 @@
-import { useState } from 'react'
-import type { StaffMember } from '../domain'
+import type { AccountInvitation, StaffMember } from '../domain'
+import { InvitationManager } from './InvitationManager'
 
 export function StaffDirectory({
   staff,
+  invitations,
   authenticated,
   loading,
-  onCreate,
+  onInvite,
+  onResend,
+  onRevoke,
   onToggle,
 }: {
   staff: StaffMember[]
+  invitations: AccountInvitation[]
   authenticated: boolean
   loading: boolean
-  onCreate: (fullName: string, email: string) => Promise<void>
+  onInvite: (fullName: string, email: string, role: string) => Promise<boolean>
+  onResend: (invitationId: string) => Promise<void>
+  onRevoke: (invitationId: string) => Promise<void>
   onToggle: (member: StaffMember) => Promise<void>
 }) {
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-
   return (
     <>
       <div className="page-heading">
         <div>
           <p className="eyebrow">ORGANIZATION DIRECTORY</p>
           <h1>Staff &amp; team</h1>
-          <p className="muted">Active staff available for case assignment in the selected organization.</p>
+          <p className="muted">
+            Invite staff to this organization and manage who can work on cases.
+            Each invitee receives a single-use link and chooses their own
+            password.
+          </p>
         </div>
       </div>
 
-      {authenticated && (
-        <form
-          className="case-card inline-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void onCreate(fullName, email)
-            setFullName('')
-            setEmail('')
-          }}
-        >
-          <input
-            required
-            minLength={1}
-            maxLength={150}
-            placeholder="Full name"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-          />
-          <input
-            required
-            type="email"
-            maxLength={254}
-            placeholder="Email address"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <button className="primary-button" disabled={loading} type="submit">Add staff</button>
-        </form>
-      )}
+      {authenticated ? (
+        <InvitationManager
+          invitations={invitations}
+          loading={loading}
+          onInvite={onInvite}
+          onResend={onResend}
+          onRevoke={onRevoke}
+        />
+      ) : null}
 
       <section className="case-card directory-card">
+        <h2>Active staff</h2>
         {!authenticated ? (
           <p className="muted empty-state">Sign in with a staff identity to load the organization directory.</p>
         ) : staff.length === 0 ? (
-          <p className="muted empty-state">No active staff members were returned, or this role cannot access staff administration.</p>
+          <p className="muted empty-state">No staff members were returned, or this role cannot access staff administration.</p>
         ) : (
           <div className="directory-grid">
             {staff.map((member) => (

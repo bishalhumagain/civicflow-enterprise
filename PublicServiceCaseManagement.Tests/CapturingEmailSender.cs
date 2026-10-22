@@ -44,7 +44,9 @@ public sealed class CapturingEmailSender : IEmailSender
         }
 
         var start = index + marker.Length;
-        var end = body.IndexOf('&', start);
+        var end = body.IndexOfAny(
+            ['&', ' ', '\r', '\n'],
+            start);
 
         if (end < 0)
         {

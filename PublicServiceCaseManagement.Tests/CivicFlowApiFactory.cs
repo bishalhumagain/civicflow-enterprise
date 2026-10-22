@@ -24,6 +24,7 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     private readonly string environmentName;
     private readonly bool enableBusinessEndpoints;
     private readonly bool requireAntiforgery;
+    private readonly IReadOnlyDictionary<string, string?> settings;
 
     public CapturingEmailSender EmailSender { get; } = new();
 
@@ -42,12 +43,14 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         bool useAuthenticatedOrganizationContext = false,
         string environmentName = "Development",
         bool enableBusinessEndpoints = false,
-        bool requireAntiforgery = false)
+        bool requireAntiforgery = false,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         _ = useAuthenticatedOrganizationContext;
         this.environmentName = environmentName;
         this.enableBusinessEndpoints = enableBusinessEndpoints;
         this.requireAntiforgery = requireAntiforgery;
+        this.settings = settings ?? new Dictionary<string, string?>();
     }
 
     public CivicFlowApiFactory(
@@ -55,13 +58,15 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         PlatformRole defaultPlatformRole = PlatformRole.None,
         string environmentName = "Development",
         bool enableBusinessEndpoints = false,
-        bool requireAntiforgery = false)
+        bool requireAntiforgery = false,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         this.defaultOrganizationRole = defaultOrganizationRole;
         this.defaultPlatformRole = defaultPlatformRole;
         this.environmentName = environmentName;
         this.enableBusinessEndpoints = enableBusinessEndpoints;
         this.requireAntiforgery = requireAntiforgery;
+        this.settings = settings ?? new Dictionary<string, string?>();
     }
 
     public new HttpClient CreateClient()
@@ -103,18 +108,24 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
-            configuration.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:CivicFlow"] =
-                        "Host=localhost;Database=civicflow_tests;Username=test",
-                    ["BusinessEndpoints:Enabled"] =
-                        enableBusinessEndpoints.ToString(),
-                    ["Security:RequireAntiforgery"] =
-                        requireAntiforgery ? "true" : "false",
-                    ["FileStorage:RootPath"] =
-                        Path.Combine(Path.GetTempPath(), databaseName)
-                });
+            var values = new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:CivicFlow"] =
+                    "Host=localhost;Database=civicflow_tests;Username=test",
+                ["BusinessEndpoints:Enabled"] =
+                    enableBusinessEndpoints.ToString(),
+                ["Security:RequireAntiforgery"] =
+                    requireAntiforgery ? "true" : "false",
+                ["FileStorage:RootPath"] =
+                    Path.Combine(Path.GetTempPath(), databaseName)
+            };
+
+            foreach (var setting in settings)
+            {
+                values[setting.Key] = setting.Value;
+            }
+
+            configuration.AddInMemoryCollection(values);
         });
 
         builder.ConfigureServices(services =>

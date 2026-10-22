@@ -36,8 +36,9 @@ export function StaffLoginPage({
             ) : null}
           </div>
           <p className="muted" style={{ marginTop: 0 }}>
-            Staff, Organization Administrators, and Super Admins sign in here. This page is served at a dedicated URL
-            separate from the public landing page.
+            Staff and Organization Administrators sign in here. Platform
+            administrators use the dedicated platform administration portal,
+            and citizens use the citizen portal.
           </p>
           <LoginForm
             onSubmit={onSubmit}

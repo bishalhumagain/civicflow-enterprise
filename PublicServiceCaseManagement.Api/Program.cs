@@ -10,6 +10,7 @@ using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Auth;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Citizens;
+using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Staff;
@@ -223,7 +224,6 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<ICaseService, CaseService>();
 builder.Services.AddScoped<ICaseDocumentService, CaseDocumentService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
-builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
 builder.Services.AddSingleton<IBusinessEndpointAccess, BusinessEndpointAccess>();
 builder.Services.AddHttpContextAccessor();
@@ -243,6 +243,7 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
+builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();

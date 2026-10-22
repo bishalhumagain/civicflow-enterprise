@@ -223,7 +223,40 @@ public sealed class RoleScopedSignInIntegrationTests
     }
 
     [Fact]
-    public async Task SuperAdminAccount_CanSignInToOrganizationPortal()
+    public async Task SuperAdminAccount_CannotSignInToOrganizationPortal()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = await CreateUserAsync(
+            factory,
+            $"superadmin-org-{Guid.NewGuid():N}@example.com",
+            AppRoles.SuperAdmin);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login/organization",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<
+            Dictionary<string, string>>();
+
+        Assert.NotNull(body);
+        Assert.Equal("use_platform_admin_portal", body!["code"]);
+
+        // The rejected attempt must not leave a session behind.
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task SuperAdminAccount_CanSignInToPlatformAdminPortal()
     {
         await using var factory = new CivicFlowApiFactory
         {
@@ -238,7 +271,7 @@ public sealed class RoleScopedSignInIntegrationTests
             AppRoles.SuperAdmin);
 
         var response = await client.PostAsJsonAsync(
-            "/api/auth/login/organization",
+            "/api/auth/login/platform-admin",
             new { email, password = StrongPassword });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -248,6 +281,60 @@ public sealed class RoleScopedSignInIntegrationTests
 
         Assert.NotNull(me);
         Assert.Equal("superadmin", Assert.Single(me!.Roles));
+    }
+
+    [Fact]
+    public async Task StaffAccount_CannotSignInToPlatformAdminPortal()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = await CreateUserAsync(
+            factory,
+            $"staff-platform-{Guid.NewGuid():N}@example.com",
+            AppRoles.Staff);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login/platform-admin",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<
+            Dictionary<string, string>>();
+
+        Assert.NotNull(body);
+        Assert.Equal("not_a_platform_admin", body!["code"]);
+
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task CitizenAccount_CannotSignInToPlatformAdminPortal()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = await CreateUserAsync(
+            factory,
+            $"citizen-platform-{Guid.NewGuid():N}@example.com",
+            AppRoles.Citizen);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login/platform-admin",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
