@@ -1,177 +1,813 @@
 # CivicFlow Enterprise
 
-CivicFlow Enterprise is a public-service case management platform with a .NET 10 ASP.NET Core Web API backend and a React 19 + TypeScript + Vite frontend. The system provides organization-scoped case management with first-party ASP.NET Core Identity authentication (cookie-based sessions), CSRF protection, and role/organization-aware authorization.
+**A secure, multi-tenant public-service case management platform.**
 
-> **Repository**: [https://github.com/bishalhumagain/civicflow-enterprise.git](https://github.com/bishalhumagain/civicflow-enterprise.git)
+CivicFlow Enterprise helps government and public-service organizations intake, track, assign, and resolve citizen-submitted cases. It is built with a .NET 10 ASP.NET Core Web API backend, a React 19 + TypeScript + Vite frontend, and PostgreSQL 17 for persistence. The system uses first-party ASP.NET Core Identity for authentication (cookie-based sessions with CSRF protection), supports personal access tokens for API clients, and enforces organization-scoped data isolation through server-side authorization and PostgreSQL row-level security.
 
-## 1) Current implementation status
-- **Implemented**: Backend API, ASP.NET Core Identity authentication with HttpOnly cookie sessions and anti-forgery (CSRF) protection, portal-scoped sign-in (separate citizen and organization sign-in endpoints), personal access tokens (PATs) for non-browser clients, organization scoping, Cases/Staff/Organizations/Memberships features, citizen self-registration/profile (`/api/citizens/me` under the citizen policy), and a unified self-service profile for citizens and organization staff (`/api/profile/me`), a persisted audit trail, platform administration (organization management, platform directory, platform-wide audit), optional staff/invitation phone numbers, EF Core migrations to PostgreSQL, local file storage, and integration/unit tests in `PublicServiceCaseManagement.Tests`.
-- **Implemented (frontend)**: Cookie-based authentication flows (register, email verification, login, logout, password recovery, password change), portal-scoped sign-in (citizen portal vs. organization portal), session restoration, role-specific workspaces (citizen dashboard vs. organization workspace), access-token management UI, platform directory/audit screens, an organization activity log, phone-aware invitations and staff directory, and CSRF token handling.
-- **Verified in this repository**: `dotnet test` (272 tests), `dotnet format --verify-no-changes`, and `civicflow-web` `npm run lint` + `npm run build` pass. The API flows (registration → email confirmation → login → PAT creation → bearer authentication → revocation), the portal/role matrix (citizen, staff, and platform-administrator portals; wrong-portal rejection; session cleanup after a rejected attempt), the invitation lifecycle (invite → emailed single-use link → password setup → organization sign-in → reuse rejection), the platform administration surface (organization create → audit event → delete → `404` on repeat), the platform directory and overview, and the staff phone update were additionally exercised over HTTP against PostgreSQL 17.
-- **Not verified end-to-end in this environment**: live browser + PostgreSQL + SMTP end-to-end runs, and production HTTPS cookie behavior (the `__Host-` cookie prefix requires HTTPS).
+> **Repository**: [github.com/bishalhumagain/civicflow-enterprise](https://github.com/bishalhumagain/civicflow-enterprise.git)
+> **Owner**: Bishal Humagain
+> **Version**: 0.1.0
+> **Status**: In active development — see [Implementation Status](#implementation-status)
 
-## 2) Problem statement and goals
-Provide a secure, organization-scoped platform for public service teams to intake, track, assign, and resolve cases while maintaining audit history and clear separation between staff and citizen access.
+---
 
-## 3) Features implemented today
-### Backend
-- **AuthN**: ASP.NET Core Identity with first-party cookie authentication. Sign-in uses `SignInManager.PasswordSignInAsync`; the session is an HttpOnly, SameSite=Lax cookie (authoritative on the server).
-- **AuthN (portal-scoped sign-in)**: three exclusive portals. `POST /api/auth/login` accepts only `citizen`; `POST /api/auth/login/organization` accepts only `staff`; the new `POST /api/auth/login/platform-admin` accepts only `superadmin`. A wrong-portal attempt is rejected with `403` and a machine-readable code (`not_a_citizen_account`, `not_an_organization_account`, `use_platform_admin_portal`, or `not_a_platform_admin`), and the session cookie that the password check had already issued is dropped again, so a rejected attempt never leaves a usable session behind.
-- **AuthN (API clients)**: personal access tokens (PATs) — `Authorization: Bearer civicflow_pat_<id>_<secret>` — minted by the signed-in user, stored as a SHA-256 hash, and revoked per token. PATs resolve to the same roles and policies as the cookie session.
-- **AuthZ**: Role-based policies — `CitizenClient` (`citizen`), `StaffClient` (`staff`/`superadmin`), `SuperAdmin`. The fallback policy requires an authenticated `staff` or `superadmin` user.
-- **Account lifecycle**: registration, email confirmation, login, logout, resend verification, forgot/reset password, change password. Account lockout (5 attempts / 15 minutes). Password policy: minimum 12 chars with upper, lower, digit, non-alphanumeric, and 6 unique characters. `SignIn.RequireConfirmedEmail = true`.
-- **Staff invitations (no temporary passwords)**: an organization administrator (or platform administrator) sends `POST /api/organizations/{organizationId}/invitations`. The API stores only a SHA-256 hash of a 256-bit random token and emails a single-use link (`{Frontend:BaseUrl}/setup-password?token=…`). The invitee looks the link up anonymously, chooses their own password, and redeems it once; acceptance creates or links the Identity account, grants the `staff` role, and creates/reactivates the membership and staff record. Invitations expire (`Invitations:ExpiryHours`, default 72, clamped 1–720), can be resent (the old token stops working), and can be revoked. Reuse, expiry, revocation, and unknown tokens all return the same `410 invitation_unavailable`. Duplicate pending invitations and invitations for existing active members return `409`.
-- **Personal access tokens**: `POST/GET/DELETE /api/auth/tokens`. A token is created for the signed-in user, is shown in plaintext exactly once, is stored only as a SHA-256 hash, and can carry an expiry (or never expire). A token is rejected when unknown, tampered with, expired, revoked, or owned by a deactivated user. Maximum 25 active tokens per user.
-- **Security hardening**: CSRF via ASP.NET Core anti-forgery (`X-CSRF-TOKEN` header, middleware validates unsafe `/api/*` methods), fixed-window rate limiting on auth/password endpoints, enumeration-safe registration/recovery responses, audit logging (`AUTH_SUCCESS`/`AUTH_FAILURE`/`ACCOUNT_LIFECYCLE`/`PRIVILEGE_CHANGE`), security headers middleware, and CORS restricted to configured origins with credentials.
-- **Organization scoping**: Organization context resolved from the authenticated Identity user (`ClaimTypes.NameIdentifier`) plus membership and the `X-Organization-Id` header; scoping enforced server-side.
-- **Cases**: status changes with history, assignments with audit attribution, document upload/download, pagination.
-- **Staff**: manage staff members and invitations; account creation happens only when the invitee accepts the link and sets their own password.
-- **Organizations & Memberships**: create orgs, manage memberships/roles, toggle status. Super administrators can rename an organization, activate/deactivate it, and delete it; deletion is refused with `409` while the organization still holds cases, and otherwise removes the memberships, staff records, pending invitations, and the organization itself inside the organization's transaction context. The OrganizationAdministration component provides the UI for these operations, including organization selection, inline editing (name up to 200 characters, code up to 50 characters), membership management (adding members by user ID with Viewer/CaseWorker/OrganizationAdmin roles, updating roles, activating/deactivating), and integrated invitation management via the InvitationManager component. Every mutation is recorded in the audit trail.
-- **Audit trail**: every authentication, account, invitation, membership, organization, staff, case, and access-token event is written to the `audit_events` table with the actor (id + email), organization, entity, and a human-readable detail string. Audit writes are asynchronous and fail-safe — a failing audit write never rolls back the business operation. `GET /api/platform/audit` returns the platform-wide trail to super administrators, `GET /api/organizations/{organizationId}/audit` returns the trail of one organization to its administrators, and `GET /api/platform/audit/categories` returns the filterable category list.
-- **Platform directory**: `GET /api/platform/overview` (account/staff/organization/invitation counters), `GET /api/platform/users` (every account with its roles, platform role, phone number, and organization memberships), and `GET /api/platform/staff` (every staff membership with organization, role, and status). The directory is membership-based, so it is not affected by the organization row-level-security scope.
-- **Phone numbers**: staff members and invitations carry an optional phone number (6–30 characters, at least 6 digits, digits/spaces/`+ - ( ) . /` only). An invitation can collect the invitee's number, the invitation email repeats it, and accepting the invitation stores it on the new account and the staff record. For an account that already exists, the number is only filled in when the account has none — a number the person set themselves is never overwritten. Organization administrators can correct a number later with `PATCH /api/staff/{id}/phone`.
-- **Citizens**: self-service citizen profile (`GET/POST /api/citizens/me`) with validation and duplicate detection, linked to the authenticated identity.
-- **Persistence**: EF Core + Npgsql; migrations include the ASP.NET Core Identity migration with a data backfill for previously Keycloak-managed users.
-- **Files**: Local file storage under `App_Data/uploads`.
+## Table of Contents
+
+- [Overview](#overview)
+- [Who Is This For?](#who-is-this-for)
+- [Key Capabilities](#key-capabilities)
+- [Technology Stack](#technology-stack)
+- [Repository Structure](#repository-structure)
+- [Architecture](#architecture)
+  - [Backend Architecture](#backend-architecture)
+  - [Frontend Architecture](#frontend-architecture)
+  - [Authentication & Authorization](#authentication--authorization)
+  - [Database & Data Isolation](#database--data-isolation)
+  - [Security Model](#security-model)
+- [API Reference](#api-reference)
+- [Getting Started](#getting-started)
+- [Testing](#testing)
+- [Deployment & CI](#deployment--ci)
+- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [Implementation Status](#implementation-status)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Overview
+
+CivicFlow Enterprise is a public-service case management platform designed for government departments and public-service agencies. It provides three separate, secure portals:
+
+1. **Citizen Portal** — Citizens register, verify their email, maintain a civil-registry profile, and can submit public service requests.
+2. **Organization Portal** — Staff members manage cases within their organization: create cases, change status through a state machine, assign to staff, upload documents, manage staff directories, and send/revoke invitations.
+3. **Platform Administration** — Super administrators manage all organizations, view the platform directory, review the audit trail, track application errors, and monitor dashboard statistics.
+
+The platform is built around three core principles:
+- **Security by design** — No secrets in the browser, no temporary passwords, CSRF protection, rate limiting, audit everything.
+- **Organization scoping** — All case data is tenant-scoped with server-side enforcement and PostgreSQL row-level security.
+- **Role-based access** — Three roles (`citizen`, `staff`, `superadmin`) with strict portal separation and least-privilege authorization.
+
+---
+
+## Who Is This For?
+
+| Audience | What you'll find useful |
+|---|---|
+| **New developers** | [Getting Started](#getting-started), [Architecture](#architecture), [API Reference](#api-reference), [Testing](#testing) |
+| **Project managers** | [Key Capabilities](#key-capabilities), [Implementation Status](#implementation-status), [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) |
+| **System administrators / operators** | [Getting Started](#getting-started), [Security Model](#security-model), [Troubleshooting](#troubleshooting), [Deployment & CI](#deployment--ci) |
+| **End users** | [User Manual](docs/USER_MANUAL.md) |
+| **Security reviewers** | [Authentication & Authorization](#authentication--authorization), [Database & Data Isolation](#database--data-isolation), [RLS Design](docs/RLS-DESIGN.md), [Integration Verification](docs/INTEGRATION-VERIFICATION.md) |
+| **Contributors** | [Contributing](#contributing), [Documentation Workflow](docs/DOCUMENTATION_WORKFLOW.md), [CHANGELOG](CHANGELOG.md) |
+
+---
+
+## Key Capabilities
+
+### Authentication & Identity
+
+| Capability | Description |
+|---|---|
+| **First-party ASP.NET Core Identity** | Cookie-based sessions (HttpOnly, SameSite=Lax, 8-hour sliding expiration). No external identity provider required. |
+| **Portal-scoped sign-in** | Three exclusive endpoints: citizen (`/api/auth/login`), organization (`/api/auth/login/organization`), and platform-admin (`/api/auth/login/platform-admin`). Wrong-portal attempts are rejected with machine-readable codes and no leftover session. |
+| **Email verification** | Registration requires email confirmation before sign-in is permitted (`RequireConfirmedEmail = true`). |
+| **Password policy** | 12+ characters, upper/lower/digit/non-alphanumeric, 6 unique characters. Account lockout after 5 failed attempts (15-minute window). |
+| **Password recovery** | Forgot-password/reset-password flow with enumeration-safe responses (no disclosure of whether an email exists). |
+| **Personal access tokens (PATs)** | `Authorization: Bearer civicflow_pat_<id>_<secret>` for non-browser clients. Stored as SHA-256 hash, shown once at creation, revocable, optional expiry, max 25 per user. PATs carry the owner's roles and policies. |
+| **CSRF protection** | Anti-forgery cookie + `X-CSRF-TOKEN` header validated on all unsafe `/api/*` methods. |
+| **Rate limiting** | Fixed-window: 20/min on auth endpoints, 8/5min on password endpoints. |
+
+### Case Management
+
+| Capability | Description |
+|---|---|
+| **Case lifecycle** | Create, list (paged, searchable, filterable), view detail, change status, assign. |
+| **Status state machine** | Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected. Enforced in domain logic; closed/rejected cases are not editable. |
+| **Assignment** | Assign cases to staff members with audit attribution. |
+| **Status & assignment history** | Full audit trail of every status change and assignment, with timestamps and actors. |
+| **Document upload/download** | Multipart upload (max 10MB), extension whitelist (.pdf, .jpg, .jpeg, .png, .doc, .docx), SHA-256 hash verification, path-traversal protection. |
+
+### Organization Management
+
+| Capability | Description |
+|---|---|
+| **Multi-tenant scoping** | All case data is organization-scoped. Server-side resolution + PostgreSQL RLS prevents cross-organization access. |
+| **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. |
+| **Memberships** | Add members with roles (Viewer, CaseWorker, OrganizationAdmin), change roles, activate/deactivate. |
+| **Invitation-based onboarding** | No administrator handles passwords. Single-use, expiring invitation links (default 72h, configurable 1–720h). Only SHA-256 token hash stored. Invitee chooses own password. Resend invalidates old link. |
+| **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators. |
+
+### Audit & Compliance
+
+| Capability | Description |
+|---|---|
+| **Persisted audit trail** | Every authentication, account, invitation, membership, organization, staff, case, and access-token event is recorded in `audit_events` with actor (id + email), organization, entity, and detail. Asynchronous and fail-safe. |
+| **Platform-wide audit log** | `GET /api/platform/audit` (super administrators only), filterable by category, action, free text, and date range. |
+| **Organization-scoped activity log** | `GET /api/organizations/{orgId}/audit` (organization administrators only). |
+| **Dashboard & statistics** | Platform-wide and organization-scoped case statistics: total, per-status, per-priority, weekly/monthly trends. |
+| **Error tracking** | Unhandled exceptions persisted to `application_errors` with full context (stack trace, source, request path/method, user, org). Reviewable and mark-as-handled by super administrators. |
+
+### Platform Administration
+
+| Capability | Description |
+|---|---|
+| **Platform directory** | Overview counters (accounts, staff, organizations, invitations), all accounts with roles/memberships, all staff memberships. |
+| **Organization management** | Full CRUD, including deletion with cleanup of memberships, staff records, and pending invitations. |
+| **Super-admin bootstrap** | Configurable seed with fail-fast validation on partial/policy-violating configuration. Explicit `ResetPassword` switch for one-time repair. |
 
 ### Frontend
-- **Cookie authentication**: All API calls use `credentials: 'include'`; no tokens or secrets are stored in JavaScript-accessible storage. State-changing requests attach the anti-forgery token from `GET /api/auth/csrf`.
-- **Pages**: `LandingPage`, `StaffLoginPage` (`/admin`), `PlatformAdminLoginPage` (`/super-platform-admin`, intentionally unlinked), `SetupPasswordPage` (`/setup-password`), `CitizenLoginPage`, `CitizenRegisterPage`, `VerifyEmailPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `CitizenDashboard`, `CitizenProfilePage`, `AccessTokensPage`.
-- **Routes**: `/` (public landing), `/admin` (organization sign-in), `/super-platform-admin` (platform-administrator sign-in), `/setup-password` (invitation redemption), `/citizen/login`, `/citizen/register`, `/citizen/verify-email`, `/forgot-password`, `/reset-password`, `/workspace` (the signed-in workspace of whichever portal the account belongs to).
-- **Workspaces**: Role-specific. A citizen session opens the citizen dashboard (public intake, own profile, access tokens); a staff session opens the organization workspace (cases, staff directory with invitations, activity log, access tokens); a superadministrator session opens platform administration (organizations/memberships/invitations, platform directory, platform audit log, access tokens). Navigation entries, the active view, and the API calls are derived from the roles the API reports, so a portal is never offered for an account the API would refuse. Session restored on load via `GET /api/auth/me`; the portal of a restored session is re-derived from the account roles.
-- **Invitation UI**: the staff directory and organization administration screens send invitations and list pending/accepted/expired/revoked ones with resend and revoke actions. The setup page shows the inviting organization, the invitee's name/email/role, and the expiry before asking for a password and confirmation. The invitation form collects an optional phone number.
-- **Phone UI**: the staff directory shows each member's phone number and lets an organization administrator correct it inline; the invitation list shows the collected number.
-- **Administration UI**: the platform workspace has an organization screen (create/rename/activate/deactivate/delete plus memberships and invitations), a directory screen (overview counters, accounts, staff memberships), and an audit-log screen. Organization workspaces have their own activity log scoped to the organization. The shared audit-log component filters by category, action, free text, and date range and pages through the results.
-- **Notifications**: Toast system (success/error/info/warning).
 
-## 4) Technology stack (verified)
-| Layer | Technology | Version (from files) |
+| Capability | Description |
+|---|---|
+| **Cookie-based auth** | All API calls use `credentials: 'include'`. No tokens or secrets in JavaScript-accessible storage. |
+| **Role-specific workspaces** | Citizen dashboard, organization workspace, and platform administration — navigation derived from API-reported roles. |
+| **Session restoration** | `GET /api/auth/me` on load; portal re-derived from roles. |
+| **Complete auth flows** | Register, email verification, login (portal-scoped), logout, password recovery, password change. |
+| **Toast notifications** | Success/error/info/warning feedback for all actions. |
+| **Invitation management UI** | Send, resend, revoke, list (pending/accepted/expired/revoked). |
+| **Audit log UI** | Shared component with category/action/text/date-range filters and pagination. |
+| **Profile management** | Unified self-service profile for citizens and staff. |
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Version |
 |---|---|---|
-| Backend | .NET / ASP.NET Core | `net10.0` |
-| Backend packages | Microsoft.AspNetCore.Identity.EntityFrameworkCore, EF Core Design, Npgsql EF Core, Swashbuckle | 10.0.0 / 10.0.0 / 10.0.0 / 10.3.0 |
-| Database | PostgreSQL | 17 (Compose) |
+| Backend runtime | .NET / ASP.NET Core | 10.0 (`net10.0`) |
 | ORM | Entity Framework Core | 10.0.0 |
+| Database | PostgreSQL | 17 |
+| Database provider | Npgsql EF Core | 10.0.0 |
 | Auth | ASP.NET Core Identity (cookie sessions + CSRF) | 10.0.0 |
-| Frontend | React, TypeScript, Vite | 19.2.8, ~6.0.2, ^8.3.0 |
-| Frontend auth | First-party fetch + cookies (no third-party auth library) | — |
+| API documentation | Swashbuckle (Swagger) | 10.3.0 |
+| Frontend framework | React | 19.2.8 |
+| Frontend language | TypeScript | ~6.0.2 |
+| Frontend build | Vite | ^8.3.0 |
+| Frontend auth | First-party `fetch` + cookies (no third-party auth library) | — |
 | Testing | xUnit, ASP.NET Core TestHost, EF Core InMemory | 2.9.3, 10.0.0, 10.0.0 |
+| Code coverage | coverlet | 6.0.4 |
+| CI | GitHub Actions (.NET 10, Node 20) | — |
+| Containerization | Docker Compose (PostgreSQL) | — |
 
-## 5) Repository structure
+---
+
+## Repository Structure
+
 ```
 .
-├── PublicServiceCaseManagement.Api/        # ASP.NET Core API
-├── PublicServiceCaseManagement.Tests/     # xUnit tests
-├── civicflow-web/                          # React + Vite frontend
-├── compose.yaml                            # PostgreSQL (Docker Compose)
-├── infra/                                  # Infra configs (Postgres init)
-├── docs/                                   # Docs
-└── PublicServiceCaseManagement.sln         # Solution
+├── PublicServiceCaseManagement.sln          # .NET solution file
+├── PublicServiceCaseManagement.Api/         # ASP.NET Core Web API
+│   ├── Program.cs                           # Startup configuration
+│   ├── appsettings.template.json           # Configuration template (copy to appsettings.json)
+│   ├── Domain/                              # Entities (Case, Organization, ApplicationUser, etc.)
+│   ├── Features/                            # Controllers + services + contracts
+│   │   ├── Auth/                            #   Authentication, PATs, invitations
+│   │   ├── Cases/                           #   Case CRUD, documents, history
+│   │   ├── Citizens/                        #   Citizen self-service profile
+│   │   ├── Dashboard/                       #   Statistics
+│   │   ├── Errors/                          #   Application error tracking
+│   │   ├── Memberships/                     #   Organization memberships
+│   │   ├── Organizations/                   #   Organization CRUD
+│   │   ├── Platform/                        #   Platform directory & overview
+│   │   ├── Profiles/                        #   Unified self-service profile
+│   │   └── Staff/                          #   Staff management
+│   ├── Infrastructure/                      # Cross-cutting concerns
+│   │   ├── Audit/                           #   Audit trail writer
+│   │   ├── Authorization/                   #   Business endpoint access gate
+│   │   ├── Errors/                          #   Global exception handler, error logger
+│   │   ├── Files/                           #   Local file storage
+│   │   ├── Identity/                        #   Roles, anti-forgery, security headers, seeder, PAT auth handler
+│   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
+│   │   └── Persistence/                    #   DbContext, design-time factory
+│   └── Migrations/                         # 18 EF Core migrations
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (272 tests)
+├── civicflow-web/                           # React + Vite frontend
+│   ├── src/
+│   │   ├── App.tsx                         # Session, routing, workspace
+│   │   ├── auth.ts                        # authFetch, CSRF, login flows
+│   │   ├── api.ts                         # API request wrapper (org header)
+│   │   ├── api-client.ts                  # JSON request helper
+│   │   ├── domain.ts                       # TypeScript types
+│   │   ├── pages/                          # Page components
+│   │   ├── components/                    # Shared components
+│   │   └── api/                            # API modules (citizens, profile)
+│   └── .env.example
+├── docs/                                   # Supplementary documentation
+├── infra/postgres/init/                    # PostgreSQL role initialization
+├── .github/workflows/ci.yml                # CI pipeline
+├── compose.yaml                            # Docker Compose (PostgreSQL)
+├── CHANGELOG.md                            # Release history
+├── CIVICFLOW-PROVENANCE.json               # Project identity metadata
+└── README.md                               # This file
 ```
 
-## 6) Backend architecture
-**Projects**: `PublicServiceCaseManagement.Api` (Web API), `PublicServiceCaseManagement.Tests` (tests).
+---
 
-**Layers (by folders)**:
-- `Domain/` — entities (`Case`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `StaffMember`, `Organization`, `OrganizationMembership`, `ApplicationUser`, `CitizenProfile`, enums)
-- `Features/` — feature endpoints/services/controllers (Auth, Cases, Staff, Organizations, Memberships, Citizens, Health)
-- `Infrastructure/` — `Identity/` (roles, anti-forgery, security headers, seeder, email, audit log), `Organizations/` (context/resolvers/middleware), `Persistence/` (`CivicFlowDbContext`), `Files/` (storage), `Authorization/`
-- `Migrations/` — EF Core migrations
+## Architecture
 
-**Startup (`Program.cs`)**: Configures Identity core (`AddIdentityCore` + roles + EF stores + token providers), cookie authentication (`AddIdentityCookies`), the personal access token scheme and a policy scheme that routes bearer-PAT requests to it (`CivicFlowSmart`), authorization policies, anti-forgery, rate limiting, CORS, DI for services, security headers, and controller mapping.
+### Backend Architecture
 
-**Request flow**: HTTP → security headers → rate limiter → CORS → authentication (cookie, or personal access token when `Authorization: Bearer civicflow_pat_…` is present) → authorization policies → anti-forgery (unsafe `/api/*`) → organization transaction → controllers → services → DbContext/EF Core → DB → response (JSON, enums serialized as strings).
+The backend follows a **feature-based** organization with clear layering:
 
-## 7) Frontend architecture
-**Entry**: `main.tsx` wraps `App` in `ToastProvider`. `App.tsx` manages session state, workspace data, and actions. API calls go through `auth.ts` (`authFetch`, CSRF + cookie handling), `api.ts`, and `api-client.ts`. There are no bearer tokens in the browser session; personal access tokens exist only as server-issued credentials for external clients and are never persisted by the web app.
+**Layers (by folder)**:
 
-**Components**: Key components include `OrganizationAdministration` (platform admin interface for orgs/memberships/invitations), `InvitationManager` (shared invitation UI), `StaffDirectory` (staff management), `PlatformDirectory` (platform-wide directory), `AuditLog` (audit trail display), `CaseDetails` (case detail panel), and page components for authentication workflows. Domain types are centralized in `src/domain.ts`.
+| Folder | Responsibility |
+|---|---|
+| `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `Organization`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
+| `Features/` | Controllers + service contracts + service implementations, organized by feature area |
+| `Infrastructure/` | Cross-cutting: `Identity/` (roles, PAT auth handler, anti-forgery, security headers, seeder, email sender, audit logger), `Organizations/` (context, resolvers, middleware), `Persistence/` (DbContext, factory), `Files/` (local storage), `Errors/` (global handler, error logger), `Audit/` (audit trail writer), `Authorization/` (business endpoint gate) |
+| `Migrations/` | 18 EF Core migrations from initial create through audit trail and application errors |
 
-## 8) Authentication, authorization, security
-- **Provider**: ASP.NET Core Identity (first-party). Passwords are hashed with the Identity default (PBKDF2). No external identity provider is required.
-- **Session**: HttpOnly cookie. In Development the cookie name is `civicflow.auth` with `SameSite=Lax` and `SecurePolicy.SameAsRequest`; outside Development it uses the `__Host-civicflow` prefix with `SecurePolicy.Always` (requires HTTPS). Sliding expiration with an 8-hour lifetime.
-- **Personal access tokens**: `Authorization: Bearer civicflow_pat_<publicId>_<secret>`. Only a SHA-256 hash of the token is stored (`personal_access_tokens` table); the plaintext is shown once at creation. The public id is used to look the row up, the hash is compared in constant time, and expiry/revocation/owner-activity are re-checked on every request. PATs carry the owning user's Identity roles, so the same authorization policies apply. They are a credential for non-browser clients only — the web app never stores them.
-- **CSRF**: anti-forgery cookie (`civicflow.csrf` / `__Host-civicflow-csrf`) and the `X-CSRF-TOKEN` request header. The middleware validates unsafe methods under `/api/*`.
-- **Roles**: `citizen`, `staff`, `superadmin`. Policies: `CitizenClient`, `StaffClient`, `SuperAdmin`; the fallback policy requires `staff` or `superadmin`.
-- **Portal separation**: sign-in is bound to one portal — citizen accepts `citizen`, organization accepts `staff`, platform administration accepts `superadmin`. The check runs server-side after the password is verified, the rejected attempt's session cookie is removed, and the frontend re-validates the issued session against the portal before it renders a workspace. A superadministrator at the organization portal is told to use the platform portal (`use_platform_admin_portal`), and staff/citizens at the platform portal are rejected (`not_a_platform_admin`). An account holding multiple roles may use each matching portal.
-- **Enforcement**: Organization scoping and least privilege are enforced server-side. Public registration can only create `citizen` accounts; invitations (organization-admin or platform-admin gated) can never grant `superadmin`, and only roles `Viewer`, `CaseWorker`, and `OrganizationAdmin` are accepted. Invited accounts are created/linked only after the invitee proves control of the mailbox by opening the single-use link.
-- **Secrets**: None in the repository. `appsettings.json` is gitignored; `appsettings.template.json` documents the keys with placeholders. The optional seed superadmin is configured via `SeedAdmin:*` (environment/user-secrets), never hard-coded. `SeedAdmin:ResetPassword=true` is a one-time repair switch: the seeder then syncs the configured password and logs a warning to remove the setting.
+**Startup (`Program.cs`)** configures in order:
+1. Identity core (password policy, lockout, email confirmation)
+2. Authentication (cookie sessions + PAT scheme + `CivicFlowSmart` policy scheme)
+3. Cookie configuration (HttpOnly, SameSite, Secure, `__Host-` prefix in production)
+4. Authorization policies (`CitizenClient`, `StaffClient`, `SuperAdmin`, `ProfileClient`, fallback)
+5. Anti-forgery
+6. Rate limiting (auth: 20/min, password: 8/5min)
+7. CORS (configured origins)
+8. DI registrations (all services)
+9. Middleware pipeline: SecurityHeaders → GlobalExceptionHandler → RateLimiter → CORS → Authentication → Authorization → Antiforgery → OrganizationTransaction → Controllers
+10. Identity seeding at startup
 
-## 9) Database
-**Engine**: PostgreSQL 17. **Migrations**: in `PublicServiceCaseManagement.Api/Migrations/`, including the `MigrateToAspNetCoreIdentity` migration that backfills existing users (`UserName`/`NormalizedEmail`, `EmailConfirmed = TRUE`, role seeding, and `citizen`/`superadmin` assignment), `AddAccountInvitations` for the `account_invitations` table (unique token hash, organization/email and organization/created indexes, no RLS because redemption is anonymous), and `AddAuditTrailAndPhoneNumbers` for the `audit_events` table (category/action/actor/organization/entity columns with occurred-at, category, and organization indexes, plus the optional `PhoneNumber` column on `staff_members` and `account_invitations`). The `audit_events` table is intentionally not row-level-security protected: platform-wide reads are gated by the super-administrator authorization check and organization reads are scoped by the service. **DbContext**: `CivicFlowDbContext` (an `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`). Connection configured via `ConnectionStrings:CivicFlow`.
+**Request flow**:
+```
+HTTP request
+  → Security headers middleware
+  → Global exception handler
+  → Rate limiter
+  → CORS
+  → Authentication (cookie OR PAT via CivicFlowSmart policy scheme)
+  → Authorization policies
+  → Anti-forgery validation (unsafe /api/* methods)
+  → Organization transaction middleware (sets RLS context)
+  → Controller → Service → DbContext/EF Core → PostgreSQL
+  → Response (JSON, enums serialized as strings)
+```
 
-> The Identity migration assigns existing users either `citizen` or `superadmin` (based on their prior platform role) and leaves `PasswordHash` unset, so pre-existing accounts must set a password through the password-recovery flow.
+### Frontend Architecture
 
-## 10) API (endpoints by controller)
-- `AuthController` (`/api/auth`): `GET csrf`, `POST register`, `POST login` (citizen portal), `POST login/organization` (organization portal), `POST login/platform-admin` (platform-administrator portal), `POST invitations/lookup`, `POST invitations/accept`, `POST logout`, `POST verify-email`, `POST resend-verification`, `POST forgot-password`, `POST reset-password`, `POST change-password`, `GET me`.
-- `PersonalAccessTokensController` (`/api/auth/tokens`): `GET` list own tokens, `POST` create a token (returns the plaintext once), `DELETE {id}` revoke a token.
-- `CasesController`: cases CRUD/operations, status, assignment, history, documents.
-- `StaffController`: staff directory management (list/create/deactivate/reactivate), `PATCH {id}/phone` to correct a staff phone number (organization administrators only). Account creation is not exposed here; invited accounts are created through the invitation flow.
-- `InvitationsController` (`/api/organizations/{organizationId}/invitations`): `POST` create, `GET` list, `POST {id}/resend`, `DELETE {id}` revoke. Requires `StaffClient` plus platform superadmin or `OrganizationAdmin` membership in that organization.
-- `OrganizationsController`: organization management — `GET` list, `POST` create, `PUT {id}` update (name/active), `DELETE {id}` delete (`204`, `404` when unknown, `409` while cases exist).
-- `OrganizationMembershipsController`: memberships/roles.
-- `AuditController`: `GET /api/platform/audit` (super administrators only), `GET /api/platform/audit/categories`, `GET /api/organizations/{organizationId}/audit` (that organization's administrators).
-- `PlatformDirectoryController`: `GET /api/platform/users`, `GET /api/platform/staff`, `GET /api/platform/overview` (super administrators only).
-- `CitizensController`: `GET/POST /api/citizens/me` (citizen self-service profile).
-- `HealthController`: health checks.
+**Entry point**: `main.tsx` wraps `App` in `ToastProvider`.
 
-Login status codes: `200` success (the response reports the `portal` and the session `roles`), `401` invalid credentials (`code: invalid_credentials`), `403` email not confirmed (`code: email_not_confirmed`), `403` wrong portal (`code: not_a_citizen_account`, `not_an_organization_account`, `use_platform_admin_portal`, or `not_a_platform_admin`), `423` locked out (`code: account_locked`). Invitation lookup/accept return `200`, `400` (`code: invalid_password`), `403` (`code: account_inactive`), or `410` (`code: invitation_unavailable`). Missing/expired sessions return `401`; insufficient role returns `403`. The `code` field is a stable, machine-readable reason the frontend uses (for example, to offer a "resend the verification email" action).
+**Session management** (`App.tsx`): Restores session on load via `GET /api/auth/me`, re-derives portal from roles, renders the appropriate workspace.
 
-## 11) Local development setup
+**API layer** (no third-party HTTP libraries):
+
+| File | Role |
+|---|---|
+| `auth.ts` | `authFetch` wraps `fetch` with `credentials: 'include'`, CSRF header on unsafe methods, automatic CSRF retry. Login re-validates portal and logs out on mismatch. |
+| `api.ts` | `apiRequest` wraps `authFetch` with `X-Organization-Id` header. |
+| `api-client.ts` | `requestJson<T>` wraps `apiRequest` with JSON parsing and `ApiError` class (status + code). |
+| `api/citizens.ts` | Citizen profile API client. |
+| `api/profile.ts` | Unified profile API client. |
+
+**Routing**:
+
+| Route | Page |
+|---|---|
+| `/` | Public landing page |
+| `/admin` | Organization (staff) sign-in |
+| `/super-platform-admin` | Platform-admin sign-in (intentionally unlinked) |
+| `/setup-password` | Invitation redemption |
+| `/citizen/login` | Citizen sign-in |
+| `/citizen/register` | Citizen registration |
+| `/citizen/verify-email` | Email verification |
+| `/forgot-password` | Password recovery (email) |
+| `/reset-password` | Password reset |
+| `/workspace` | Authenticated workspace (role-specific) |
+
+**Workspaces** (role-specific, navigation derived from API-reported roles):
+- **Citizen**: Dashboard, public intake, profile, access tokens
+- **Staff**: Cases, staff directory, activity log, access tokens
+- **SuperAdmin**: Organizations, directory, audit log, error tracker, access tokens
+
+**Key components**: `OrganizationAdministration`, `InvitationManager`, `StaffDirectory`, `PlatformDirectory`, `PlatformErrors`, `AuditLog`, `CaseDetails`, `CitizenDashboard`, `ProfilePage`, `StatCard`, `StatusPill`, `Toast`.
+
+### Authentication & Authorization
+
+#### Authentication Methods
+
+| Method | Header | Use case |
+|---|---|---|
+| **Cookie session** | (automatic, HttpOnly) | Browser-based SPA |
+| **Personal access token** | `Authorization: Bearer civicflow_pat_<publicId>_<secret>` | API clients, scripts, integrations |
+
+The `CivicFlowSmart` policy scheme inspects the `Authorization` header and routes to the PAT handler when `civicflow_pat_` is present, otherwise to the Identity cookie scheme.
+
+#### Portal-Scoped Sign-In
+
+Each sign-in endpoint accepts only one account type:
+
+| Endpoint | Accepts | Rejects with |
+|---|---|---|
+| `POST /api/auth/login` | `citizen` | `not_a_citizen_account` (403) |
+| `POST /api/auth/login/organization` | `staff` | `not_an_organization_account` (403), `use_platform_admin_portal` (403) |
+| `POST /api/auth/login/platform-admin` | `superadmin` | `not_a_platform_admin` (403) |
+
+A rejected attempt's session cookie is dropped — no usable session is left behind.
+
+#### Authorization Policies
+
+| Policy | Required role(s) | Scope |
+|---|---|---|
+| `CitizenClient` | `citizen` | Citizen endpoints |
+| `StaffClient` | `staff` or `superadmin` | Staff/organization endpoints |
+| `SuperAdmin` | `superadmin` | Platform administration |
+| `ProfileClient` | `citizen` or `staff` | Unified profile (excludes superadmin) |
+| Fallback | authenticated + `staff`/`superadmin` | All unspecified endpoints |
+
+#### Organization Scoping
+
+1. User authenticates (cookie or PAT).
+2. `AuthenticatedOrganizationResolver` resolves the organization from the authenticated user + `X-Organization-Id` header + active membership check.
+3. `OrganizationTransactionContext` sets PostgreSQL `set_config('civicflow.organization_id', ..., true)`.
+4. RLS policies enforce isolation on tenant-owned tables.
+5. `OrganizationTransactionMiddleware` completes/rolls back the transaction context.
+
+#### Invitation-Based Onboarding
+
+No administrator ever handles another person's password:
+
+1. Administrator sends `POST /api/organizations/{orgId}/invitations` with name, email, role (Viewer/CaseWorker/OrganizationAdmin), optional phone.
+2. API stores only a SHA-256 hash of a 256-bit random token; emails a single-use `/setup-password?token=...` link.
+3. Invitee looks up the link anonymously (`POST /api/auth/invitations/lookup`), sees the inviting org, their name, email, role, and expiry.
+4. Invitee chooses their own password (validated against policy); acceptance creates/links the Identity account, grants `staff` role, creates membership + staff record.
+5. Links are single-use, expiring (default 72h, configurable 1–720h), and can be resent (invalidates old link) or revoked. `superadmin` is never invitable.
+
+### Database & Data Isolation
+
+**Engine**: PostgreSQL 17
+
+**Database roles** (created by `infra/postgres/init/001-create-application-roles.sh`):
+- `civicflow_migrator` — CREATE privilege (for EF Core migrations only)
+- `civicflow_runtime` — DML only (no DDL), used by the running API
+
+**Tables** (17 application + 6 identity):
+
+| Table | Purpose | RLS? |
+|---|---|---|
+| `cases` | Service requests/issues | Yes |
+| `case_status_history` | Status change audit trail | Yes |
+| `case_assignment_history` | Assignment audit trail | Yes |
+| `case_documents` | Uploaded case documents | Yes |
+| `staff_members` | Organization staff | Yes |
+| `organizations` | Tenant organizations | No |
+| `organization_memberships` | User-organization associations | No |
+| `account_invitations` | Pending staff invitations | No (anonymous redemption) |
+| `application_users` | Identity users | No |
+| `citizen_profiles` | Civil registry profiles | No |
+| `personal_access_tokens` | PAT hashes | No |
+| `audit_events` | Audit trail | No (scoped in query) |
+| `application_errors` | Error tracking | No |
+
+**Row-Level Security** (see [RLS-DESIGN.md](docs/RLS-DESIGN.md)):
+
+RLS is enabled and forced on `cases`, `case_status_history`, `case_assignment_history`, `case_documents`, and `staff_members`. The runtime role cannot bypass it. The policy reads the transaction-local `civicflow.organization_id` setting:
+
+```sql
+CREATE POLICY cases_organization_isolation ON cases
+USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::text)
+WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
+```
+
+**Migrations**: 18 migrations from `InitialCreate` through `AddApplicationErrors`, including the `MigrateToAspNetCoreIdentity` migration that backfills existing users and the `AddTenantRowLevelSecurity` migration that enables RLS.
+
+### Security Model
+
+| Layer | Implementation |
+|---|---|
+| **Password hashing** | ASP.NET Core Identity default (PBKDF2) |
+| **Password policy** | 12+ chars, upper/lower/digit/non-alphanumeric, 6 unique chars |
+| **Lockout** | 5 failed attempts → 15-minute lockout |
+| **Email confirmation** | Required before sign-in |
+| **Session cookie** | HttpOnly, SameSite=Lax, 8h sliding. Dev: `civicflow.auth`, prod: `__Host-civicflow` (requires HTTPS) |
+| **CSRF** | Anti-forgery cookie + `X-CSRF-TOKEN` header, validated on unsafe `/api/*` |
+| **Rate limiting** | Auth: 20/min, Password: 8/5min |
+| **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'`, COOP/COEP/CORP `same-origin`, `Permissions-Policy` |
+| **CORS** | Restricted to configured origins with credentials |
+| **PAT storage** | SHA-256 hash only; plaintext shown once; constant-time comparison; max 25 per user |
+| **Invitation tokens** | SHA-256 hash of 256-bit random token; single-use; expiring |
+| **Secrets** | `appsettings.json` gitignored; `appsettings.template.json` documents keys; seed admin via environment/user-secrets |
+| **Audit logging** | All auth, account, invitation, membership, organization, staff, case, and token events persisted asynchronously and fail-safe |
+| **Error tracking** | Unhandled exceptions persisted with full context; reviewable by super admins |
+| **Enumeration safety** | Registration and password-recovery responses do not disclose whether an email exists |
+
+---
+
+## API Reference
+
+### Authentication (`/api/auth`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/auth/csrf` | Anonymous | Get CSRF token |
+| POST | `/api/auth/register` | Anonymous | Register citizen account |
+| POST | `/api/auth/login` | Anonymous | Citizen portal sign-in |
+| POST | `/api/auth/login/organization` | Anonymous | Organization (staff) portal sign-in |
+| POST | `/api/auth/login/platform-admin` | Anonymous | Platform-admin portal sign-in |
+| POST | `/api/auth/invitations/lookup` | Anonymous | Look up an invitation by token |
+| POST | `/api/auth/invitations/accept` | Anonymous | Accept invitation and set password |
+| POST | `/api/auth/logout` | Authenticated | End session |
+| POST | `/api/auth/verify-email` | Anonymous | Confirm email address |
+| POST | `/api/auth/resend-verification` | Anonymous | Resend verification email |
+| POST | `/api/auth/forgot-password` | Anonymous | Request password reset link |
+| POST | `/api/auth/reset-password` | Anonymous | Reset password with token |
+| POST | `/api/auth/change-password` | Authenticated | Change password |
+| GET | `/api/auth/me` | Authenticated | Get current user info, roles, portal |
+
+**Login response codes**:
+
+| Status | Code | Meaning |
+|---|---|---|
+| 200 | — | Success (response includes `portal` and `roles`) |
+| 401 | `invalid_credentials` | Wrong email or password |
+| 403 | `email_not_confirmed` | Email not verified |
+| 403 | `not_a_citizen_account` / `not_an_organization_account` / `use_platform_admin_portal` / `not_a_platform_admin` | Wrong portal |
+| 423 | `account_locked` | Account locked (5 failed attempts) |
+
+### Personal Access Tokens (`/api/auth/tokens`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/auth/tokens` | Authenticated | List own tokens |
+| POST | `/api/auth/tokens` | Authenticated | Create token (returns plaintext once) |
+| DELETE | `/api/auth/tokens/{id}` | Authenticated | Revoke a token |
+
+### Cases (`/api/cases`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| POST | `/api/cases` | StaffClient | Create a case |
+| GET | `/api/cases` | StaffClient | List cases (paged, searchable, filterable) |
+| GET | `/api/cases/{id}` | StaffClient | Get case detail |
+| PATCH | `/api/cases/{id}/status` | StaffClient | Change case status |
+| GET | `/api/cases/{id}/history` | StaffClient | Get status history |
+| PATCH | `/api/cases/{id}/assignment` | StaffClient | Assign case |
+| GET | `/api/cases/{id}/assignment-history` | StaffClient | Get assignment history |
+| POST | `/api/cases/{id}/documents` | StaffClient | Upload document (multipart, 10MB) |
+| GET | `/api/cases/{id}/documents` | StaffClient | List documents |
+| GET | `/api/cases/{id}/documents/{docId}` | StaffClient | Download document |
+
+### Staff (`/api/staff`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/staff` | StaffClient | List organization staff |
+| POST | `/api/staff` | StaffClient + OrgAdmin | Create staff member |
+| GET | `/api/staff/platform` | SuperAdmin | List all platform staff |
+| PATCH | `/api/staff/{id}/deactivate` | StaffClient + OrgAdmin | Deactivate staff |
+| PATCH | `/api/staff/{id}/reactivate` | StaffClient + OrgAdmin | Reactivate staff |
+| PATCH | `/api/staff/{id}/phone` | StaffClient + OrgAdmin | Update phone number |
+| PATCH | `/api/staff/platform/{id}/deactivate` | SuperAdmin | Deactivate platform user |
+| PATCH | `/api/staff/platform/{id}/reactivate` | SuperAdmin | Reactivate platform user |
+
+### Organizations (`/api/organizations`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/organizations` | StaffClient | List organizations |
+| POST | `/api/organizations` | SuperAdmin | Create organization |
+| GET | `/api/organizations/{id}` | StaffClient | Get organization detail |
+| PUT | `/api/organizations/{id}` | StaffClient | Rename/update organization |
+| PATCH | `/api/organizations/{id}/deactivate` | StaffClient | Deactivate organization |
+| PATCH | `/api/organizations/{id}/reactivate` | StaffClient | Reactivate organization |
+| DELETE | `/api/organizations/{id}` | SuperAdmin | Delete (204/404/409 if cases exist) |
+
+### Memberships (`/api/organizations/{orgId}/memberships`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| POST | — | StaffClient | Add membership |
+| GET | — | StaffClient | List memberships |
+| GET | `/{id}` | StaffClient | Get membership detail |
+| PUT | `/{id}/role` | StaffClient | Change role |
+| PATCH | `/{id}/deactivate` | StaffClient | Deactivate membership |
+| PATCH | `/{id}/reactivate` | StaffClient | Reactivate membership |
+
+### Invitations (`/api/organizations/{orgId}/invitations`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| POST | — | StaffClient + OrgAdmin/SuperAdmin | Send invitation |
+| GET | — | StaffClient + OrgAdmin/SuperAdmin | List invitations |
+| POST | `/{id}/resend` | StaffClient + OrgAdmin/SuperAdmin | Resend (invalidates old link) |
+| DELETE | `/{id}` | StaffClient + OrgAdmin/SuperAdmin | Revoke invitation |
+
+### Citizens (`/api/citizens`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/citizens/me` | CitizenClient | Get own citizen profile |
+| POST | `/api/citizens/me` | CitizenClient | Create/update own profile |
+| PUT | `/api/citizens/me` | CitizenClient | Update own profile |
+
+### Profile (`/api/profile`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/profile/me` | ProfileClient | Get own profile (citizen or staff) |
+| PUT | `/api/profile/me` | ProfileClient | Update own profile |
+
+### Platform Administration
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/platform/overview` | SuperAdmin | Platform-wide counters |
+| GET | `/api/platform/users` | SuperAdmin | All accounts with roles/memberships |
+| GET | `/api/platform/staff` | SuperAdmin | All staff memberships |
+| GET | `/api/platform/audit` | SuperAdmin | Platform-wide audit trail |
+| GET | `/api/platform/audit/categories` | SuperAdmin | Audit category list |
+| GET | `/api/organizations/{orgId}/audit` | StaffClient | Organization audit trail |
+| GET | `/api/dashboard/platform` | SuperAdmin | Platform case statistics |
+| GET | `/api/dashboard` | StaffClient | Organization case statistics |
+| GET | `/api/errors` | SuperAdmin | List application errors (paged) |
+| GET | `/api/errors/{id}` | SuperAdmin | Get error detail |
+| PATCH | `/api/errors/{id}/mark-handled` | SuperAdmin | Mark error as handled |
+
+### Health (`/api/health`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/health` | Anonymous | Health status |
+| GET | `/api/health/ready` | Anonymous | Database connectivity check |
+
+---
+
+## Getting Started
+
 ### Prerequisites
-- .NET SDK 10.x
-- Node.js (compatible with Vite 8 / React 19)
-- PostgreSQL 17 (or Docker)
 
-### Environment configuration (do not commit secrets)
-- **API**: copy `PublicServiceCaseManagement.Api/appsettings.template.json` to `appsettings.json` (gitignored) and fill in the values, or override `ConnectionStrings:CivicFlow`, `Frontend:BaseUrl`, `Cors:AllowedOrigins`, `Invitations:ExpiryHours`, and (optionally) `SeedAdmin:Email`/`SeedAdmin:Password`/`SeedAdmin:FullName` via environment variables or .NET user-secrets. Never commit the real file.
-- **Frontend**: `VITE_API_BASE_URL` and `VITE_CIVICFLOW_ORGANIZATION_ID` (see `civicflow-web/.env.example`).
-- **Compose**: `.env` with `POSTGRES_PASSWORD`, `CIVICFLOW_RUNTIME_PASSWORD`, `CIVICFLOW_MIGRATOR_PASSWORD`.
+- **.NET SDK 10.x** — [download](https://dotnet.microsoft.com/download)
+- **Node.js** (compatible with Vite 8 / React 19, recommend v20+)
+- **PostgreSQL 17** (or Docker for the database)
 
-### Steps
-1. Clone the repository.
-2. Start PostgreSQL: `docker compose up -d postgres` (create `.env` first from `.env.example`).
-3. API: `dotnet restore`, apply migrations `dotnet ef database update --project PublicServiceCaseManagement.Api`, then `dotnet run --project PublicServiceCaseManagement.Api`.
-4. Frontend: `cd civicflow-web && npm ci && npm run dev`.
+### Step 1: Clone
 
-> **Port note**: the API listens on `http://localhost:5000` by default. macOS ships an AirPlay Receiver that also binds port `5000`; when it is enabled the API fails to start with "address already in use". Either disable it (System Settings → General → AirDrop & Handoff → AirPlay Receiver) or run the API on another port and point the frontend at it, for example `dotnet run --project PublicServiceCaseManagement.Api --urls http://localhost:5001` together with `VITE_API_BASE_URL=http://localhost:5001` in `civicflow-web/.env.local`. The frontend origin (`http://localhost:5173`) must stay in `Cors:AllowedOrigins`; the API port does not affect CORS.
->
-> `dotnet ef` does not load .NET user-secrets, so when the connection string is kept in user-secrets pass it explicitly: `dotnet ef database update --project PublicServiceCaseManagement.Api -- --connection "<connection string>"`.
+```bash
+git clone https://github.com/bishalhumagain/civicflow-enterprise.git
+cd civicflow-enterprise
+```
 
-### Email delivery
+### Step 2: Start PostgreSQL
+
+```bash
+# Create .env from template
+cp .env.example .env
+# Edit .env — set secure passwords for POSTGRES_PASSWORD, CIVICFLOW_RUNTIME_PASSWORD, CIVICFLOW_MIGRATOR_PASSWORD
+
+# Start PostgreSQL
+docker compose up -d postgres
+```
+
+### Step 3: Configure the API
+
+```bash
+# Copy the template
+cp PublicServiceCaseManagement.Api/appsettings.template.json PublicServiceCaseManagement.Api/appsettings.json
+```
+
+Edit `appsettings.json`:
+- `ConnectionStrings:CivicFlow` — use the `civicflow_migrator` credentials for migrations, `civicflow_runtime` for the running API
+- `Cors:AllowedOrigins` — add the frontend origin (default: `http://localhost:5173`)
+- `Frontend:BaseUrl` — the frontend URL (for invitation links)
+- `SeedAdmin:Email` / `SeedAdmin:Password` / `SeedAdmin:FullName` — optional, for initial super-admin
+
+> **Never commit `appsettings.json`** — it is gitignored. Use environment variables or .NET user-secrets for production.
+
+### Step 4: Apply Migrations
+
+```bash
+dotnet ef database update \
+  --project PublicServiceCaseManagement.Api \
+  --startup-project PublicServiceCaseManagement.Api
+```
+
+> If using user-secrets for the connection string, pass it explicitly:
+> `dotnet ef database update --project PublicServiceCaseManagement.Api -- --connection "<connection string>"`
+
+### Step 5: Run the API
+
+```bash
+dotnet run --project PublicServiceCaseManagement.Api
+```
+
+> **Port 5000 note**: macOS AirPlay Receiver binds port 5000 by default. If you get "address already in use", either disable AirPlay Receiver (System Settings → General → AirDrop & Handoff) or run on a different port: `dotnet run --project PublicServiceCaseManagement.Api --urls http://localhost:5001` and update `VITE_API_BASE_URL` accordingly.
+
+### Step 6: Run the Frontend
+
+```bash
+cd civicflow-web
+cp .env.example .env.local   # Edit VITE_API_BASE_URL and VITE_CIVICFLOW_ORGANIZATION_ID
+npm ci
+npm run dev
+```
+
+The frontend is available at `http://localhost:5173`.
+
+### Step 7: Create Your First Organization Login
+
+Public registration only creates citizen accounts. To get a staff/organization login:
+
+1. **Seed a super-admin** (if not done in Step 3):
+   - Set `SeedAdmin:Email`, `SeedAdmin:Password`, `SeedAdmin:FullName` in `appsettings.json` or environment
+   - Restart the API — the seeder runs at startup
+   - Sign in at `/super-platform-admin`
+
+2. **Create an organization**:
+   ```
+   POST /api/organizations
+   { "name": "My Organization", "code": "MYORG" }
+   ```
+
+3. **Invite staff**:
+   ```
+   POST /api/organizations/{orgId}/invitations
+   Headers: X-Organization-Id: {orgId}
+   Body: { "fullName": "John Doe", "email": "john@example.com", "role": "CaseWorker" }
+   ```
+   - The invitation link appears in the API log (via `LoggingEmailSender` at `Information` level — search for `setup-password?token=`)
+
+4. **Accept invitation**: Open the `/setup-password?token=...` link, choose a password, then sign in at `/admin`.
+
+### Email Delivery
+
 Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message — including the verification/reset link — at `Information` level, so the link is visible in the API log during local development. Replace it with a real SMTP/provider implementation for production.
 
-### Getting an organization (staff) login
-Public registration only creates citizen accounts, so an organization login has to be provisioned. Every unsafe call needs the anti-forgery header (`X-CSRF-TOKEN` from `GET /api/auth/csrf`).
+---
 
-1. **Super administrator** — seed one with `SeedAdmin:Email`/`SeedAdmin:Password`/`SeedAdmin:FullName` (environment variables: `SeedAdmin__Email=…`, `SeedAdmin__Password=…`, `SeedAdmin__FullName=…`) before the first API start, then sign in at `/super-platform-admin` (not `/admin`). Set the full name too: a fresh seed falls back to "Platform Administrator". The seeder fails startup when the seed is only partially configured or the password violates policy, repairs an existing account's role/confirmation attributes, and never resets an existing password unless `SeedAdmin:ResetPassword=true` is set temporarily.
-2. **Organization** — `POST /api/organizations` with `{ "name": "…", "code": "…" }` (super administrator only).
-3. **Organization administrator membership** — add an existing account to the organization (`POST /api/organizations/{organizationId}/memberships` with `{ "userId": "<user id from GET /api/auth/me>", "role": "OrganizationAdmin" }`), or invite the person and accept the link. A platform super administrator may administer any organization.
-4. **Invite staff** — `POST /api/organizations/{organizationId}/invitations` with the header `X-Organization-Id: {organizationId}` and the body `{ "fullName": "…", "email": "…", "role": "CaseWorker" }` (an optional `"phoneNumber": "…"` is accepted). The caller must be an organization administrator of that organization (or a platform super administrator). Roles: `Viewer`, `CaseWorker`, `OrganizationAdmin`. The API emails a single-use `/setup-password?token=…` link; no password is generated.
-5. The invitee opens the link, chooses a password (12+ chars, upper/lower/digit/symbol), and then signs in at `/admin` (`POST /api/auth/login/organization`). Pending invitations can be resent or revoked from the staff screen; resending invalidates the previous link. If a phone number was collected, it is stored on the new account and the staff record; for an account that already exists it is only filled in when the account has no number of its own.
+## Testing
 
-Set `VITE_CIVICFLOW_ORGANIZATION_ID` to the created organization id so the workspace loads that organization's data.
+### Backend Tests
 
-## 12) Tests
-- **Backend**: `dotnet test` from the solution root. Includes unit tests and integration tests using `WebApplicationFactory`. The auth lifecycle tests exercise the real Identity cookie flow (with a cookie container and a capturing email sender), dedicated anti-forgery tests verify CSRF rejection and acceptance, the role-scoped sign-in tests cover citizen/staff/superadmin acceptance on the matching portal, denied cross-portal sign-in (`use_platform_admin_portal`, `not_a_platform_admin`), session cleanup after a rejected attempt, and role-gated endpoint access. The invitation tests cover invitation creation, token hashing at rest, emailed-link lookup, password setup, organization sign-in, reuse/expiry/revocation (`410`), duplicate/member conflicts (`409`), role escalation rejection, cross-organization denial, and linking an existing account. The seeding tests cover fresh seed + platform-portal login, weak/partial seed startup failure, skip when unconfigured, repair of a damaged admin account, and not overwriting a changed password. The personal access token tests cover creation, hashing at rest, bearer authentication, role propagation, least privilege, tampering, expiry, and revocation. The platform administration tests cover organization deletion (`204`/`404`/`409` and the forbidden case), the platform directory and overview, the platform and organization audit endpoints, and the staff phone update.
-- **Frontend**: `cd civicflow-web && npm run lint && npm run build` (plus `npx tsc --noEmit`).
+```bash
+dotnet test PublicServiceCaseManagement.sln --configuration Release
+```
 
-## 13) Troubleshooting
-- **Sign-in fails**: confirm the email is verified and the API can reach PostgreSQL. The API log contains the confirmation link (`Email queued for …`).
-- **"The account is not permitted to sign in"**: the email address is not confirmed yet. The sign-in form offers a "Resend the verification email" action.
-- **"This account is not a citizen account" / "This account is not an organization account" / "not a platform administrator"**: the account was signed in through the wrong portal. Citizens use `/citizen/login`, staff use `/admin`, platform superadministrators use `/super-platform-admin`. The rejected attempt leaves no session behind.
-- **Invitation link shows "invalid, expired, or has already been used"**: links are single-use and expire after `Invitations:ExpiryHours` (default 72). Ask an organization administrator to resend the invitation; the previous link stops working.
-- **Invitation email not received**: the default `LoggingEmailSender` writes the link to the API log at `Information` level; search for `setup-password?token=`.
-- **404 from the frontend**: `VITE_API_BASE_URL` is missing or points at the Vite origin. The frontend calls the API directly, so it must be the API base URL (for example `http://localhost:5001`), and the Vite dev server must be restarted after changing it.
-- **401/403 in the workspace**: the session cookie may be missing/expired (401) or the account lacks the required role for the organization (403).
-- **CSRF 400 on unsafe requests**: the frontend must call `GET /api/auth/csrf` and send `X-CSRF-TOKEN`.
-- **Cross-origin cookies**: add the frontend origin to `Cors:AllowedOrigins`; ensure `credentials: 'include'` (already set in `auth.ts`).
-- **Migrations**: apply via EF Core tools from the API project.
-- **API will not start ("address already in use")**: another process holds port 5000 (commonly the macOS AirPlay Receiver). See the port note above.
+**272 tests** covering:
 
-## 14) AI Developer Handoff
-- **Entry points**: `PublicServiceCaseManagement.Api/Program.cs`, `civicflow-web/src/main.tsx`, `civicflow-web/src/App.tsx`.
-- **Contracts/Auth**: `Features/Auth/*`, `Infrastructure/Identity/*`, `civicflow-web/src/auth.ts`, `api.ts`, `api-client.ts`.
-- **Boundaries**: Organization scoping and authorization are enforced server-side; the client never supplies its own role or organization identity.
-- **Invariants**: Never trust client org/role; preserve organization isolation; keep credentials out of the browser; keep CSRF protection enabled for unsafe methods.
+| Category | What's tested |
+|---|---|
+| **Auth lifecycle** | Registration, email confirmation, login, logout, password recovery, change password — using real Identity cookie flow with cookie container and capturing email sender |
+| **Portal-scoped sign-in** | Citizen/staff/superadmin acceptance on matching portal, wrong-portal rejection with codes, session cleanup after rejected attempt, role-gated endpoint access |
+| **Anti-forgery** | CSRF rejection of unsafe requests without valid token, acceptance with valid token |
+| **Invitation lifecycle** | Creation, token hashing at rest, lookup, password setup, reuse/expiry/revocation (`410`), duplicate/member conflicts (`409`), role escalation rejection, cross-org denial, existing-account linking |
+| **Super-admin seeding** | Fresh seed + login, weak/partial seed failure, skip when unconfigured, repair of damaged account, password-change preservation |
+| **Personal access tokens** | Creation, hashing, bearer auth, role propagation, least privilege, tampering, expiry, revocation |
+| **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, audit endpoints, staff phone update |
+| **Cases** | CRUD, status changes, assignments, paging |
+| **Case documents** | Upload, download |
+| **Citizens** | Profile auth, create/update, duplicates, business-endpoint gating |
+| **Staff** | CRUD, platform staff, phone update |
+| **Organizations** | CRUD, delete rules |
+| **Memberships** | CRUD, role changes |
+| **Audit** | Persistence, fail-safe behavior, query filtering/paging/scoping |
+| **Profile** | Unified profile: citizen/staff GET/PUT, duplicate NID (409), business-endpoint gating, superadmin exclusion, create-on-update |
+| **Domain unit tests** | Case state machine, status transitions, editability, phone validation, citizen profile validation |
 
-*This README reflects the verified code state. Items marked unverified require runtime/config validation.*
+### Frontend Tests
+
+```bash
+cd civicflow-web
+npm run lint       # ESLint
+npm run build      # TypeScript compilation + Vite build
+```
+
+---
+
+## Deployment & CI
+
+### CI Pipeline (`.github/workflows/ci.yml`)
+
+Two jobs run on every push/PR to `main`:
+
+| Job | Runner | Steps |
+|---|---|---|
+| `build-and-test` | ubuntu-latest | .NET 10 → restore → build (Release) → test |
+| `frontend` | ubuntu-latest | Node 20 → npm ci → lint → build |
+
+### Docker Compose
+
+The `compose.yaml` file provides PostgreSQL 17 with:
+- Separate `civicflow_migrator` and `civicflow_runtime` roles (created by init script)
+- Health check with `pg_isready`
+- Persistent volume
+- Port bound to `127.0.0.1` (localhost only)
+
+### Production Considerations
+
+- **HTTPS required** for `__Host-` cookie prefix and `SecurePolicy.Always`
+- **SMTP provider** — replace `LoggingEmailSender` with a real `IEmailSender` implementation
+- **Object storage** — replace `LocalFileStorage` with production-grade storage + malware scanning
+- **Secret management** — use environment variables, user-secrets, or a secret manager (never commit secrets)
+- **Database** — use separate `civicflow_migrator` for migrations, `civicflow_runtime` for the running API
+- **BusinessEndpoints:Enabled** — set to `true` only after security review; defaults to `false`
+- **CORS** — restrict `AllowedOrigins` to production frontend origins
+- **Rate limiting** — tune for production traffic patterns
+
+See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readiness checklist and [Release Verification](docs/RELEASE-VERIFICATION.md) for the signing workflow.
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| **[README.md](README.md)** (this file) | Project overview, architecture, API reference, setup, testing |
+| **[CHANGELOG.md](CHANGELOG.md)** | All notable changes, Keep a Changelog format |
+| **[docs/USER_MANUAL.md](docs/USER_MANUAL.md)** | End-user guide: accessing CivicFlow, sign-in, workflows, troubleshooting, glossary |
+| **[docs/DELIVERY-ROADMAP.md](docs/DELIVERY-ROADMAP.md)** | Implementation-first roadmap: completed baseline, active delivery, deferred work |
+| **[docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.md)** | Verification evidence: test coverage, over-HTTP results, acceptance checklist |
+| **[docs/RLS-DESIGN.md](docs/RLS-DESIGN.md)** | PostgreSQL row-level security design and verification |
+| **[docs/RELEASE-VERIFICATION.md](docs/RELEASE-VERIFICATION.md)** | Release signing workflow, provenance, GPG verification |
+| **[docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md)** | How to maintain documentation as the project evolves |
+
+---
+
+## Troubleshooting
+
+| Problem | Likely cause | Fix |
+|---|---|---|
+| **Sign-in fails** | Email not confirmed or DB unreachable | Check API log for confirmation link (`Email queued for …`); verify PostgreSQL is running |
+| **"This account is not a citizen/organization account"** | Signed in through wrong portal | Citizens use `/citizen/login`, staff use `/admin`, superadmins use `/super-platform-admin` |
+| **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
+| **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |
+| **Invitation email not received** | `LoggingEmailSender` logs to API console | Search API log for `setup-password?token=` |
+| **404 from frontend** | `VITE_API_BASE_URL` missing or wrong | Set to API base URL (e.g., `http://localhost:5000`), restart Vite dev server |
+| **401/403 in workspace** | Session cookie missing/expired (401) or insufficient role (403) | Sign in again; check organization membership/role |
+| **CSRF 400 on save** | Anti-forgery token missing/expired | Refresh the page and retry; frontend fetches token from `GET /api/auth/csrf` |
+| **Cross-origin cookies not sent** | CORS not configured or `credentials` not set | Add frontend origin to `Cors:AllowedOrigins`; `credentials: 'include'` is already set in `auth.ts` |
+| **"address already in use" (port 5000)** | macOS AirPlay Receiver on port 5000 | Disable AirPlay Receiver or run API on another port (`--urls http://localhost:5001`) |
+| **Migrations fail** | Wrong DB role or unreachable DB | Use `civicflow_migrator` credentials; verify PostgreSQL is running |
+| **"This organization still holds cases"** | Trying to delete an org with active cases | Resolve or move cases first, then delete |
+| **PAT returns 401** | Token revoked, expired, or owner deactivated | Create a new token |
+
+---
+
+## Implementation Status
+
+### Implemented and Verified
+
+- Backend API with EF Core/PostgreSQL and 18 migrations
+- ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
+- Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
+- Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
+- CSRF protection on all unsafe `/api/*` methods
+- Rate limiting on auth/password endpoints
+- Security headers middleware
+- Organization scoping with PostgreSQL RLS on 5 tenant-owned tables
+- Cases: create, list (paged/searchable/filterable), detail, status state machine, assignment, history, documents
+- Staff: CRUD, platform-wide listing, phone numbers, activation/deactivation
+- Organizations: CRUD, delete with case-check, memberships, roles
+- Invitation-based onboarding (single-use, expiring, SHA-256 hashed, resend/revoke)
+- Citizens: self-registration, profile with duplicate detection
+- Unified self-service profile for citizens and staff
+- Audit trail (platform-wide and org-scoped, filterable, paged, fail-safe)
+- Platform directory (overview counters, all accounts, all staff memberships)
+- Dashboard statistics (platform-wide and org-scoped)
+- Application error tracking (persisted, reviewable, mark-as-handled)
+- Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
+- 272 automated tests (unit + integration)
+- CI pipeline (GitHub Actions)
+
+### Implemented but Limited
+
+- Frontend has no browser-level end-to-end test run (verified via TypeScript compilation, lint, build, and over-HTTP API tests)
+- Local file storage only (no object storage, malware scanning, or retention policy)
+- Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
+- Live PostgreSQL checks are manual probes, not CI integration tests
+- `LoggingEmailSender` for development — real SMTP/provider required for production
+- Citizen intake (case submission) depends on an unstarted citizen-to-organization policy
+
+### Not Started
+
+- Repeatable PostgreSQL RLS/privilege integration tests
+- Public citizen case submission
+- Production-grade object storage and malware scanning
+- Production deployment, backups, observability, and operational recovery
+
+See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full roadmap.
+
+---
+
+## Contributing
+
+1. **Inspect the current diff before editing** — understand what has changed.
+2. **Keep each batch focused** — run the narrowest relevant checks immediately.
+3. **Never use Development configuration to grant roles implicitly.**
+4. **Don't enable production business endpoints while boundaries remain incomplete.**
+5. **Update documentation when functionality changes** — see [Documentation Workflow](docs/DOCUMENTATION_WORKFLOW.md).
+6. **Add CHANGELOG entries** for meaningful changes.
+7. **Verify before documenting** — distinguish implemented vs planned.
+8. **Never commit secrets** — credentials, tokens, passwords, keys, or personal data.
+
+---
+
+## License
+
+No license file is currently published. The project owner (Bishal Humagain) retains all rights. See [CIVICFLOW-PROVENANCE.json](CIVICFLOW-PROVENANCE.json) for project identity metadata and [Release Verification](docs/RELEASE-VERIFICATION.md) for the signing workflow.
+
+---
+
+*This README reflects the verified code state as of 2026-10-22. Items marked as limited or not started require runtime/config validation before production use.*
