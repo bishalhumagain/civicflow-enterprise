@@ -6,7 +6,6 @@ export type CitizenDashboardProps = {
   emailConfirmed: boolean
   onOpenIntake: () => void
   onOpenProfile: () => void
-  onOpenAccessTokens: () => void
 }
 
 /**
@@ -20,7 +19,6 @@ export function CitizenDashboard({
   emailConfirmed,
   onOpenIntake,
   onOpenProfile,
-  onOpenAccessTokens,
 }: CitizenDashboardProps) {
   const firstName = fullName.trim().split(/\s+/)[0] || fullName
 
@@ -31,8 +29,7 @@ export function CitizenDashboard({
           <p className="eyebrow">CITIZEN PORTAL</p>
           <h1>Welcome back, {firstName}</h1>
           <p className="muted">
-            Submit service requests, keep your profile current, and manage the
-            access tokens issued to your account.
+            Submit service requests and keep your profile current.
           </p>
         </div>
       </div>
@@ -89,16 +86,6 @@ export function CitizenDashboard({
           </p>
           <button className="primary-button" onClick={onOpenProfile} type="button">
             Open my profile
-          </button>
-        </article>
-
-        <article className="case-card citizen-action-card">
-          <h3>Access tokens</h3>
-          <p className="muted">
-            Issue and revoke personal access tokens for your own account.
-          </p>
-          <button className="primary-button" onClick={onOpenAccessTokens} type="button">
-            Manage access tokens
           </button>
         </article>
       </div>

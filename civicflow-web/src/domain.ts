@@ -10,7 +10,6 @@ export type WorkspaceView =
   | 'organizations'
   | 'platform-directory'
   | 'platform-audit'
-  | 'access-tokens'
 
 export type CaseRecord = {
   id: string

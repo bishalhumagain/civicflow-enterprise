@@ -57,7 +57,6 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import ProfilePage from './pages/ProfilePage'
-import AccessTokensPage from './pages/AccessTokensPage'
 import { useToast } from './components/use-toast'
 import type { LoginCredentials } from './components/LoginForm'
 
@@ -238,8 +237,6 @@ function App() {
       views.push('organizations', 'platform-directory', 'platform-audit')
     }
 
-    views.push('access-tokens')
-
     return views
   }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
@@ -248,7 +245,7 @@ function App() {
   // survives a sign-out or a role change.
   const activeView: WorkspaceView = availableViews.includes(viewSelection)
     ? viewSelection
-    : (availableViews[0] ?? 'access-tokens')
+    : (availableViews[0] ?? 'citizen-dashboard')
 
   const navigationItems = useMemo(() => {
     if (!currentUser) return []
@@ -275,8 +272,6 @@ function App() {
       items.push({ view: 'platform-directory', label: 'Directory', icon: '◍' })
       items.push({ view: 'platform-audit', label: 'Audit log', icon: '☰' })
     }
-
-    items.push({ view: 'access-tokens', label: 'Access tokens', icon: '⌗' })
 
     return items
   }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
@@ -1440,7 +1435,6 @@ function App() {
     organizations: 'Organizations',
     'platform-directory': 'Directory',
     'platform-audit': 'Audit log',
-    'access-tokens': 'Access tokens',
   }
 
   return (
@@ -1512,14 +1506,11 @@ function App() {
                 emailConfirmed={currentUser.emailConfirmed}
                 onOpenIntake={() => setViewSelection('citizen')}
                 onOpenProfile={() => setViewSelection('profile')}
-                onOpenAccessTokens={() => setViewSelection('access-tokens')}
               />
             ) : activeView === 'citizen' ? (
               <CitizenIntake />
             ) : activeView === 'profile' ? (
               <ProfilePage />
-            ) : activeView === 'access-tokens' ? (
-              <AccessTokensPage />
             ) : activeView === 'staff' && organizationAccess ? (
                 <StaffDirectory
                     staff={staff}
@@ -1791,7 +1782,6 @@ function App() {
                     emailConfirmed={currentUser.emailConfirmed}
                     onOpenIntake={() => setViewSelection('citizen')}
                     onOpenProfile={() => setViewSelection('profile')}
-                    onOpenAccessTokens={() => setViewSelection('access-tokens')}
                 />
             )}
 

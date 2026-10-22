@@ -113,18 +113,22 @@ The navigation only shows the views your account is entitled to. Entries are det
 - **Public intake** - Submit a public service request
 - **My profile** - Create or update your own citizen profile
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
+- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
+- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
 
 **Staff accounts (organization portal):**
 - **Cases** - Case management (default view)
 - **Staff & team** - Staff directory, invitations (send, resend, revoke), staff phone numbers
 - **Activity log** - Audit trail of your organization's events (organization administrators)
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
+- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
 
 **Platform administrator accounts (platform administration):**
 - **Organizations** - Organization, membership, and invitation administration across all organizations (default view)
 - **Directory** - Platform overview counters, all accounts, and all staff memberships
 - **Audit log** - Platform-wide audit trail
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
+- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
 
 ### Common Controls
 - Buttons with clear labels
