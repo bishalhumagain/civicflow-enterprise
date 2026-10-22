@@ -5,11 +5,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Infrastructure.Errors;
 
-public sealed class GlobalExceptionHandlerMiddleware(
-    RequestDelegate next,
-    IErrorLogger errorLogger,
-    ICurrentActorResolver actorResolver,
-    ICurrentOrganizationContext organizationContext)
+public sealed class GlobalExceptionHandlerMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
@@ -23,8 +19,14 @@ public sealed class GlobalExceptionHandlerMiddleware(
         }
     }
 
-    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        var services = context.RequestServices;
+
+        var actorResolver = services.GetRequiredService<ICurrentActorResolver>();
+        var organizationContext = services.GetRequiredService<ICurrentOrganizationContext>();
+        var errorLogger = services.GetRequiredService<IErrorLogger>();
+
         var actor = await actorResolver.ResolveAsync();
         var userId = actor?.UserId;
         var organizationId = await organizationContext.GetOrganizationIdAsync();
