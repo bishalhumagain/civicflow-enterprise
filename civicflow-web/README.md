@@ -9,9 +9,11 @@ Implemented:
 - Public landing page with separate Citizen (sign in / register) and Organization portal entry points.
 - Citizen pages: login, register, email verification, forgot password, reset password.
 - Staff/organization portal sign-in at the dedicated `/admin` route.
+- Platform administrator sign-in at `/super-platform-admin` (intentionally unlinked from public site).
 - Session restoration on load via `GET /api/auth/me`.
 - Citizen workspace: a citizen dashboard with self-service actions (public intake, own profile, access tokens).
-- Organization workspace: cases, staff directory, organization administration, access tokens, with filtering, search, pagination, and case details (history, assignments, documents).
+- Organization workspace: cases, staff directory, organization administration, access tokens, with filtering, search, pagination, and case details (history, assignments, documents). Organization administration includes organization create/rename/activate/deactivate/delete, membership management (add/update roles/activate/deactivate), and invitation management.
+- Platform administrator workspace: organizations (organization/membership/invitation administration), platform directory (overview, accounts, staff memberships), platform audit log, and access tokens.
 - Portal-scoped sign-in: the API rejects an account that signs in through the wrong portal, and the client re-validates the issued session before rendering a workspace.
 - Role-derived navigation and views: the sidebar, the active view, and the API calls are computed from the roles the API reports.
 - Toast notifications and responsive layout.
@@ -30,12 +32,13 @@ There is no OIDC/bearer-token handling in the frontend.
 
 ### Portal-scoped sign-in
 
-The product has two separate sign-in surfaces, and the API binds every attempt to one of them:
+The product has three separate sign-in surfaces, and the API binds every attempt to one of them:
 
 | Portal | Sign-in route | API endpoint | Accepted roles |
 |---|---|---|---|
 | Citizen | `/citizen/login` | `POST /api/auth/login` | `citizen` |
 | Organization | `/admin` | `POST /api/auth/login/organization` | `staff`, `superadmin` |
+| Platform Administration | `/super-platform-admin` | `POST /api/auth/login/platform-admin` | `superadmin` |
 
 `src/auth.ts` exposes the portal model (`SignInPortal`, `allowedPortals`, `canUsePortal`, `isSuperAdmin`, `loginEndpoint`). After a successful sign-in the client fetches `GET /api/auth/me` and verifies that the session really carries the roles of the portal it signed in through; if it does not, the client signs out again and reports the server's reason (`not_a_citizen_account` / `not_an_organization_account`).
 
@@ -63,6 +66,42 @@ cp .env.example .env.local
 `.env` and `.env.local` are gitignored; only `.env.example` is committed. The API enforces its own session, anti-forgery, membership, organization, and role checks — the frontend values are convenience defaults, not a security boundary. Restart `npm run dev` after changing these values (Vite reads them at startup).
 
 > **Port note**: the API listens on `http://localhost:5000` by default, but macOS's AirPlay Receiver can also bind port `5000`, which makes the API fail to start. Run the API on another port (for example `--urls http://localhost:5001`) and set `VITE_API_BASE_URL` to that same URL in `.env.local`, then restart the Vite dev server. The frontend origin (`http://localhost:5173`) must remain in the API's `Cors:AllowedOrigins`; the API port does not affect CORS.
+
+## Components
+
+### OrganizationAdministration
+The `OrganizationAdministration` component (`src/components/OrganizationAdministration.tsx`) provides the platform administration interface for managing organizations, memberships, and invitations. It is available to platform super administrators in the platform workspace.
+
+**Features:**
+- Organization selection dropdown with name and code display
+- Organization actions: Rename, Deactivate/Reactivate, Delete
+- Inline editing form for organization updates (name max 200 chars, code max 50 chars)
+- Organization creation form
+- Membership management form (add by user ID with role selection)
+- Membership list with role dropdown and activation toggle
+- Integrated InvitationManager component for invitation management
+
+**Props:**
+- `authenticated`: boolean - whether the user is authenticated
+- `loading`: boolean - loading state for operations
+- `organizations`: Organization[] - list of organizations
+- `memberships`: Membership[] - list of memberships for selected organization
+- `invitations`: AccountInvitation[] - list of invitations for selected organization
+- `selectedOrganizationId`: string - currently selected organization ID
+- `onSelectOrganization`: (id: string) => void - callback for organization selection
+- `onCreateOrganization`: (name: string, code: string) => Promise<void> - create organization
+- `onUpdateOrganization`: (id: string, name: string, code: string) => Promise<void> - update organization
+- `onToggleOrganization`: (organization: Organization) => Promise<void> - activate/deactivate
+- `onDeleteOrganization`: (organization: Organization) => Promise<void> - delete organization
+- `onCreateMembership`: (userId: string, role: string) => Promise<void> - add membership
+- `onUpdateMembership`: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void> - update membership
+- `onInvite`: (fullName: string, email: string, phoneNumber: string, role: string) => Promise<boolean> - send invitation
+- `onResendInvitation`: (invitationId: string) => Promise<void> - resend invitation
+- `onRevokeInvitation`: (invitationId: string) => Promise<void> - revoke invitation
+
+**Related Components:**
+- `InvitationManager`: Handles invitation creation, listing, resend, and revoke operations
+- Domain types: `Organization`, `Membership`, `AccountInvitation` from `src/domain.ts`
 
 ## Commands
 

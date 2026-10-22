@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Errors;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -35,6 +36,7 @@ public sealed class CivicFlowDbContext(
     public DbSet<PersonalAccessToken> PersonalAccessTokens =>
         Set<PersonalAccessToken>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<ApplicationError> ApplicationErrors => Set<ApplicationError>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -562,6 +564,56 @@ public sealed class CivicFlowDbContext(
             {
                 audit.Category,
                 audit.OccurredAt
+            });
+        });
+
+        modelBuilder.Entity<ApplicationError>(entity =>
+        {
+            entity.ToTable("application_errors");
+
+            entity.HasKey(error => error.Id);
+
+            entity.Property(error => error.Message)
+                .IsRequired();
+
+            entity.Property(error => error.StackTrace)
+                .IsRequired();
+
+            entity.Property(error => error.Source)
+                .HasMaxLength(200);
+
+            entity.Property(error => error.MethodName)
+                .HasMaxLength(200);
+
+            entity.Property(error => error.RequestPath)
+                .HasMaxLength(500);
+
+            entity.Property(error => error.RequestMethod)
+                .HasMaxLength(10);
+
+            entity.Property(error => error.UserEmail)
+                .HasMaxLength(254);
+
+            entity.Property(error => error.AdditionalData);
+
+            entity.Property(error => error.IsHandled)
+                .IsRequired();
+
+            entity.Property(error => error.OccurredAt)
+                .IsRequired();
+
+            entity.HasIndex(error => error.OccurredAt);
+
+            entity.HasIndex(error => new
+            {
+                error.IsHandled,
+                error.OccurredAt
+            });
+
+            entity.HasIndex(error => new
+            {
+                error.OrganizationId,
+                error.OccurredAt
             });
         });
 

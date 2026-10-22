@@ -10,6 +10,9 @@ export type WorkspaceView =
   | 'organizations'
   | 'platform-directory'
   | 'platform-audit'
+  | 'platform-dashboard'
+  | 'organization-dashboard'
+  | 'platform-errors'
 
 export type CaseRecord = {
   id: string
@@ -119,6 +122,41 @@ export type PlatformOverview = {
   activeOrganizationCount: number
   invitationCount: number
   pendingInvitationCount: number
+}
+
+export type CaseStatistics = {
+  totalCases: number
+  submittedCases: number
+  underReviewCases: number
+  assignedCases: number
+  inProgressCases: number
+  awaitingInformationCases: number
+  resolvedCases: number
+  closedCases: number
+  rejectedCases: number
+  highPriorityCases: number
+  normalPriorityCases: number
+  lowPriorityCases: number
+  casesCreatedThisWeek: number
+  casesCreatedThisMonth: number
+  casesResolvedThisWeek: number
+  casesResolvedThisMonth: number
+}
+
+export type ApplicationError = {
+  id: string
+  message: string
+  stackTrace: string
+  source: string | null
+  methodName: string | null
+  requestPath: string | null
+  requestMethod: string | null
+  userEmail: string | null
+  userId: string | null
+  organizationId: string | null
+  additionalData: string | null
+  isHandled: boolean
+  occurredAt: string
 }
 
 export type CaseHistoryData = { caseId: string; items: HistoryEntry[] }

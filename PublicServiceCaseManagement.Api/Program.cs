@@ -11,6 +11,8 @@ using PublicServiceCaseManagement.Api.Features.Audit;
 using PublicServiceCaseManagement.Api.Features.Auth;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Citizens;
+using PublicServiceCaseManagement.Api.Features.Dashboard;
+using PublicServiceCaseManagement.Api.Features.Errors;
 using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Features.Organizations;
@@ -19,6 +21,7 @@ using PublicServiceCaseManagement.Api.Features.Profiles;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
+using PublicServiceCaseManagement.Api.Infrastructure.Errors;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
@@ -269,6 +272,12 @@ builder.Services.AddScoped<ICurrentActorResolver, CurrentActorResolver>();
 builder.Services.AddScoped<IAuditQueryService, AuditQueryService>();
 builder.Services.AddScoped<IPlatformDirectoryService, PlatformDirectoryService>();
 
+// Error logging
+builder.Services.AddScoped<IErrorLogger, ErrorLogger>();
+
+// Dashboard
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
@@ -302,6 +311,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseRateLimiter();
 app.UseCors();
 

@@ -114,7 +114,6 @@ The navigation only shows the views your account is entitled to. Entries are det
 - **My profile** - Create or update your own citizen profile
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
 - **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
-- **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
 
 **Staff accounts (organization portal):**
 - **Cases** - Case management (default view)
@@ -124,7 +123,7 @@ The navigation only shows the views your account is entitled to. Entries are det
 - **Profile** - Unified self-service profile for citizens and organization staff, including civil registry details for citizens and contact details for staff
 
 **Platform administrator accounts (platform administration):**
-- **Organizations** - Organization, membership, and invitation administration across all organizations (default view)
+- **Organizations** - Organization, membership, and invitation administration across all organizations (default view). Includes organization creation, renaming, activation/deactivation, deletion, membership management (add/update roles/activate/deactivate), and invitation management
 - **Directory** - Platform overview counters, all accounts, and all staff memberships
 - **Audit log** - Platform-wide audit trail
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
@@ -159,14 +158,31 @@ The navigation only shows the views your account is entitled to. Entries are det
 
 **Available actions:**
 - Create, rename, deactivate, reactivate, and delete organizations
-- Manage memberships and roles within any organization
-- Invite staff to any organization and manage those invitations
+- Manage memberships and roles within any organization (add members with Viewer, CaseWorker, or OrganizationAdmin roles; update roles; activate/deactivate memberships)
+- Invite staff to any organization and manage those invitations (send, resend, revoke)
 - Browse the platform directory (overview counters, all accounts, all staff memberships)
 - Read the platform-wide audit log
 - Manage your own access tokens
 
 **Administrator Functions**
 Organization, membership, and invitation administration are available in the **Organizations** view for platform administrators and, within their own organization, for Organization Administrators. Specific permissions are enforced server-side by the API based on roles and organization memberships.
+
+**Organization Administration UI Details**
+- The Organizations view consists of two main sections: "Organizations" and "Memberships"
+- **Organizations section**:
+  - Dropdown to select an organization (displays name and code)
+  - Action buttons for the selected organization: Rename, Deactivate/Reactivate, Delete
+  - Inline form for renaming: requires organization name (max 200 characters) and code (max 50 characters)
+  - Form for creating new organizations: requires name and code
+- **Memberships section**:
+  - Form to add memberships: requires application user ID and role selection
+  - Membership list showing user ID, role, active status, and activation toggle
+  - Role options: Viewer, CaseWorker, OrganizationAdmin
+- **InvitationManager section** (integrated component):
+  - Form to send invitations: requires full name (1-150 characters), email (max 254 characters), optional phone number (max 30 characters), and role
+  - Invitation list showing name, email, role, expiry date, phone number (if provided), and status
+  - Actions: Resend (for pending invitations) and Revoke (for pending invitations)
+  - Note: No password is created or emailed; the invitee sets their own password from the single-use link
 
 **Deleting an organization**
 1. Open the **Organizations** view and select the organization
@@ -244,13 +260,17 @@ Organization, membership, and invitation administration are available in the **O
 **Note on phone numbers:** A phone number is optional and must be 6–30 characters with at least 6 digits. When an invitation carries a number, it is stored on the new account and staff record; for an account that already exists the number is only filled in when the account has none of its own, so a number someone entered themselves is never overwritten.
 
 ### 5.7 Managing Organizations
-1. Navigate to **Organizations**
-2. Create organizations or select an existing organization
-3. Rename an organization or activate/deactivate it with the organization actions
-4. Manage memberships for the selected organization
-5. Add members with specific roles
-6. Update membership roles or activate/deactivate memberships
-7. Delete an organization when it is no longer needed — deletion is refused while it still holds cases
+1. Navigate to **Organizations** (available to platform administrators in the platform workspace)
+2. Use the dropdown to select an organization from the list
+3. **Create a new organization**: Enter the organization name and code, then click "Create organization"
+4. **Rename an organization**: Select the organization, click "Rename", update the name and code in the inline form, then save
+5. **Activate/Deactivate an organization**: Click the "Deactivate" or "Reactivate" button for the selected organization
+6. **Delete an organization**: Click "Delete" for the selected organization — deletion is refused while the organization still holds cases
+7. **Manage memberships**:
+   - Add a membership by entering the application user ID and selecting a role (Viewer, CaseWorker, or OrganizationAdmin), then click "Add membership"
+   - Update a member's role using the role dropdown in the membership list
+   - Activate or deactivate a membership using the "Deactivate" or "Reactivate" button
+8. **Manage invitations**: Use the InvitationManager to send, resend, or revoke invitations for the selected organization
 
 ### 5.8 Reviewing the Platform Directory
 1. Sign in as a platform administrator and open **Directory**

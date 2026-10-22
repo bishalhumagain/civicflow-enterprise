@@ -16,6 +16,11 @@ public interface IStaffService
         bool? isActive,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<StaffMember>> GetAllPlatformStaffAsync(
+        Guid? organizationId,
+        bool? isActive,
+        CancellationToken cancellationToken);
+
     Task<StaffMember?> SetActiveStatusAsync(
         Guid organizationId,
         Guid staffMemberId,

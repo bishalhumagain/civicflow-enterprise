@@ -82,6 +82,30 @@ public sealed class StaffService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<StaffMember>> GetAllPlatformStaffAsync(
+        Guid? organizationId,
+        bool? isActive,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.StaffMembers.AsNoTracking();
+
+        if (organizationId.HasValue)
+        {
+            query = query.Where(staff => staff.OrganizationId == organizationId.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(staff => staff.IsActive == isActive.Value);
+        }
+
+        return await query
+            .OrderBy(staff => staff.OrganizationId)
+            .ThenBy(staff => staff.FullName)
+            .ThenBy(staff => staff.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<StaffMember?> SetActiveStatusAsync(
         Guid organizationId,
         Guid staffMemberId,

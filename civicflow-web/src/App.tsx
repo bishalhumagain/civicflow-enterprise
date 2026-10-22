@@ -17,6 +17,7 @@ import {
   statusLabels,
   statusOptions,
   type AccountInvitation,
+  type ApplicationError,
   type AssignmentEntry,
   type AssignmentHistoryData,
   type AuditEvent,
@@ -25,6 +26,7 @@ import {
   type CaseHistoryData,
   type CasePage,
   type CaseRecord,
+  type CaseStatistics,
   type CaseStatus,
   type HistoryEntry,
   type Membership,
@@ -47,6 +49,9 @@ import { AuditLog } from './components/AuditLog'
 import { emptyAuditFilters, type AuditFilters } from './components/audit-utils'
 import { CitizenIntake } from './components/CitizenIntake'
 import { CitizenDashboard } from './components/CitizenDashboard'
+import { PlatformDashboard } from './components/PlatformDashboard'
+import { OrganizationDashboard } from './components/OrganizationDashboard'
+import { PlatformErrors } from './components/PlatformErrors'
 import { LandingPage } from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
 import PlatformAdminLoginPage from './pages/PlatformAdminLoginPage'
@@ -198,6 +203,13 @@ function App() {
   const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null)
   const [directoryLoading, setDirectoryLoading] = useState(false)
 
+  const [platformStatistics, setPlatformStatistics] = useState<CaseStatistics | null>(null)
+  const [organizationStatistics, setOrganizationStatistics] = useState<CaseStatistics | null>(null)
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+
+  const [applicationErrors, setApplicationErrors] = useState<ApplicationError[]>([])
+  const [errorsLoading, setErrorsLoading] = useState(false)
+
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [auditFilters, setAuditFilters] = useState<AuditFilters>(emptyAuditFilters)
   const [auditPage, setAuditPage] = useState(1)
@@ -234,7 +246,11 @@ function App() {
     }
 
     if (platformAdminAccess) {
-      views.push('organizations', 'platform-directory', 'platform-audit')
+      views.push('platform-dashboard', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors')
+    }
+
+    if (organizationAccess) {
+      views.push('organization-dashboard')
     }
 
     return views
@@ -258,6 +274,7 @@ function App() {
     }
 
     if (organizationAccess) {
+      items.push({ view: 'organization-dashboard', label: 'Dashboard', icon: '📊' })
       items.push({ view: 'cases', label: 'Cases', icon: '▣' })
       items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
       items.push({ view: 'activity', label: 'Activity log', icon: '☰' })
@@ -268,9 +285,11 @@ function App() {
     }
 
     if (platformAdminAccess) {
+      items.push({ view: 'platform-dashboard', label: 'Dashboard', icon: '📊' })
       items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
       items.push({ view: 'platform-directory', label: 'Directory', icon: '◍' })
       items.push({ view: 'platform-audit', label: 'Audit log', icon: '☰' })
+      items.push({ view: 'platform-errors', label: 'Errors', icon: '⚠' })
     }
 
     return items
@@ -521,6 +540,111 @@ function App() {
     }
 
     void loadDirectory()
+
+    return () => {
+      mounted = false
+    }
+  }, [currentUser, platformAdminAccess, activeView])
+
+  // Load platform dashboard statistics
+  useEffect(() => {
+    if (!currentUser || !platformAdminAccess || activeView !== 'platform-dashboard') return
+
+    let mounted = true
+
+    async function loadPlatformStatistics() {
+      setDashboardLoading(true)
+
+      try {
+        const statistics = await requestJson<CaseStatistics>('/api/dashboard/platform')
+
+        if (!mounted) return
+
+        setPlatformStatistics(statistics)
+      } catch (reason) {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Platform statistics could not be loaded.',
+          )
+        }
+      } finally {
+        if (mounted) setDashboardLoading(false)
+      }
+    }
+
+    void loadPlatformStatistics()
+
+    return () => {
+      mounted = false
+    }
+  }, [currentUser, platformAdminAccess, activeView])
+
+  // Load organization dashboard statistics
+  useEffect(() => {
+    if (!currentUser || !organizationAccess || activeView !== 'organization-dashboard' || !organizationId) return
+
+    let mounted = true
+
+    async function loadOrganizationStatistics() {
+      setDashboardLoading(true)
+
+      try {
+        const statistics = await requestJson<CaseStatistics>(`/api/dashboard/organization?organizationId=${organizationId}`)
+
+        if (!mounted) return
+
+        setOrganizationStatistics(statistics)
+      } catch (reason) {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Organization statistics could not be loaded.',
+          )
+        }
+      } finally {
+        if (mounted) setDashboardLoading(false)
+      }
+    }
+
+    void loadOrganizationStatistics()
+
+    return () => {
+      mounted = false
+    }
+  }, [currentUser, organizationAccess, activeView, organizationId])
+
+  // Load application errors
+  useEffect(() => {
+    if (!currentUser || !platformAdminAccess || activeView !== 'platform-errors') return
+
+    let mounted = true
+
+    async function loadErrors() {
+      setErrorsLoading(true)
+
+      try {
+        const errors = await requestJson<ApplicationError[]>('/api/errors')
+
+        if (!mounted) return
+
+        setApplicationErrors(errors)
+      } catch (reason) {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Application errors could not be loaded.',
+          )
+        }
+      } finally {
+        if (mounted) setErrorsLoading(false)
+      }
+    }
+
+    void loadErrors()
 
     return () => {
       mounted = false
@@ -1432,9 +1556,12 @@ function App() {
     cases: 'Cases',
     staff: 'Staff & team',
     activity: 'Activity log',
+    'organization-dashboard': 'Dashboard',
     organizations: 'Organizations',
+    'platform-dashboard': 'Dashboard',
     'platform-directory': 'Directory',
     'platform-audit': 'Audit log',
+    'platform-errors': 'Errors',
   }
 
   return (
@@ -1543,12 +1670,35 @@ function App() {
                     onPageChange={setAuditPage}
                     emptyMessage="No activity has been recorded for this organization yet."
                 />
+            ) : activeView === 'platform-dashboard' && platformAdminAccess ? (
+                <PlatformDashboard
+                    statistics={platformStatistics}
+                    loading={dashboardLoading}
+                />
+            ) : activeView === 'organization-dashboard' && organizationAccess ? (
+                <OrganizationDashboard
+                    statistics={organizationStatistics}
+                    loading={dashboardLoading}
+                />
             ) : activeView === 'platform-directory' && platformAdminAccess ? (
                 <PlatformDirectory
                     loading={directoryLoading}
                     overview={platformOverview}
                     users={platformUsers}
                     staff={platformStaff}
+                />
+            ) : activeView === 'platform-errors' && platformAdminAccess ? (
+                <PlatformErrors
+                    errors={applicationErrors}
+                    loading={errorsLoading}
+                    onMarkAsHandled={async (errorId) => {
+                      try {
+                        await requestJson(`/api/errors/${errorId}/mark-handled`, { method: 'PATCH' })
+                        setApplicationErrors(applicationErrors.map(e => e.id === errorId ? { ...e, isHandled: true } : e))
+                      } catch (reason) {
+                        setError(reason instanceof Error ? reason.message : 'Failed to mark error as handled')
+                      }
+                    }}
                 />
             ) : activeView === 'platform-audit' && platformAdminAccess ? (
                 <AuditLog
