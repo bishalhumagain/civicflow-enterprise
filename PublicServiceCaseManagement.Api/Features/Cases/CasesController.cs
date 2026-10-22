@@ -309,7 +309,7 @@ public sealed class CasesController(
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult<CaseDocumentResponse>> UploadDocument(
         Guid id,
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken cancellationToken)
     {
         if (!businessEndpointAccess.IsEnabled)

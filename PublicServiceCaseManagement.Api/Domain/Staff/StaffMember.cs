@@ -92,6 +92,29 @@ public sealed class StaffMember
         UpdatedAt = now;
     }
 
+    /// <summary>
+    /// Applies the self-service profile details a staff member is allowed to
+    /// change on their own account. The organization, role and activation
+    /// state stay under administrator control.
+    /// </summary>
+    public void UpdateProfile(
+        string fullName,
+        string? phoneNumber,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(fullName) ||
+            fullName.Trim().Length > 150)
+        {
+            throw new ArgumentException(
+                "Full name is required and must not exceed 150 characters.",
+                nameof(fullName));
+        }
+
+        FullName = fullName.Trim();
+        PhoneNumber = PhoneNumbers.Normalize(phoneNumber);
+        UpdatedAt = now;
+    }
+
     public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive)

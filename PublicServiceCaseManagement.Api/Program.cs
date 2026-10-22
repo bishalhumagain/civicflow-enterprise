@@ -15,6 +15,7 @@ using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Platform;
+using PublicServiceCaseManagement.Api.Features.Profiles;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
@@ -175,6 +176,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(AppRoles.SuperAdmin);
     });
 
+    options.AddPolicy(AppRoles.ProfilePolicy, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireRole(AppRoles.Citizen, AppRoles.Staff);
+    });
+
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .RequireRole(AppRoles.Staff, AppRoles.SuperAdmin)
@@ -248,6 +255,7 @@ builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();

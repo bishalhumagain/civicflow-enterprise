@@ -113,6 +113,7 @@ public sealed class CitizenProfileTests
         var changedAt = Now.AddHours(1);
 
         profile.Update(
+            null,
             " 9811111111  ",
             "  987654321  ",
             "  99-88-7777  ",
@@ -133,6 +134,26 @@ public sealed class CitizenProfileTests
         Assert.Equal(changedAt, profile.UpdatedAt);
     }
 
+    [Fact]
+    public void Update_WithFullName_ChangesFullName()
+    {
+        var profile = CitizenProfile.Create(
+            UserId,
+            "Valid Name",
+            "valid@example.com",
+            null, null, null, null, null, null, null,
+            Now);
+
+        var changedAt = Now.AddHours(1);
+
+        profile.Update(
+            "  Bishal Humagain  ",
+            null, null, null, null, null, null, null,
+            changedAt);
+
+        Assert.Equal("Bishal Humagain", profile.FullName);
+    }
+
     [Theory]
     [InlineData(-5)]
     [InlineData(200)]
@@ -147,6 +168,6 @@ public sealed class CitizenProfileTests
 
         Assert.Throws<ArgumentException>(
             () => profile.Update(
-                null, null, null, age, null, null, null, Now));
+                null, null, null, null, age, null, null, null, Now));
     }
 }

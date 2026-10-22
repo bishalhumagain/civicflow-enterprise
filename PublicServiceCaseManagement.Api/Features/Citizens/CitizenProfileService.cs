@@ -119,6 +119,7 @@ public sealed class CitizenProfileService : ICitizenProfileService
 
         var now = _timeProvider.GetUtcNow();
         profile.Update(
+            fullName: null,
             request.PhoneNumber,
             request.NIDNumber,
             request.CitizenshipNumber,

@@ -85,6 +85,7 @@ public sealed class CitizenProfile
     }
 
     public void Update(
+        string? fullName,
         string? phoneNumber,
         string? nidNumber,
         string? citizenshipNumber,
@@ -96,6 +97,14 @@ public sealed class CitizenProfile
     {
         if (age.HasValue && (age.Value < 0 || age.Value > 150))
             throw new ArgumentException("Age must be between 0 and 150.", nameof(age));
+
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            if (fullName.Trim().Length > 150)
+                throw new ArgumentException("Full name must not exceed 150 characters.", nameof(fullName));
+
+            FullName = fullName.Trim();
+        }
 
         PhoneNumber = phoneNumber?.Trim();
         NIDNumber = nidNumber?.Trim();
