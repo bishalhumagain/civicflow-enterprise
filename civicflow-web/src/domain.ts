@@ -3,7 +3,7 @@ export type CasePriority = 'High' | 'Normal' | 'Low'
 export type WorkspaceView =
   | 'citizen-dashboard'
   | 'citizen'
-  | 'citizen-profile'
+  | 'profile'
   | 'cases'
   | 'staff'
   | 'activity'

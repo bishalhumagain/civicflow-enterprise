@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ApiError } from '../api-client'
 import {
   getMyProfile,
@@ -149,34 +149,46 @@ export default function ProfilePage() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   const isCitizen = profile?.accountType === 'Citizen'
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true)
-      const data = await getMyProfile()
-      setProfile(data)
-      setForm(toForm(data))
-      setError(null)
-    } catch (reason) {
-      if (reason instanceof ApiError) {
-        setError(
-          reason.status === 403
-            ? 'Your account is not allowed to maintain a profile.'
-            : reason.message,
-        )
-      } else {
-        setError('Unable to load your profile.')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+
+    const run = async () => {
+      try {
+        const data = await getMyProfile()
+        if (cancelled) return
+        setProfile(data)
+        setForm(toForm(data))
+        setError(null)
+      } catch (reason) {
+        if (cancelled) return
+        if (reason instanceof ApiError) {
+          setError(
+            reason.status === 403
+              ? 'Your account is not allowed to maintain a profile.'
+              : reason.message,
+          )
+        } else {
+          setError('Unable to load your profile.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken])
+
+  function reload() {
+    setLoading(true)
+    setReloadToken((value) => value + 1)
+  }
 
   const errors = useMemo(
     () => validate(form, isCitizen),
@@ -263,7 +275,7 @@ export default function ProfilePage() {
         <h2>Profile unavailable</h2>
         <p className="muted">{error ?? 'Unable to load your profile.'}</p>
         <div>
-          <button className="secondary-button" type="button" onClick={load}>
+          <button className="secondary-button" type="button" onClick={reload}>
             Try again
           </button>
         </div>
@@ -284,7 +296,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="stat-grid">
+      <div className="stat-grid profile-stat-grid">
         <StatCard
           label="Account type"
           value={profile.accountType === 'Citizen' ? 'Citizen' : 'Organization staff'}

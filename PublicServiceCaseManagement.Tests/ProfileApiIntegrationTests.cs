@@ -208,6 +208,46 @@ public sealed class ProfileApiIntegrationTests
     }
 
     [Fact]
+    public async Task PutMe_AsCitizen_WithoutExistingProfile_CreatesCitizenProfile()
+    {
+        await using var factory = new CivicFlowApiFactory();
+        await factory.SeedAuthenticatedPlatformUserAsync();
+        using var client = CreateCitizenClient(factory);
+
+        var request = new UpdateProfileRequest(
+            "Bishal Humagain",
+            "9811111111",
+            "987654321",
+            null,
+            35,
+            "Male",
+            "Kathmandu",
+            null);
+
+        var response = await client.PutAsJsonAsync("/api/profile/me", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var updated = await ReadProfileAsync(response);
+
+        Assert.Equal("Bishal Humagain", updated.FullName);
+        Assert.Equal("9811111111", updated.PhoneNumber);
+        Assert.Equal("987654321", updated.NIDNumber);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        var citizenProfile = await dbContext.CitizenProfiles
+            .AsNoTracking()
+            .SingleAsync(item =>
+                item.ApplicationUserId == TestAuthenticationHandler.DefaultUserId);
+
+        Assert.Equal("Bishal Humagain", citizenProfile.FullName);
+        Assert.Equal("9811111111", citizenProfile.PhoneNumber);
+    }
+
+    [Fact]
     public async Task PutMe_AsCitizen_WithBlankFullName_ReturnsBadRequest()
     {
         await using var factory = new CivicFlowApiFactory();

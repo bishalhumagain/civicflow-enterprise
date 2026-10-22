@@ -223,6 +223,29 @@ public sealed class ProfileService(
 
         if (profile is null)
         {
+            // Registration normally creates the row; create-on-update covers
+            // accounts that were provisioned without a citizen profile.
+            await EnsureIdentifiersAreUniqueAsync(
+                null,
+                request.NIDNumber,
+                request.CitizenshipNumber,
+                cancellationToken);
+
+            profile = CitizenProfile.Create(
+                user.Id,
+                fullName,
+                user.Email ?? string.Empty,
+                phoneNumber,
+                request.NIDNumber,
+                request.CitizenshipNumber,
+                request.Age,
+                request.Gender,
+                request.PermanentAddress,
+                request.TemporaryAddress,
+                now);
+
+            dbContext.CitizenProfiles.Add(profile);
+            changedFields.Add("citizen details");
             return;
         }
 
@@ -291,17 +314,20 @@ public sealed class ProfileService(
     }
 
     private async Task EnsureIdentifiersAreUniqueAsync(
-        CitizenProfile profile,
+        CitizenProfile? profile,
         string? nidNumber,
         string? citizenshipNumber,
         CancellationToken cancellationToken)
     {
+        var profileId = profile?.Id;
+
         if (!string.IsNullOrWhiteSpace(nidNumber))
         {
             var nid = nidNumber.Trim();
 
             if (await dbContext.CitizenProfiles.AnyAsync(
-                    candidate => candidate.NIDNumber == nid && candidate.Id != profile.Id,
+                    candidate => candidate.NIDNumber == nid &&
+                                 (!profileId.HasValue || candidate.Id != profileId.Value),
                     cancellationToken))
             {
                 throw new InvalidOperationException(
@@ -314,7 +340,8 @@ public sealed class ProfileService(
             var citizenship = citizenshipNumber.Trim();
 
             if (await dbContext.CitizenProfiles.AnyAsync(
-                    candidate => candidate.CitizenshipNumber == citizenship && candidate.Id != profile.Id,
+                    candidate => candidate.CitizenshipNumber == citizenship &&
+                                 (!profileId.HasValue || candidate.Id != profileId.Value),
                     cancellationToken))
             {
                 throw new InvalidOperationException(

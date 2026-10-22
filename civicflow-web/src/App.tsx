@@ -56,7 +56,7 @@ import { CitizenRegisterPage } from './pages/CitizenRegisterPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
-import CitizenProfilePage from './pages/CitizenProfilePage'
+import ProfilePage from './pages/ProfilePage'
 import AccessTokensPage from './pages/AccessTokensPage'
 import { useToast } from './components/use-toast'
 import type { LoginCredentials } from './components/LoginForm'
@@ -221,11 +221,17 @@ function App() {
     const views: WorkspaceView[] = []
 
     if (citizenAccess) {
-      views.push('citizen-dashboard', 'citizen', 'citizen-profile')
+      views.push('citizen-dashboard', 'citizen')
     }
 
     if (organizationAccess) {
       views.push('cases', 'staff', 'activity')
+    }
+
+    // Shared self-service profile for citizens and organization staff.
+    // Platform administrators are excluded — the API refuses their identity.
+    if (citizenAccess || organizationAccess) {
+      views.push('profile')
     }
 
     if (platformAdminAccess) {
@@ -252,13 +258,16 @@ function App() {
     if (citizenAccess) {
       items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: '⌂' })
       items.push({ view: 'citizen', label: 'Public intake', icon: '✎' })
-      items.push({ view: 'citizen-profile', label: 'My profile', icon: '☺' })
     }
 
     if (organizationAccess) {
       items.push({ view: 'cases', label: 'Cases', icon: '▣' })
       items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
       items.push({ view: 'activity', label: 'Activity log', icon: '☰' })
+    }
+
+    if (citizenAccess || organizationAccess) {
+      items.push({ view: 'profile', label: 'My profile', icon: '☺' })
     }
 
     if (platformAdminAccess) {
@@ -1424,7 +1433,7 @@ function App() {
   const viewLabels: Record<WorkspaceView, string> = {
     'citizen-dashboard': 'Dashboard',
     citizen: 'Public intake',
-    'citizen-profile': 'My profile',
+    profile: 'My profile',
     cases: 'Cases',
     staff: 'Staff & team',
     activity: 'Activity log',
@@ -1502,13 +1511,13 @@ function App() {
                 email={currentUser.email}
                 emailConfirmed={currentUser.emailConfirmed}
                 onOpenIntake={() => setViewSelection('citizen')}
-                onOpenProfile={() => setViewSelection('citizen-profile')}
+                onOpenProfile={() => setViewSelection('profile')}
                 onOpenAccessTokens={() => setViewSelection('access-tokens')}
               />
             ) : activeView === 'citizen' ? (
               <CitizenIntake />
-            ) : activeView === 'citizen-profile' ? (
-              <CitizenProfilePage onSignIn={handleCitizenSignIn} />
+            ) : activeView === 'profile' ? (
+              <ProfilePage />
             ) : activeView === 'access-tokens' ? (
               <AccessTokensPage />
             ) : activeView === 'staff' && organizationAccess ? (
@@ -1781,7 +1790,7 @@ function App() {
                     email={currentUser.email}
                     emailConfirmed={currentUser.emailConfirmed}
                     onOpenIntake={() => setViewSelection('citizen')}
-                    onOpenProfile={() => setViewSelection('citizen-profile')}
+                    onOpenProfile={() => setViewSelection('profile')}
                     onOpenAccessTokens={() => setViewSelection('access-tokens')}
                 />
             )}
