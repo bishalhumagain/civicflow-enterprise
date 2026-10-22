@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
@@ -94,6 +95,7 @@ public sealed class InvitationService(
             organizationId,
             email,
             fullName,
+            request.PhoneNumber,
             role,
             InvitationToken.Hash(token),
             createdByUserId,
@@ -109,10 +111,12 @@ public sealed class InvitationService(
             token,
             cancellationToken);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             email,
             null,
-            "invitation_created");
+            AuditActions.InvitationCreated,
+            organizationId,
+            cancellationToken);
 
         return ToResponse(invitation, now);
     }
@@ -185,10 +189,12 @@ public sealed class InvitationService(
             token,
             cancellationToken);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             invitation.Email,
             null,
-            "invitation_resent");
+            AuditActions.InvitationResent,
+            organizationId,
+            cancellationToken);
 
         return ToResponse(invitation, now);
     }
@@ -213,10 +219,12 @@ public sealed class InvitationService(
         invitation.Revoke(timeProvider.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             invitation.Email,
             null,
-            "invitation_revoked");
+            AuditActions.InvitationRevoked,
+            organizationId,
+            cancellationToken);
 
         return true;
     }
@@ -260,6 +268,7 @@ public sealed class InvitationService(
         return new InvitationDetailsResponse(
             invitation.Email,
             invitation.FullName,
+            invitation.PhoneNumber,
             organization.Name,
             invitation.OrganizationRole.ToString(),
             invitation.ExpiresAt);
@@ -325,6 +334,11 @@ public sealed class InvitationService(
             // Possession of the emailed token proves control of the address.
             user.EmailConfirmed = true;
 
+            if (!string.IsNullOrWhiteSpace(invitation.PhoneNumber))
+            {
+                user.PhoneNumber = invitation.PhoneNumber;
+            }
+
             var createResult = await userManager.CreateAsync(
                 user,
                 request.Password);
@@ -353,6 +367,16 @@ public sealed class InvitationService(
                 await userManager.UpdateAsync(user);
             }
 
+            // The organization collected a contact number while inviting. It
+            // fills a gap on the account, but never replaces a number the
+            // person set for themselves.
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber) &&
+                !string.IsNullOrWhiteSpace(invitation.PhoneNumber))
+            {
+                user.PhoneNumber = invitation.PhoneNumber;
+                await userManager.UpdateAsync(user);
+            }
+
             // A credential change invalidates every existing session.
             await userManager.UpdateSecurityStampAsync(user);
         }
@@ -371,17 +395,19 @@ public sealed class InvitationService(
         invitation.MarkUsed(user.Id, now);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             email,
             user.Id,
-            isNewAccount
-                ? "invitation_accepted_account_created"
-                : "invitation_accepted_account_linked");
+            AuditActions.InvitationAccepted,
+            invitation.OrganizationId,
+            cancellationToken);
 
-        auditLogger.PrivilegeChange(
+        await auditLogger.PrivilegeChangeAsync(
             user.Id,
             $"role=staff organizationRole={invitation.OrganizationRole} " +
-            $"organizationId={invitation.OrganizationId} via=invitation");
+            $"organizationId={invitation.OrganizationId} via=invitation",
+            invitation.OrganizationId,
+            cancellationToken);
 
         return AcceptInvitationOutcome.Success(email);
     }
@@ -427,11 +453,26 @@ public sealed class InvitationService(
                     invitation.OrganizationId,
                     invitation.FullName,
                     invitation.Email,
+                    invitation.PhoneNumber,
                     now));
         }
-        else if (!staffMember.IsActive)
+        else
         {
-            staffMember.Reactivate(now);
+            if (!staffMember.IsActive)
+            {
+                staffMember.Reactivate(now);
+            }
+
+            if (!string.IsNullOrWhiteSpace(invitation.PhoneNumber) &&
+                !string.Equals(
+                    staffMember.PhoneNumber,
+                    invitation.PhoneNumber,
+                    StringComparison.Ordinal))
+            {
+                staffMember.UpdatePhoneNumber(
+                    invitation.PhoneNumber,
+                    now);
+            }
         }
     }
 
@@ -510,7 +551,18 @@ public sealed class InvitationService(
             link,
             string.Empty,
             $"The link expires {invitation.ExpiresAt:yyyy-MM-dd HH:mm} UTC.",
+            string.Empty,
             "If you were not expecting this invitation, you can ignore this email.");
+
+        if (!string.IsNullOrWhiteSpace(invitation.PhoneNumber))
+        {
+            body = string.Join(
+                Environment.NewLine,
+                body,
+                string.Empty,
+                $"CivicFlow will contact you on {invitation.PhoneNumber} " +
+                "about the cases you work on.");
+        }
 
         await emailSender.SendAsync(
             invitation.Email,
@@ -565,6 +617,7 @@ public sealed class InvitationService(
             invitation.OrganizationId,
             invitation.Email,
             invitation.FullName,
+            invitation.PhoneNumber,
             invitation.OrganizationRole.ToString(),
             invitation.CreatedAt,
             invitation.ExpiresAt,

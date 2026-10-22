@@ -1,17 +1,22 @@
-
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Staff;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
-public sealed class StaffService(CivicFlowDbContext dbContext)
+public sealed class StaffService(
+    CivicFlowDbContext dbContext,
+    IAuditLogger auditLogger)
     : IStaffService
 {
     public async Task<StaffMember> CreateAsync(
         Guid organizationId,
         string fullName,
         string email,
+        string? phoneNumber,
         CancellationToken cancellationToken)
     {
         var normalizedEmail = email.Trim();
@@ -32,10 +37,27 @@ public sealed class StaffService(CivicFlowDbContext dbContext)
             organizationId,
             fullName,
             normalizedEmail,
+            phoneNumber,
             DateTimeOffset.UtcNow);
 
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Staff,
+                Action = AuditActions.StaffCreated,
+                OrganizationId = organizationId,
+                EntityType = "StaffMember",
+                EntityId = staffMember.Id.ToString(),
+                Details =
+                    $"{staffMember.FullName} <{staffMember.Email}>" +
+                    (staffMember.PhoneNumber is null
+                        ? string.Empty
+                        : $" phone={staffMember.PhoneNumber}")
+            },
+            cancellationToken);
 
         return staffMember;
     }
@@ -89,6 +111,63 @@ public sealed class StaffService(CivicFlowDbContext dbContext)
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Staff,
+                Action = isActive
+                    ? AuditActions.StaffActivated
+                    : AuditActions.StaffDeactivated,
+                OrganizationId = organizationId,
+                EntityType = "StaffMember",
+                EntityId = staffMember.Id.ToString(),
+                Details = $"{staffMember.FullName} <{staffMember.Email}>"
+            },
+            cancellationToken);
+
+        return staffMember;
+    }
+
+    public async Task<StaffMember?> UpdatePhoneNumberAsync(
+        Guid organizationId,
+        Guid staffMemberId,
+        string? phoneNumber,
+        CancellationToken cancellationToken)
+    {
+        var staffMember = await dbContext.StaffMembers
+            .SingleOrDefaultAsync(
+                staff => staff.Id == staffMemberId &&
+                         staff.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (staffMember is null)
+        {
+            return null;
+        }
+
+        var previousPhoneNumber = staffMember.PhoneNumber;
+
+        staffMember.UpdatePhoneNumber(
+            phoneNumber,
+            DateTimeOffset.UtcNow);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Staff,
+                Action = AuditActions.StaffPhoneUpdated,
+                OrganizationId = organizationId,
+                EntityType = "StaffMember",
+                EntityId = staffMember.Id.ToString(),
+                Details =
+                    $"{staffMember.FullName} <{staffMember.Email}> " +
+                    $"phone {previousPhoneNumber ?? "(none)"} -> " +
+                    $"{staffMember.PhoneNumber ?? "(none)"}"
+            },
+            cancellationToken);
 
         return staffMember;
     }

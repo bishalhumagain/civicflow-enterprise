@@ -4,6 +4,7 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Tests.Infrastructure;
 
 namespace PublicServiceCaseManagement.Tests.Features.Memberships;
 
@@ -59,7 +60,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await SeedAsync(dbContext, organization, user);
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.CreateAsync(
             user.Id,
@@ -83,7 +84,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.Organizations.Add(organization);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => service.CreateAsync(
@@ -102,7 +103,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.ApplicationUsers.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => service.CreateAsync(
@@ -122,7 +123,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await SeedAsync(dbContext, organization, user);
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         await service.CreateAsync(
             user.Id,
@@ -172,7 +173,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetAllAsync(
             organization.Id,
@@ -217,7 +218,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetAllAsync(
             organization.Id,
@@ -252,7 +253,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(membership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetByIdAsync(
             otherOrganization.Id,
@@ -281,7 +282,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(membership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.ChangeRoleAsync(
             organization.Id,
@@ -316,7 +317,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(membership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.ChangeRoleAsync(
             otherOrganization.Id,
@@ -347,7 +348,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(membership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var deactivated = await service.SetActiveStatusAsync(
             organization.Id,
@@ -391,7 +392,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(membership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.SetActiveStatusAsync(
             otherOrganization.Id,
@@ -415,7 +416,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await SeedAsync(dbContext, organization, user);
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CreateAsync(
@@ -452,7 +453,7 @@ public sealed class OrganizationMembershipServiceTests
         dbContext.OrganizationMemberships.Add(existingMembership);
         await dbContext.SaveChangesAsync();
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CreateAsync(
@@ -479,7 +480,7 @@ public sealed class OrganizationMembershipServiceTests
 
         await SeedAsync(dbContext, organization, user);
 
-        var service = new OrganizationMembershipService(dbContext);
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
 
         var result = await service.CreateAsync(
             user.Id,

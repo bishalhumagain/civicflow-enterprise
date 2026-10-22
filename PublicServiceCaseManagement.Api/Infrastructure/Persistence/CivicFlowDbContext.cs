@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
@@ -32,6 +34,7 @@ public sealed class CivicFlowDbContext(
         Set<AccountInvitation>();
     public DbSet<PersonalAccessToken> PersonalAccessTokens =>
         Set<PersonalAccessToken>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -215,6 +218,9 @@ public sealed class CivicFlowDbContext(
                 .HasMaxLength(254)
                 .IsRequired();
 
+            entity.Property(s => s.PhoneNumber)
+                .HasMaxLength(PhoneNumbers.MaximumLength);
+
             entity.Property(s => s.IsActive)
                 .IsRequired();
 
@@ -391,6 +397,9 @@ public sealed class CivicFlowDbContext(
                 .HasMaxLength(150)
                 .IsRequired();
 
+            entity.Property(invitation => invitation.PhoneNumber)
+                .HasMaxLength(PhoneNumbers.MaximumLength);
+
             entity.Property(invitation => invitation.OrganizationRole)
                 .HasConversion<string>()
                 .HasMaxLength(30)
@@ -511,11 +520,55 @@ public sealed class CivicFlowDbContext(
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.ToTable("audit_events");
+
+            entity.HasKey(audit => audit.Id);
+
+            entity.Property(audit => audit.Category)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(audit => audit.Action)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(audit => audit.ActorEmail)
+                .HasMaxLength(254)
+                .IsRequired();
+
+            entity.Property(audit => audit.EntityType)
+                .HasMaxLength(50);
+
+            entity.Property(audit => audit.EntityId)
+                .HasMaxLength(100);
+
+            entity.Property(audit => audit.Details)
+                .HasMaxLength(1000);
+
+            entity.Property(audit => audit.OccurredAt)
+                .IsRequired();
+
+            entity.HasIndex(audit => audit.OccurredAt);
+
+            entity.HasIndex(audit => new
+            {
+                audit.OrganizationId,
+                audit.OccurredAt
+            });
+
+            entity.HasIndex(audit => new
+            {
+                audit.Category,
+                audit.OccurredAt
+            });
+        });
+
         modelBuilder.Entity<IdentityRole<Guid>>(entity =>
         {
             entity.ToTable("identity_roles");
         });
-
         modelBuilder.Entity<IdentityUserRole<Guid>>(entity =>
         {
             entity.ToTable("identity_user_roles");

@@ -10,4 +10,13 @@ public sealed record CreateStaffMemberRequest(
     [Required]
     [EmailAddress]
     [StringLength(254)]
-    string Email);
+    string Email,
+
+    [Phone]
+    [StringLength(30)]
+    string? PhoneNumber);
+
+public sealed record UpdateStaffPhoneRequest(
+    [Phone]
+    [StringLength(30)]
+    string? PhoneNumber);

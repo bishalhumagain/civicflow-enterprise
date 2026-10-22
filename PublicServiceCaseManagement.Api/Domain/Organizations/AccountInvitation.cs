@@ -15,6 +15,7 @@ public sealed class AccountInvitation
         Guid organizationId,
         string email,
         string fullName,
+        string? phoneNumber,
         OrganizationRole organizationRole,
         string tokenHash,
         Guid createdByUserId,
@@ -26,6 +27,7 @@ public sealed class AccountInvitation
         Email = email;
         NormalizedEmail = email.ToUpperInvariant();
         FullName = fullName;
+        PhoneNumber = phoneNumber;
         OrganizationRole = organizationRole;
         TokenHash = tokenHash;
         CreatedByUserId = createdByUserId;
@@ -43,6 +45,12 @@ public sealed class AccountInvitation
     public string NormalizedEmail { get; private set; } = string.Empty;
 
     public string FullName { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// The contact phone number the administrator collected for the invited
+    /// person. It is optional and stored as plain text.
+    /// </summary>
+    public string? PhoneNumber { get; private set; }
 
     public OrganizationRole OrganizationRole { get; private set; }
 
@@ -75,6 +83,7 @@ public sealed class AccountInvitation
         Guid organizationId,
         string email,
         string fullName,
+        string? phoneNumber,
         OrganizationRole organizationRole,
         string tokenHash,
         Guid createdByUserId,
@@ -143,6 +152,7 @@ public sealed class AccountInvitation
             organizationId,
             email.Trim().ToLowerInvariant(),
             fullName.Trim(),
+            PhoneNumbers.Normalize(phoneNumber),
             organizationRole,
             tokenHash,
             createdByUserId,

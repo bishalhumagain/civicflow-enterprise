@@ -7,13 +7,16 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Features.Audit;
 using PublicServiceCaseManagement.Api.Features.Auth;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Citizens;
 using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Features.Organizations;
+using PublicServiceCaseManagement.Api.Features.Platform;
 using PublicServiceCaseManagement.Api.Features.Staff;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
@@ -249,7 +252,14 @@ builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
-builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
+
+// The audit trail is scoped because it writes through the request scoped
+// database context and resolves the actor from the current HTTP context.
+builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+builder.Services.AddScoped<IAuditTrailWriter, AuditTrailWriter>();
+builder.Services.AddScoped<ICurrentActorResolver, CurrentActorResolver>();
+builder.Services.AddScoped<IAuditQueryService, AuditQueryService>();
+builder.Services.AddScoped<IPlatformDirectoryService, PlatformDirectoryService>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")

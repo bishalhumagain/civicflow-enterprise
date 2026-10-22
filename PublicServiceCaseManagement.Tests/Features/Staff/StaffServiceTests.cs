@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Tests.Infrastructure;
 
 namespace PublicServiceCaseManagement.Tests.Features.Staff;
 
@@ -35,6 +36,7 @@ public sealed class StaffServiceTests
             organizationId ?? OrganizationId,
             fullName ?? "Test Officer",
             email ?? $"officer-{Guid.NewGuid():N}@example.com",
+            null,
             Now);
     }
 
@@ -53,7 +55,7 @@ public sealed class StaffServiceTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetAllAsync(
             OrganizationId,
@@ -76,7 +78,7 @@ public sealed class StaffServiceTests
         dbContext.StaffMembers.AddRange(activeStaff, inactiveStaff);
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetAllAsync(
             OrganizationId,
@@ -100,7 +102,7 @@ public sealed class StaffServiceTests
         dbContext.StaffMembers.AddRange(activeStaff, inactiveStaff);
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.GetAllAsync(
             OrganizationId,
@@ -122,7 +124,7 @@ public sealed class StaffServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.SetActiveStatusAsync(
             OrganizationId,
@@ -145,7 +147,7 @@ public sealed class StaffServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.SetActiveStatusAsync(
             OrganizationId,
@@ -162,7 +164,7 @@ public sealed class StaffServiceTests
     {
         await using var dbContext = CreateDbContext();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.SetActiveStatusAsync(
             OrganizationId,
@@ -183,7 +185,7 @@ public sealed class StaffServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new StaffService(dbContext);
+        var service = new StaffService(dbContext, new RecordingAuditLogger());
 
         var result = await service.SetActiveStatusAsync(
             OrganizationId,

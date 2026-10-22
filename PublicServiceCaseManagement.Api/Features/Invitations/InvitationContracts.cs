@@ -10,6 +10,9 @@ public sealed record CreateInvitationRequest(
     [EmailAddress]
     [StringLength(254)]
     string Email,
+    [Phone]
+    [StringLength(30)]
+    string? PhoneNumber,
     [Required]
     string Role);
 
@@ -18,6 +21,7 @@ public sealed record InvitationResponse(
     Guid OrganizationId,
     string Email,
     string FullName,
+    string? PhoneNumber,
     string Role,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
@@ -28,6 +32,7 @@ public sealed record InvitationResponse(
 public sealed record InvitationDetailsResponse(
     string Email,
     string FullName,
+    string? PhoneNumber,
     string OrganizationName,
     string Role,
     DateTimeOffset ExpiresAt);

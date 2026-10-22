@@ -19,6 +19,7 @@ import {
   type AccountInvitation,
   type AssignmentEntry,
   type AssignmentHistoryData,
+  type AuditEvent,
   type CaseDocument,
   type CaseDocumentsData,
   type CaseHistoryData,
@@ -29,6 +30,9 @@ import {
   type Membership,
   type MembershipsData,
   type Organization,
+  type PlatformOverview,
+  type PlatformStaff,
+  type PlatformUser,
   type StaffMember,
   type WorkspaceView,
 } from './domain'
@@ -38,6 +42,9 @@ import { StatCard } from './components/StatCard'
 import { CaseDetails } from './components/CaseDetails'
 import { StaffDirectory } from './components/StaffDirectory'
 import { OrganizationAdministration } from './components/OrganizationAdministration'
+import { PlatformDirectory } from './components/PlatformDirectory'
+import { AuditLog } from './components/AuditLog'
+import { emptyAuditFilters, type AuditFilters } from './components/audit-utils'
 import { CitizenIntake } from './components/CitizenIntake'
 import { CitizenDashboard } from './components/CitizenDashboard'
 import { LandingPage } from './pages/LandingPage'
@@ -187,6 +194,18 @@ function App() {
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginErrorCode, setLoginErrorCode] = useState<string | null>(null)
 
+  const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([])
+  const [platformStaff, setPlatformStaff] = useState<PlatformStaff[]>([])
+  const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null)
+  const [directoryLoading, setDirectoryLoading] = useState(false)
+
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>(emptyAuditFilters)
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditTotalCount, setAuditTotalCount] = useState(0)
+  const [auditTotalPages, setAuditTotalPages] = useState(1)
+  const [auditLoading, setAuditLoading] = useState(false)
+
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
 
   // The API reports the roles the session actually carries. Every dashboard,
@@ -206,11 +225,11 @@ function App() {
     }
 
     if (organizationAccess) {
-      views.push('cases', 'staff')
+      views.push('cases', 'staff', 'activity')
     }
 
     if (platformAdminAccess) {
-      views.push('organizations')
+      views.push('organizations', 'platform-directory', 'platform-audit')
     }
 
     views.push('access-tokens')
@@ -239,10 +258,13 @@ function App() {
     if (organizationAccess) {
       items.push({ view: 'cases', label: 'Cases', icon: '▣' })
       items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
+      items.push({ view: 'activity', label: 'Activity log', icon: '☰' })
     }
 
     if (platformAdminAccess) {
       items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
+      items.push({ view: 'platform-directory', label: 'Directory', icon: '◍' })
+      items.push({ view: 'platform-audit', label: 'Audit log', icon: '☰' })
     }
 
     items.push({ view: 'access-tokens', label: 'Access tokens', icon: '⌗' })
@@ -461,6 +483,119 @@ function App() {
     }
   }, [currentUser, platformAdminAccess, activeView, selectedOrganizationId])
 
+  useEffect(() => {
+    if (!currentUser || !platformAdminAccess || activeView !== 'platform-directory') return
+
+    let mounted = true
+
+    async function loadDirectory() {
+      setDirectoryLoading(true)
+
+      try {
+        const [users, staff, overview] = await Promise.all([
+          requestJson<PlatformUser[]>('/api/platform/users'),
+          requestJson<PlatformStaff[]>('/api/platform/staff'),
+          requestJson<PlatformOverview>('/api/platform/overview'),
+        ])
+
+        if (!mounted) return
+
+        setPlatformUsers(users)
+        setPlatformStaff(staff)
+        setPlatformOverview(overview)
+      } catch (reason) {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'The platform directory could not be loaded. Your role may not permit platform administration.',
+          )
+        }
+      } finally {
+        if (mounted) setDirectoryLoading(false)
+      }
+    }
+
+    void loadDirectory()
+
+    return () => {
+      mounted = false
+    }
+  }, [currentUser, platformAdminAccess, activeView])
+
+  // The audit trail is read through two endpoints: the platform-wide log for
+  // super administrators and the organization-scoped log for organization
+  // administrators. The API stays authoritative about who may read what.
+  const auditScope = activeView === 'platform-audit'
+    ? 'platform'
+    : activeView === 'activity'
+      ? 'organization'
+      : null
+
+  const auditOrganizationId = organizationId ?? ''
+
+  useEffect(() => {
+    if (!currentUser || !auditScope) return
+    if (auditScope === 'organization' && !auditOrganizationId) return
+
+    let mounted = true
+
+    async function loadAuditEvents() {
+      setAuditLoading(true)
+
+      const query = new URLSearchParams({
+        page: String(auditPage),
+        pageSize: '25',
+      })
+
+      if (auditFilters.category) query.set('category', auditFilters.category)
+      if (auditFilters.action) query.set('action', auditFilters.action)
+      if (auditFilters.search) query.set('search', auditFilters.search)
+      if (auditFilters.from) query.set('from', `${auditFilters.from}T00:00:00Z`)
+      if (auditFilters.to) query.set('to', `${auditFilters.to}T23:59:59Z`)
+
+      const path = auditScope === 'platform'
+        ? `/api/platform/audit?${query.toString()}`
+        : `/api/organizations/${auditOrganizationId}/audit?${query.toString()}`
+
+      try {
+        const page = await requestJson<{
+          items: AuditEvent[]
+          totalCount: number
+          totalPages: number
+        }>(path)
+
+        if (!mounted) return
+
+        setAuditEvents(page.items)
+        setAuditTotalCount(page.totalCount)
+        setAuditTotalPages(page.totalPages)
+      } catch (reason) {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'The audit trail could not be loaded. Your role may not permit this view.',
+          )
+        }
+      } finally {
+        if (mounted) setAuditLoading(false)
+      }
+    }
+
+    void loadAuditEvents()
+
+    return () => {
+      mounted = false
+    }
+  }, [
+    currentUser,
+    auditScope,
+    auditOrganizationId,
+    auditPage,
+    auditFilters,
+  ])
+
   const invitationsOrganizationId =
     activeView === 'organizations'
       ? selectedOrganizationId
@@ -514,6 +649,7 @@ function App() {
     organizationIdForRequest: string,
     fullName: string,
     email: string,
+    phoneNumber: string,
     role: string,
   ): Promise<boolean> {
     if (!currentUser || !organizationIdForRequest) return false
@@ -526,7 +662,12 @@ function App() {
         `/api/organizations/${organizationIdForRequest}/invitations`,
         {
           method: 'POST',
-          body: JSON.stringify({ fullName, email, role }),
+          body: JSON.stringify({
+            fullName,
+            email,
+            phoneNumber: phoneNumber || null,
+            role,
+          }),
         },
         organizationIdForRequest,
       )
@@ -900,6 +1041,86 @@ function App() {
     }
   }
 
+  async function updateOrganization(id: string, name: string, code: string) {
+    if (!currentUser) return
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      const updated = await requestJson<Organization>(`/api/organizations/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, code }),
+      })
+
+      setOrganizations((current) => current.map((item) => item.id === updated.id ? updated : item))
+      showToast('Organization updated.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Organization update failed.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  async function deleteOrganization(organization: Organization) {
+    if (!currentUser) return
+
+    const confirmed = window.confirm(
+      `Delete ${organization.name}? Its memberships, staff records and pending invitations are removed as well. An organization that still holds cases cannot be deleted.`,
+    )
+
+    if (!confirmed) return
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      await requestJson<void>(`/api/organizations/${organization.id}`, {
+        method: 'DELETE',
+      })
+
+      setOrganizations((current) => current.filter((item) => item.id !== organization.id))
+      setSelectedOrganizationId((current) => (
+        current === organization.id ? '' : current
+      ))
+      showToast('Organization deleted.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Organization deletion failed.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  async function updateStaffPhone(member: StaffMember, phoneNumber: string) {
+    if (!currentUser || !organizationId) return
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      const updated = await requestJson<StaffMember>(
+        `/api/staff/${member.id}/phone`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ phoneNumber: phoneNumber || null }),
+        },
+      )
+
+      setStaff((current) => current.map((item) => item.id === updated.id ? updated : item))
+      showToast('Phone number updated.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Phone number update failed.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
   async function updateOrganizationStatus(organization: Organization) {
     if (!currentUser) return
     if (!window.confirm(`${organization.isActive ? 'Deactivate' : 'Reactivate'} ${organization.name}?`)) return
@@ -1206,7 +1427,10 @@ function App() {
     'citizen-profile': 'My profile',
     cases: 'Cases',
     staff: 'Staff & team',
+    activity: 'Activity log',
     organizations: 'Organizations',
+    'platform-directory': 'Directory',
+    'platform-audit': 'Audit log',
     'access-tokens': 'Access tokens',
   }
 
@@ -1293,13 +1517,55 @@ function App() {
                     invitations={staffInvitations}
                     authenticated={Boolean(currentUser)}
                     loading={adminLoading}
-                    onInvite={(fullName, email, role) =>
-                      inviteStaff(organizationId ?? '', fullName, email, role)}
+                    onInvite={(fullName, email, phoneNumber, role) =>
+                      inviteStaff(organizationId ?? '', fullName, email, phoneNumber, role)}
                     onResend={(invitationId) =>
                       resendInvitation(organizationId ?? '', invitationId)}
                     onRevoke={(invitationId) =>
                       revokeInvitation(organizationId ?? '', invitationId)}
                     onToggle={setStaffActive}
+                    onUpdatePhone={updateStaffPhone}
+                />
+            ) : activeView === 'activity' && organizationAccess ? (
+                <AuditLog
+                    title="Organization activity"
+                    description="Every audited change recorded for this organization, including sign-ins, staff changes and case workflow events."
+                    loading={auditLoading}
+                    events={auditEvents}
+                    filters={auditFilters}
+                    totalCount={auditTotalCount}
+                    totalPages={auditTotalPages}
+                    page={auditPage}
+                    onApplyFilters={(filters) => {
+                      setAuditFilters(filters)
+                      setAuditPage(1)
+                    }}
+                    onPageChange={setAuditPage}
+                    emptyMessage="No activity has been recorded for this organization yet."
+                />
+            ) : activeView === 'platform-directory' && platformAdminAccess ? (
+                <PlatformDirectory
+                    loading={directoryLoading}
+                    overview={platformOverview}
+                    users={platformUsers}
+                    staff={platformStaff}
+                />
+            ) : activeView === 'platform-audit' && platformAdminAccess ? (
+                <AuditLog
+                    title="Platform audit trail"
+                    description="Every audited change recorded across the platform, including organization, staff, invitation, access-token and authentication events."
+                    loading={auditLoading}
+                    events={auditEvents}
+                    filters={auditFilters}
+                    totalCount={auditTotalCount}
+                    totalPages={auditTotalPages}
+                    page={auditPage}
+                    onApplyFilters={(filters) => {
+                      setAuditFilters(filters)
+                      setAuditPage(1)
+                    }}
+                    onPageChange={setAuditPage}
+                    emptyMessage="No audit events match the current filters."
                 />
             ) : activeView === 'organizations' && platformAdminAccess ? (
                 <OrganizationAdministration
@@ -1311,11 +1577,13 @@ function App() {
                     selectedOrganizationId={selectedOrganizationId}
                     onSelectOrganization={setSelectedOrganizationId}
                     onCreateOrganization={createOrganization}
+                    onUpdateOrganization={updateOrganization}
                     onToggleOrganization={updateOrganizationStatus}
+                    onDeleteOrganization={deleteOrganization}
                     onCreateMembership={createMembership}
                     onUpdateMembership={updateMembership}
-                    onInvite={(fullName, email, role) =>
-                      inviteStaff(selectedOrganizationId, fullName, email, role)}
+                    onInvite={(fullName, email, phoneNumber, role) =>
+                      inviteStaff(selectedOrganizationId, fullName, email, phoneNumber, role)}
                     onResendInvitation={(invitationId) =>
                       resendInvitation(selectedOrganizationId, invitationId)}
                     onRevokeInvitation={(invitationId) =>

@@ -8,6 +8,7 @@ public interface IStaffService
         Guid organizationId,
         string fullName,
         string email,
+        string? phoneNumber,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<StaffMember>> GetAllAsync(
@@ -19,5 +20,11 @@ public interface IStaffService
         Guid organizationId,
         Guid staffMemberId,
         bool isActive,
+        CancellationToken cancellationToken);
+
+    Task<StaffMember?> UpdatePhoneNumberAsync(
+        Guid organizationId,
+        Guid staffMemberId,
+        string? phoneNumber,
         CancellationToken cancellationToken);
 }

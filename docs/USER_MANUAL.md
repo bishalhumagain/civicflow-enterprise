@@ -11,7 +11,7 @@
 This manual describes how to use the currently implemented features of CivicFlow Enterprise. It focuses on verified functionality based on the actual application code.
 
 ### Application Status
-- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen and organization portals), personal access tokens for API clients, case management operations, citizen self-service profile and citizen dashboard
+- **Implemented**: Core staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen and organization portals), personal access tokens for API clients, case management operations, citizen self-service profile and citizen dashboard, a persisted audit trail with an organization activity log and a platform-wide audit log, a platform directory, organization management (including deletion), and optional staff/invitation phone numbers
 - **Partially Implemented**: Public/citizen intake interface (submission/tracking depend on configuration)
 - **Not Fully Verified in this environment**: Live browser + database end-to-end runs (the code paths are covered by automated integration tests)
 - **Limitations**: Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production
@@ -116,11 +116,14 @@ The navigation only shows the views your account is entitled to. Entries are det
 
 **Staff accounts (organization portal):**
 - **Cases** - Case management (default view)
-- **Staff & team** - Staff directory, invitations (send, resend, revoke)
+- **Staff & team** - Staff directory, invitations (send, resend, revoke), staff phone numbers
+- **Activity log** - Audit trail of your organization's events (organization administrators)
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
 
 **Platform administrator accounts (platform administration):**
 - **Organizations** - Organization, membership, and invitation administration across all organizations (default view)
+- **Directory** - Platform overview counters, all accounts, and all staff memberships
+- **Audit log** - Platform-wide audit trail
 - **Access tokens** - Create, list, and revoke personal access tokens for API clients
 
 ### Common Controls
@@ -143,18 +146,30 @@ The navigation only shows the views your account is entitled to. Entries are det
 - View case history and assignment history
 - Manage the staff directory (deactivate/reactivate)
 - Invite staff (send, resend, or revoke single-use invitations)
+- Collect a phone number when inviting a staff member
+- View and correct a staff member's phone number (organization administrators)
+- Read the organization activity log (organization administrators)
 
 ### Platform Administrator
 **Access requirements:** Authenticated platform super administrator account, signed in at `/super-platform-admin`.
 
 **Available actions:**
-- Create, deactivate, and reactivate organizations
+- Create, rename, deactivate, reactivate, and delete organizations
 - Manage memberships and roles within any organization
 - Invite staff to any organization and manage those invitations
+- Browse the platform directory (overview counters, all accounts, all staff memberships)
+- Read the platform-wide audit log
 - Manage your own access tokens
 
 **Administrator Functions**
 Organization, membership, and invitation administration are available in the **Organizations** view for platform administrators and, within their own organization, for Organization Administrators. Specific permissions are enforced server-side by the API based on roles and organization memberships.
+
+**Deleting an organization**
+1. Open the **Organizations** view and select the organization
+2. Choose **Delete organization**
+3. Confirm the action in the confirmation prompt
+4. The organization, its memberships, its staff records, and its pending invitations are removed
+5. The action is refused while the organization still holds cases — resolve or move those cases first, then delete the organization
 
 ### Citizen User
 **Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: a citizen dashboard, the public intake interface, their own profile, and access tokens for their own account. Case management, staff administration, and organization administration are never part of a citizen session. Public submission/tracking workflows still depend on configuration — check with your system administrator for current capabilities.
@@ -216,18 +231,39 @@ Organization, membership, and invitation administration are available in the **O
 
 ### 5.6 Managing Staff
 1. Navigate to **Staff & team**
-2. Use the form to add new staff members (full name and email)
-3. Toggle staff member active/inactive status using the action buttons
-4. Changes require appropriate permissions
+2. Use the invitation form to add new staff members (full name, email, and an optional phone number); the invitee receives a single-use link and chooses their own password
+3. Review the invitation list (pending, accepted, expired, revoked) and resend or revoke invitations
+4. Toggle staff member active/inactive status using the action buttons
+5. Correct a staff member's phone number inline with the **Edit** action next to the number
+6. Changes require appropriate permissions
+
+**Note on phone numbers:** A phone number is optional and must be 6–30 characters with at least 6 digits. When an invitation carries a number, it is stored on the new account and staff record; for an account that already exists the number is only filled in when the account has none of its own, so a number someone entered themselves is never overwritten.
 
 ### 5.7 Managing Organizations
 1. Navigate to **Organizations**
 2. Create organizations or select an existing organization
-3. Manage memberships for the selected organization
-4. Add members with specific roles
-5. Update membership roles or activate/deactivate memberships
+3. Rename an organization or activate/deactivate it with the organization actions
+4. Manage memberships for the selected organization
+5. Add members with specific roles
+6. Update membership roles or activate/deactivate memberships
+7. Delete an organization when it is no longer needed — deletion is refused while it still holds cases
 
-### 5.8 Managing Your Citizen Profile
+### 5.8 Reviewing the Platform Directory
+1. Sign in as a platform administrator and open **Directory**
+2. Read the overview counters (accounts, active accounts, staff, active staff, organizations, active organizations, invitations, pending invitations)
+3. Browse the **Accounts** table for every account with its roles, platform role, phone number, and organization memberships
+4. Browse the **Staff memberships** table for every staff membership with organization, role, and status
+5. Use the search field to narrow the tables
+
+### 5.9 Reviewing the Audit Log
+1. Platform administrators: open **Audit log** for the platform-wide trail. Organization administrators: open **Activity log** for their own organization.
+2. Filter by category (authentication, account, organization, membership, staff, case, access token), by action, by free text, or by date range
+3. Page through the results with the pagination controls
+4. Each row shows when the event happened, who did it, what it touched, and a readable detail
+
+**Note:** The platform audit log is only available to platform super administrators, and an organization's activity log only to that organization's administrators. The audit trail is read-only.
+
+### 5.10 Managing Your Citizen Profile
 1. Sign in through the **Citizen Portal**
 2. Navigate to **My profile** (from the dashboard action card or the sidebar)
 3. If you are not signed in, you will be prompted to **Sign in**
@@ -237,7 +273,7 @@ Organization, membership, and invitation administration are available in the **O
 
 **Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected.
 
-### 5.9 Managing Personal Access Tokens
+### 5.11 Managing Personal Access Tokens
 Personal access tokens let an automated client (a script, an integration, a mobile app) call the API without a browser session. A token acts on behalf of the user who created it and carries that user's permissions.
 
 1. Sign in to CivicFlow (citizen or staff sign-in page)
@@ -291,6 +327,10 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | "Your current session is not authorized for citizen profile access" | Signed in as a staff account | Sign in through the Citizen Portal |
 | "A citizen profile with this NID number already exists" | Duplicate NID/citizenship/email | Use your own details or contact your administrator |
 | CSRF error on save | Anti-forgery token missing/expired | Refresh the page and retry |
+| "A phone number must be between 6 and 30 characters" | The number is too short or too long | Enter 6–30 characters with at least 6 digits; digits, spaces, and `+ - ( ) . /` are allowed |
+| "This organization still holds cases" | Cases are still assigned to the organization | Resolve or move the cases, then delete the organization |
+| "Organization not found" | The organization was already deleted | Refresh the list |
+| "The audit log is not available for this account" | Audit access requires a platform administrator or an organization administrator | Sign in with the appropriate role |
 | Case creation/update fails | Network/API issues or permissions | Check connection and permissions; retry |
 
 **Tips:**
@@ -314,6 +354,8 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - Server-side validation enforces permissions
 - Sessions use HttpOnly cookies with CSRF protection and are revoked on sign-out
 - Personal access tokens are stored only as a SHA-256 hash; the plaintext exists only in the response that created it and in the caller's copy
+- Every sign-in, account, invitation, membership, organization, staff, and case change is recorded in the audit trail with the actor and a timestamp
+- Phone numbers are optional, are only visible to administrators of the relevant organization (and to platform administrators), and are never required to sign in
 
 **Note:** No absolute security guarantees can be made - follow your organization's security policies.
 

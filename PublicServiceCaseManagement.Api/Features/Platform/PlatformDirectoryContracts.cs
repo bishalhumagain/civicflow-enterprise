@@ -1,0 +1,59 @@
+namespace PublicServiceCaseManagement.Api.Features.Platform;
+
+/// <summary>
+/// The organization a user belongs to, as seen by a platform administrator.
+/// </summary>
+public sealed record PlatformUserOrganization(
+    Guid MembershipId,
+    Guid OrganizationId,
+    string OrganizationName,
+    string OrganizationCode,
+    string Role,
+    bool IsActive);
+
+/// <summary>
+/// Everything a platform administrator can see about one account.
+/// </summary>
+public sealed record PlatformUserSummary(
+    Guid Id,
+    string FullName,
+    string Email,
+    string? PhoneNumber,
+    bool EmailConfirmed,
+    bool IsActive,
+    string PlatformRole,
+    IReadOnlyList<string> Roles,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<PlatformUserOrganization> Organizations);
+
+/// <summary>
+/// A staff member of an organization, as seen by a platform administrator.
+/// </summary>
+public sealed record PlatformStaffSummary(
+    Guid UserId,
+    Guid MembershipId,
+    Guid OrganizationId,
+    string OrganizationName,
+    string OrganizationCode,
+    string FullName,
+    string Email,
+    string? PhoneNumber,
+    string Role,
+    bool IsActive,
+    bool EmailConfirmed,
+    bool AccountIsActive,
+    DateTimeOffset MembershipCreatedAt);
+
+/// <summary>
+/// A compact platform overview for the administration dashboard.
+/// </summary>
+public sealed record PlatformOverviewResponse(
+    int UserCount,
+    int ActiveUserCount,
+    int StaffCount,
+    int ActiveStaffCount,
+    int OrganizationCount,
+    int ActiveOrganizationCount,
+    int InvitationCount,
+    int PendingInvitationCount);

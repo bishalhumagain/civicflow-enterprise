@@ -1,10 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
-public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
+public sealed class CaseService(
+    CivicFlowDbContext dbContext,
+    IAuditLogger auditLogger) : ICaseService
 {
     public async Task<Case> CreateAsync(
         Guid organizationId,
@@ -24,6 +29,18 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
 
         dbContext.Cases.Add(newCase);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseCreated,
+                OrganizationId = organizationId,
+                EntityType = "Case",
+                EntityId = newCase.Id.ToString(),
+                Details = $"{newCase.ReferenceNumber} {newCase.Title}"
+            },
+            cancellationToken);
 
         return newCase;
     }
@@ -102,6 +119,19 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
 
         await dbContext.SaveChangesAsync();
 
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseStatusChanged,
+                OrganizationId = caseEntity.OrganizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details =
+                    $"{caseEntity.ReferenceNumber} status " +
+                    $"{previousStatus} -> {caseEntity.Status}"
+            });
+
         return caseEntity;
     }
 
@@ -158,6 +188,20 @@ public sealed class CaseService(CivicFlowDbContext dbContext) : ICaseService
         dbContext.CaseAssignmentHistories.Add(history);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseAssigned,
+                OrganizationId = caseEntity.OrganizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details =
+                    $"{caseEntity.ReferenceNumber} assigned to " +
+                    $"{staffMember.FullName} <{staffMember.Email}>"
+            },
+            cancellationToken);
 
         return caseEntity;
     }

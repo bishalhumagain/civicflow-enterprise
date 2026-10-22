@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Domain.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
@@ -85,10 +87,19 @@ public sealed class PersonalAccessTokenService(
         dbContext.PersonalAccessTokens.Add(token);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        auditLogger.PrivilegeChange(
-            userId,
-            $"access_token_created publicId={token.PublicId} " +
-            $"expiresAt={token.ExpiresAt?.ToString("O") ?? "never"}");
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.AccessToken,
+                Action = AuditActions.AccessTokenCreated,
+                ActorUserId = userId,
+                EntityType = "PersonalAccessToken",
+                EntityId = token.Id.ToString(),
+                Details =
+                    $"name={token.Name} publicId={token.PublicId} " +
+                    $"expiresAt={token.ExpiresAt?.ToString("O") ?? "never"}"
+            },
+            cancellationToken);
 
         return new CreatePersonalAccessTokenResponse(
             token.Id,
@@ -122,9 +133,17 @@ public sealed class PersonalAccessTokenService(
         token.Revoke(timeProvider.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        auditLogger.PrivilegeChange(
-            userId,
-            $"access_token_revoked publicId={token.PublicId}");
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.AccessToken,
+                Action = AuditActions.AccessTokenRevoked,
+                ActorUserId = userId,
+                EntityType = "PersonalAccessToken",
+                EntityId = token.Id.ToString(),
+                Details = $"name={token.Name} publicId={token.PublicId}"
+            },
+            cancellationToken);
 
         return true;
     }

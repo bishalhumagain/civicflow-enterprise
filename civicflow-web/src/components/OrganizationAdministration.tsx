@@ -11,7 +11,9 @@ export function OrganizationAdministration({
   selectedOrganizationId,
   onSelectOrganization,
   onCreateOrganization,
+  onUpdateOrganization,
   onToggleOrganization,
+  onDeleteOrganization,
   onCreateMembership,
   onUpdateMembership,
   onInvite,
@@ -26,10 +28,17 @@ export function OrganizationAdministration({
   selectedOrganizationId: string
   onSelectOrganization: (id: string) => void
   onCreateOrganization: (name: string, code: string) => Promise<void>
+  onUpdateOrganization: (id: string, name: string, code: string) => Promise<void>
   onToggleOrganization: (organization: Organization) => Promise<void>
+  onDeleteOrganization: (organization: Organization) => Promise<void>
   onCreateMembership: (userId: string, role: string) => Promise<void>
   onUpdateMembership: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void>
-  onInvite: (fullName: string, email: string, role: string) => Promise<boolean>
+  onInvite: (
+    fullName: string,
+    email: string,
+    phoneNumber: string,
+    role: string,
+  ) => Promise<boolean>
   onResendInvitation: (invitationId: string) => Promise<void>
   onRevokeInvitation: (invitationId: string) => Promise<void>
 }) {
@@ -37,8 +46,19 @@ export function OrganizationAdministration({
   const [code, setCode] = useState('')
   const [userId, setUserId] = useState('')
   const [role, setRole] = useState('Viewer')
+  const [editing, setEditing] = useState(false)
+  const [editedName, setEditedName] = useState('')
+  const [editedCode, setEditedCode] = useState('')
 
   const selected = organizations.find((item) => item.id === selectedOrganizationId)
+
+  function startEditing() {
+    if (!selected) return
+
+    setEditedName(selected.name)
+    setEditedCode(selected.code)
+    setEditing(true)
+  }
 
   return (
     <>
@@ -62,27 +82,91 @@ export function OrganizationAdministration({
             {organizations.length === 0 ? (
               <p className="muted">No platform organizations loaded. If you are an OrganizationAdmin, select the configured organization below to manage its memberships.</p>
             ) : (
-              <div className="admin-row">
-                <select
-                  aria-label="Selected organization"
-                  value={selectedOrganizationId}
-                  onChange={(event) => onSelectOrganization(event.target.value)}
-                >
-                  {organizations.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                  ))}
-                </select>
-                {selected && (
-                  <button
-                    className="secondary-button"
-                    disabled={loading}
-                    onClick={() => void onToggleOrganization(selected)}
-                    type="button"
+              <>
+                <div className="admin-row">
+                  <select
+                    aria-label="Selected organization"
+                    value={selectedOrganizationId}
+                    onChange={(event) => {
+                      setEditing(false)
+                      onSelectOrganization(event.target.value)
+                    }}
                   >
-                    {selected.isActive ? 'Deactivate' : 'Reactivate'}
-                  </button>
+                    {organizations.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
+                    ))}
+                  </select>
+                  {selected && (
+                    <>
+                      <button
+                        className="secondary-button"
+                        disabled={loading}
+                        onClick={startEditing}
+                        type="button"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={loading}
+                        onClick={() => void onToggleOrganization(selected)}
+                        type="button"
+                      >
+                        {selected.isActive ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={loading}
+                        onClick={() => void onDeleteOrganization(selected)}
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {editing && selected && (
+                  <form
+                    className="inline-form"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void onUpdateOrganization(
+                        selected.id,
+                        editedName.trim(),
+                        editedCode.trim(),
+                      )
+                      setEditing(false)
+                    }}
+                  >
+                    <input
+                      required
+                      maxLength={200}
+                      placeholder="Organization name"
+                      value={editedName}
+                      onChange={(event) => setEditedName(event.target.value)}
+                    />
+                    <input
+                      required
+                      maxLength={50}
+                      placeholder="Code"
+                      value={editedCode}
+                      onChange={(event) => setEditedCode(event.target.value)}
+                    />
+                    <button className="primary-button" disabled={loading} type="submit">
+                      Save changes
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={loading}
+                      onClick={() => setEditing(false)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </form>
                 )}
-              </div>
+              </>
             )}
 
             <form

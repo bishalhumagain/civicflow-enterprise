@@ -26,4 +26,18 @@ public interface IOrganizationService
         Guid organizationId,
         bool isActive,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes an organization that no longer holds operational data. The
+    /// access records that belong to it (memberships, staff records, and
+    /// invitations) are removed with it.
+    /// </summary>
+    /// <returns>
+    /// False when the organization does not exist. Throws
+    /// <see cref="InvalidOperationException"/> when the organization still
+    /// holds cases and therefore has to be deactivated instead.
+    /// </returns>
+    Task<bool> DeleteAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken);
 }

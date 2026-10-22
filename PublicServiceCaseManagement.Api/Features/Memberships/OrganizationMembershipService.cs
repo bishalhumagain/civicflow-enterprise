@@ -1,12 +1,16 @@
 
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
 public sealed class OrganizationMembershipService(
-    CivicFlowDbContext dbContext) : IOrganizationMembershipService
+    CivicFlowDbContext dbContext,
+    IAuditLogger auditLogger) : IOrganizationMembershipService
 {
 
     public async Task<OrganizationMembership> CreateAsync(
@@ -66,6 +70,18 @@ public sealed class OrganizationMembershipService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Membership,
+                Action = AuditActions.MembershipCreated,
+                OrganizationId = organizationId,
+                EntityType = "OrganizationMembership",
+                EntityId = membership.Id.ToString(),
+                Details = $"userId={userId} role={membership.Role}"
+            },
+            cancellationToken);
+
         return membership;
     }
 
@@ -124,9 +140,25 @@ public sealed class OrganizationMembershipService(
             return null;
         }
 
+        var previousRole = membership.Role;
+
         membership.ChangeRole(role, DateTimeOffset.UtcNow);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Membership,
+                Action = AuditActions.MembershipRoleChanged,
+                OrganizationId = organizationId,
+                EntityType = "OrganizationMembership",
+                EntityId = membership.Id.ToString(),
+                Details =
+                    $"userId={membership.UserId} " +
+                    $"role {previousRole} -> {membership.Role}"
+            },
+            cancellationToken);
 
         return membership;
     }
@@ -161,6 +193,20 @@ public sealed class OrganizationMembershipService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Membership,
+                Action = isActive
+                    ? AuditActions.MembershipActivated
+                    : AuditActions.MembershipDeactivated,
+                OrganizationId = organizationId,
+                EntityType = "OrganizationMembership",
+                EntityId = membership.Id.ToString(),
+                Details = $"userId={membership.UserId} role={membership.Role}"
+            },
+            cancellationToken);
 
         return membership;
     }

@@ -1,4 +1,3 @@
-
 namespace PublicServiceCaseManagement.Api.Domain.Staff;
 
 public sealed class StaffMember
@@ -11,12 +10,14 @@ public sealed class StaffMember
         Guid organizationId,
         string fullName,
         string email,
+        string? phoneNumber,
         DateTimeOffset now)
     {
         Id = Guid.NewGuid();
         OrganizationId = organizationId;
         FullName = fullName;
         Email = email;
+        PhoneNumber = phoneNumber;
         IsActive = true;
         CreatedAt = now;
         UpdatedAt = now;
@@ -30,6 +31,12 @@ public sealed class StaffMember
 
     public string Email { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// The contact phone number collected when the staff member was
+    /// onboarded. It is optional.
+    /// </summary>
+    public string? PhoneNumber { get; private set; }
+
     public bool IsActive { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -40,6 +47,7 @@ public sealed class StaffMember
         Guid organizationId,
         string fullName,
         string email,
+        string? phoneNumber,
         DateTimeOffset now)
     {
         if (organizationId == Guid.Empty)
@@ -74,7 +82,14 @@ public sealed class StaffMember
             organizationId,
             fullName.Trim(),
             email.Trim(),
+            PhoneNumbers.Normalize(phoneNumber),
             now);
+    }
+
+    public void UpdatePhoneNumber(string? phoneNumber, DateTimeOffset now)
+    {
+        PhoneNumber = PhoneNumbers.Normalize(phoneNumber);
+        UpdatedAt = now;
     }
 
     public void Deactivate(DateTimeOffset now)

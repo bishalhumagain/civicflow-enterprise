@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
+using PublicServiceCaseManagement.Tests.Infrastructure;
 
 namespace PublicServiceCaseManagement.Tests.Features.Organizations;
 
@@ -18,7 +19,7 @@ public sealed class OrganizationServiceTests
 
         var context = new CivicFlowDbContext(options);
 
-        return (context, new OrganizationService(context));
+        return (context, new OrganizationService(context, new RecordingAuditLogger()));
     }
 
     [Fact]

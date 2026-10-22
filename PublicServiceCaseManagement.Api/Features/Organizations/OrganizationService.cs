@@ -1,12 +1,15 @@
-
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 
 public sealed class OrganizationService(
-    CivicFlowDbContext dbContext) : IOrganizationService
+    CivicFlowDbContext dbContext,
+    IAuditLogger auditLogger) : IOrganizationService
 {
     public async Task<Organization> CreateAsync(
         string name,
@@ -33,6 +36,18 @@ public sealed class OrganizationService(
 
         dbContext.Organizations.Add(organization);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Organization,
+                Action = AuditActions.OrganizationCreated,
+                OrganizationId = organization.Id,
+                EntityType = "Organization",
+                EntityId = organization.Id.ToString(),
+                Details = $"{organization.Name} ({organization.Code})"
+            },
+            cancellationToken);
 
         return organization;
     }
@@ -86,12 +101,28 @@ public sealed class OrganizationService(
                 "An organization with this code already exists.");
         }
 
+        var previousName = organization.Name;
+
         organization.UpdateDetails(
             name,
             normalizedCode,
             DateTimeOffset.UtcNow);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Organization,
+                Action = AuditActions.OrganizationUpdated,
+                OrganizationId = organization.Id,
+                EntityType = "Organization",
+                EntityId = organization.Id.ToString(),
+                Details =
+                    $"{previousName} -> {organization.Name} " +
+                    $"({organization.Code})"
+            },
+            cancellationToken);
 
         return organization;
     }
@@ -118,7 +149,90 @@ public sealed class OrganizationService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Organization,
+                Action = isActive
+                    ? AuditActions.OrganizationActivated
+                    : AuditActions.OrganizationDeactivated,
+                OrganizationId = organization.Id,
+                EntityType = "Organization",
+                EntityId = organization.Id.ToString(),
+                Details = organization.Name
+            },
+            cancellationToken);
+
         return organization;
+    }
+
+    public async Task<bool> DeleteAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var organization = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                item => item.Id == organizationId,
+                cancellationToken);
+
+        if (organization is null)
+            return false;
+
+        var caseCount = await dbContext.Cases
+            .CountAsync(
+                item => item.OrganizationId == organizationId,
+                cancellationToken);
+
+        if (caseCount > 0)
+        {
+            throw new InvalidOperationException(
+                $"The organization still holds {caseCount} " +
+                $"case{(caseCount == 1 ? string.Empty : "s")}. " +
+                "Deactivate the organization instead of deleting it.");
+        }
+
+        var name = organization.Name;
+        var code = organization.Code;
+
+        var invitations = await dbContext.AccountInvitations
+            .Where(invitation => invitation.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        dbContext.AccountInvitations.RemoveRange(invitations);
+
+        var memberships = await dbContext.OrganizationMemberships
+            .Where(membership => membership.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        dbContext.OrganizationMemberships.RemoveRange(memberships);
+
+        var staffMembers = await dbContext.StaffMembers
+            .Where(staff => staff.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        dbContext.StaffMembers.RemoveRange(staffMembers);
+
+        dbContext.Organizations.Remove(organization);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Organization,
+                Action = AuditActions.OrganizationDeleted,
+                OrganizationId = organizationId,
+                EntityType = "Organization",
+                EntityId = organizationId.ToString(),
+                Details =
+                    $"{name} ({code}) deleted with " +
+                    $"{memberships.Count} membership record(s), " +
+                    $"{staffMembers.Count} staff record(s), and " +
+                    $"{invitations.Count} invitation(s)."
+            },
+            cancellationToken);
+
+        return true;
     }
 
     private static string NormalizeCode(string code)

@@ -38,6 +38,7 @@ public sealed class StaffController(
                 organizationId.Value,
                 request.FullName,
                 request.Email,
+                request.PhoneNumber,
                 cancellationToken);
 
             return Created(
@@ -47,6 +48,7 @@ public sealed class StaffController(
                     staffMember.Id,
                     staffMember.FullName,
                     staffMember.Email,
+                    staffMember.PhoneNumber,
                     staffMember.IsActive,
                     staffMember.CreatedAt,
                     staffMember.UpdatedAt
@@ -86,6 +88,7 @@ public sealed class StaffController(
             staff.Id,
             staff.FullName,
             staff.Email,
+            staff.PhoneNumber,
             staff.IsActive,
             staff.CreatedAt,
             staff.UpdatedAt
@@ -103,6 +106,51 @@ public sealed class StaffController(
         Guid id,
         CancellationToken cancellationToken) =>
         SetActiveStatus(id, true, cancellationToken);
+
+    [HttpPatch("{id:guid}/phone")]
+    public async Task<IActionResult> UpdatePhone(
+        Guid id,
+        [FromBody] UpdateStaffPhoneRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsOrganizationAdminAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        try
+        {
+            var staffMember = await staffService.UpdatePhoneNumberAsync(
+                organizationId.Value,
+                id,
+                request.PhoneNumber,
+                cancellationToken);
+
+            if (staffMember is null)
+                return NotFound();
+
+            return Ok(new
+            {
+                staffMember.Id,
+                staffMember.FullName,
+                staffMember.Email,
+                staffMember.PhoneNumber,
+                staffMember.IsActive,
+                staffMember.UpdatedAt
+            });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
 
     private async Task<IActionResult> SetActiveStatus(
         Guid id,
@@ -135,6 +183,7 @@ public sealed class StaffController(
             staffMember.Id,
             staffMember.FullName,
             staffMember.Email,
+            staffMember.PhoneNumber,
             staffMember.IsActive,
             staffMember.CreatedAt,
             staffMember.UpdatedAt

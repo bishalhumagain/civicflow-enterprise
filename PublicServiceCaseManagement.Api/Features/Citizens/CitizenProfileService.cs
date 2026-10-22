@@ -3,7 +3,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
@@ -12,11 +15,16 @@ public sealed class CitizenProfileService : ICitizenProfileService
 {
     private readonly CivicFlowDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
+    private readonly IAuditLogger _auditLogger;
 
-    public CitizenProfileService(CivicFlowDbContext dbContext, TimeProvider timeProvider)
+    public CitizenProfileService(
+        CivicFlowDbContext dbContext,
+        TimeProvider timeProvider,
+        IAuditLogger auditLogger)
     {
         _dbContext = dbContext;
         _timeProvider = timeProvider;
+        _auditLogger = auditLogger;
     }
 
     public async Task<CitizenProfileResponse> CreateAsync(Guid applicationUserId, CreateCitizenProfileRequest request, CancellationToken cancellationToken)
@@ -64,6 +72,18 @@ public sealed class CitizenProfileService : ICitizenProfileService
         _dbContext.CitizenProfiles.Add(profile);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await _auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = AuditActions.AccountProfileUpdated,
+                ActorUserId = applicationUserId,
+                EntityType = "CitizenProfile",
+                EntityId = profile.Id.ToString(),
+                Details = "Citizen profile created."
+            },
+            cancellationToken);
+
         return Map(profile);
     }
 
@@ -109,6 +129,19 @@ public sealed class CitizenProfileService : ICitizenProfileService
             now);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = AuditActions.AccountProfileUpdated,
+                ActorUserId = applicationUserId,
+                EntityType = "CitizenProfile",
+                EntityId = profile.Id.ToString(),
+                Details = "Citizen profile updated."
+            },
+            cancellationToken);
+
         return Map(profile);
     }
 

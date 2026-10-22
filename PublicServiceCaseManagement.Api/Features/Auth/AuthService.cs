@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
@@ -88,10 +89,11 @@ public sealed class AuthService(
         dbContext.CitizenProfiles.Add(profileRecord);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             user.Email ?? email,
             user.Id,
-            "registered");
+            AuditActions.AccountRegistered,
+            cancellationToken: cancellationToken);
 
         await SendVerificationEmailAsync(user, linkBuilder);
 
@@ -111,7 +113,10 @@ public sealed class AuthService(
         {
             // Fail as if the password were wrong to avoid account
             // enumeration, while never leaking the deactivation state.
-            auditLogger.AuthenticationFailed(email, "invalid_or_inactive");
+            await auditLogger.AuthenticationFailedAsync(
+                email,
+                "invalid_or_inactive",
+                cancellationToken: cancellationToken);
             return InvalidCredentials();
         }
 
@@ -132,24 +137,29 @@ public sealed class AuthService(
                 // leave a usable session behind.
                 await signInManager.SignOutAsync();
 
-                auditLogger.AuthenticationFailed(
+                await auditLogger.AuthenticationFailedAsync(
                     email,
-                    $"wrong_portal:{portal.ToString().ToLowerInvariant()}");
+                    $"wrong_portal:{portal.ToString().ToLowerInvariant()}",
+                    cancellationToken: cancellationToken);
 
                 return WrongPortal(portal, roles);
             }
 
-            auditLogger.AuthenticationSucceeded(
+            await auditLogger.AuthenticationSucceededAsync(
                 email,
                 user.Id,
-                "password");
+                "password",
+                cancellationToken: cancellationToken);
 
             return LoginOutcome.Success(roles);
         }
 
         if (result.IsLockedOut)
         {
-            auditLogger.AuthenticationFailed(email, "locked_out");
+            await auditLogger.AuthenticationFailedAsync(
+                email,
+                "locked_out",
+                cancellationToken: cancellationToken);
 
             return LoginOutcome.Failed(
                 LoginFailureReason.LockedOut,
@@ -159,7 +169,10 @@ public sealed class AuthService(
 
         if (result.IsNotAllowed)
         {
-            auditLogger.AuthenticationFailed(email, "not_allowed");
+            await auditLogger.AuthenticationFailedAsync(
+                email,
+                "not_allowed",
+                cancellationToken: cancellationToken);
 
             return LoginOutcome.Failed(
                 LoginFailureReason.EmailNotConfirmed,
@@ -168,7 +181,10 @@ public sealed class AuthService(
                 "Confirm your email address first.");
         }
 
-        auditLogger.AuthenticationFailed(email, "invalid_credentials");
+        await auditLogger.AuthenticationFailedAsync(
+            email,
+            "invalid_credentials",
+            cancellationToken: cancellationToken);
 
         return InvalidCredentials();
     }
@@ -359,10 +375,11 @@ public sealed class AuthService(
         // Invalidate any existing sessions after a credential change.
         await userManager.UpdateSecurityStampAsync(user);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             email,
             user.Id,
-            "password_reset");
+            AuditActions.AccountPasswordReset,
+            cancellationToken: cancellationToken);
 
         return new AuthOperationResult(true, "The password has been reset.");
     }
@@ -391,10 +408,11 @@ public sealed class AuthService(
 
         await userManager.UpdateSecurityStampAsync(user);
 
-        auditLogger.AccountLifecycle(
+        await auditLogger.AccountLifecycleAsync(
             user.Email ?? string.Empty,
             user.Id,
-            "password_changed");
+            AuditActions.AccountPasswordChanged,
+            cancellationToken: cancellationToken);
 
         return new AuthOperationResult(true, "The password has been changed.");
     }

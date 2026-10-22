@@ -13,7 +13,8 @@ namespace PublicServiceCaseManagement.Api.Features.Organizations;
 public sealed class OrganizationsController(
     IOrganizationService organizationService,
     IBusinessEndpointAccess businessEndpointAccess,
-    ICurrentOrganizationContext organizationContext) : ControllerBase
+    ICurrentOrganizationContext organizationContext,
+    IOrganizationTransactionContext organizationTransactionContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<OrganizationResponse>> Create(
@@ -130,6 +131,38 @@ public sealed class OrganizationsController(
         Guid id,
         CancellationToken cancellationToken) =>
         SetActiveStatus(id, true, cancellationToken);
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        // The staff records of an organization are tenant isolated at the
+        // database level, so the deletion has to run inside that
+        // organization context.
+        await organizationTransactionContext.BeginAsync(
+            id,
+            cancellationToken);
+
+        try
+        {
+            var deleted = await organizationService.DeleteAsync(
+                id,
+                cancellationToken);
+
+            return deleted ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { error = exception.Message });
+        }
+    }
 
     private async Task<ActionResult<OrganizationResponse>> SetActiveStatus(
         Guid id,

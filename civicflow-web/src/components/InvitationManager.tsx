@@ -24,22 +24,34 @@ export function InvitationManager({
   invitations: AccountInvitation[]
   loading: boolean
   disabled?: boolean
-  onInvite: (fullName: string, email: string, role: string) => Promise<boolean>
+  onInvite: (
+    fullName: string,
+    email: string,
+    phoneNumber: string,
+    role: string,
+  ) => Promise<boolean>
   onResend: (invitationId: string) => Promise<void>
   onRevoke: (invitationId: string) => Promise<void>
 }) {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
   const [role, setRole] = useState('CaseWorker')
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const invited = await onInvite(fullName.trim(), email.trim(), role)
+    const invited = await onInvite(
+      fullName.trim(),
+      email.trim(),
+      phoneNumber.trim(),
+      role,
+    )
 
     if (invited) {
       setFullName('')
       setEmail('')
+      setPhoneNumber('')
       setRole('CaseWorker')
     }
   }
@@ -62,6 +74,14 @@ export function InvitationManager({
           placeholder="Email address"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+        />
+        <input
+          aria-label="Phone number"
+          type="tel"
+          maxLength={30}
+          placeholder="Phone number (optional)"
+          value={phoneNumber}
+          onChange={(event) => setPhoneNumber(event.target.value)}
         />
         <select
           aria-label="Role"
@@ -104,6 +124,9 @@ export function InvitationManager({
                     {invitation.role} · expires{' '}
                     {new Date(invitation.expiresAt).toLocaleString()}
                   </small>
+                  {invitation.phoneNumber && (
+                    <small className="muted">{invitation.phoneNumber}</small>
+                  )}
                 </div>
                 <span>{invitationStatus(invitation)}</span>
                 <div style={{ display: 'flex', gap: 8 }}>
