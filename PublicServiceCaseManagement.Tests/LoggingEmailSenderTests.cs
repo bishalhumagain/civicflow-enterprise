@@ -6,27 +6,23 @@ namespace PublicServiceCaseManagement.Tests;
 public sealed class LoggingEmailSenderTests
 {
     [Fact]
-    public async Task SendAsync_DoesNotLogMessageContentAndFailsExplicitly()
+    public async Task SendAsync_LogsOneTimeActionLinkForDevelopment()
     {
-        const string actionToken = "sensitive-action-token";
+        const string actionLink = "https://localhost/verify?token=development-only-token";
         var logger = new RecordingLogger<LoggingEmailSender>();
         var sender = new LoggingEmailSender(logger);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync(
+        await sender.SendAsync(
             "citizen@example.com",
             "Confirm your email address",
-            $"https://localhost/verify?token={actionToken}"));
+            actionLink);
 
         var entry = Assert.Single(logger.Entries);
 
-        Assert.Equal(
-            "Email delivery is not configured for this environment.",
-            exception.Message);
         Assert.Equal(LogLevel.Warning, entry.Level);
-        Assert.DoesNotContain("citizen@example.com", entry.Message);
-        Assert.DoesNotContain("Confirm your email address", entry.Message);
-        Assert.DoesNotContain(actionToken, entry.Message);
-        Assert.Contains("no message was sent", entry.Message);
+        Assert.Contains("DEVELOPMENT ONLY", entry.Message);
+        Assert.Contains("citizen@example.com", entry.Message);
+        Assert.Contains(actionLink, entry.Message);
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

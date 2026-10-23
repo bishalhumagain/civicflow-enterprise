@@ -124,6 +124,39 @@ public sealed class AuthApiIntegrationTests
     }
 
     [Fact]
+    public async Task ResendVerification_ResendsLinkForUnconfirmedAccount()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = $"resend-{Guid.NewGuid():N}@example.com";
+
+        await RegisterAsync(client, email);
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.Forbidden, loginResponse.StatusCode);
+
+        var resendResponse = await client.PostAsJsonAsync(
+            "/api/auth/resend-verification",
+            new { email });
+
+        Assert.Equal(HttpStatusCode.OK, resendResponse.StatusCode);
+
+        var message = factory.EmailSender.LastFor(email);
+        Assert.NotNull(message);
+        Assert.Contains("Verify your CivicFlow email", message.Subject);
+        Assert.False(string.IsNullOrWhiteSpace(
+            factory.EmailSender.ExtractToken(message.Body, "token")));
+    }
+
+    [Fact]
     public async Task Register_VerifyEmail_ThenLogin_Succeeds()
     {
         await using var factory = new CivicFlowApiFactory

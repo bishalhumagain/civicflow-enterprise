@@ -36,7 +36,7 @@ This manual describes how to use the currently implemented features of CivicFlow
 | **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, optional staff/invitation phone numbers, persisted in-app notifications, and a PostgreSQL-backed email job queue |
 | **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload; citizen case tracking is not yet available |
 | **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
-| **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require a configured SMTP sender |
+| **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require SMTP outside Development |
 
 ### Supported Environment
 
@@ -109,7 +109,7 @@ Invitations expire (72 hours by default) and stop working after the first succes
 
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
-3. Confirm your email using the verification link, then sign in
+3. Confirm your email using the verification link, then sign in. If sign-in says your email is unconfirmed, choose **Resend the verification email**; in Development the link appears in the API console, otherwise it is emailed.
 4. After signing in, you land on your **citizen dashboard**, which shows your account status and the actions available to you
 5. Open **My profile** to create or update your profile
 6. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
@@ -510,7 +510,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - Watch for toast notifications — they provide real-time feedback
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
-- Verification, password-reset, and invitation links are never written to application logs; configure SMTP delivery as described in the [README](../README.md)
+- In Development, verification, password-reset, and invitation links are printed to the API console because email is not delivered. They contain sensitive, one-time tokens: use only in a private local run and never share or retain the logs. Outside Development, configure SMTP delivery as described in the [README](../README.md).
 - A personal access token is displayed only once, at creation; if you lose it, revoke it and create a new one
 
 ---
@@ -546,7 +546,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 
 | Area | Limitation |
 |---|---|
-| **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development does not deliver, log, or pretend to send action emails |
+| **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development does not deliver email; it prints sensitive, one-time links to the API console automatically. Use only in a private local run and never share or retain the logs. |
 | **Notifications** | Notification count is polled once per minute; push/WebSocket delivery and SMS are not implemented. Invitation lifecycle events use the existing invitation email flow, not the job queue. |
 | **Citizen portal scope** | Citizens may submit cases to active organizations and attach an optional arbitrary file up to 10 MB; citizen case tracking is not available yet |
 | **Environment dependent** | Many features require proper backend/frontend configuration |

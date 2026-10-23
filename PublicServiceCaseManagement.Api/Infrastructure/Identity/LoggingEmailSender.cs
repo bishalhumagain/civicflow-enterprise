@@ -1,8 +1,8 @@
 namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 /// <summary>
-/// Development placeholder that explicitly fails instead of logging or
-/// pretending to deliver a message containing a one-time action link.
+/// Development placeholder that writes one-time links to the local log
+/// instead of delivering email.
 /// </summary>
 public sealed class LoggingEmailSender(
     ILogger<LoggingEmailSender> logger) : IEmailSender
@@ -14,10 +14,12 @@ public sealed class LoggingEmailSender(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
         logger.LogWarning(
-            "Email delivery is not configured in Development; no message was sent.");
-        return Task.FromException(
-            new InvalidOperationException(
-                "Email delivery is not configured for this environment."));
+            "DEVELOPMENT ONLY: one-time email action link for {Email}. Do not share or retain this log.{NewLine}{Body}",
+            toEmail,
+            Environment.NewLine,
+            body);
+        return Task.CompletedTask;
     }
 }

@@ -427,7 +427,7 @@ Only the `superadmin` role can access `GET /api/platform/jobs` and `GET /api/pla
 | `Smtp__Username`, `Smtp__Password` | Empty | Optional paired SMTP credentials; configure via a secret manager or user-secrets, never source control. |
 | `Smtp__FromName` | `CivicFlow` | Optional display name. |
 
-Apply the new migration before starting a worker-enabled deployment (`dotnet ef database update --project PublicServiceCaseManagement.Api --startup-project PublicServiceCaseManagement.Api`). Development intentionally does not deliver email; use a TLS-enabled SMTP relay outside Development. The worker is database-backed and requires PostgreSQL/Npgsql; it intentionally does not consume jobs when tests use EF InMemory.
+Apply the new migration before starting a worker-enabled deployment (`dotnet ef database update --project PublicServiceCaseManagement.Api --startup-project PublicServiceCaseManagement.Api`). Development does not deliver email: verification, password-reset, and invitation links are written to the API console automatically. These links contain sensitive, short-lived tokens; use this only in a private local Development run and never retain or share the logs. To deliver email, use a TLS-enabled SMTP relay outside Development. The worker is database-backed and requires PostgreSQL/Npgsql; it intentionally does not consume jobs when tests use EF InMemory.
 
 ## API Reference
 
@@ -674,13 +674,13 @@ Public registration only creates citizen accounts. To get a staff/organization l
    Headers: X-Organization-Id: {orgId}
    Body: { "fullName": "John Doe", "email": "john@example.com", "role": "CaseWorker" }
    ```
-   - Email links are never written to application logs. Configure a delivery provider as described below; the Development placeholder fails explicitly if email delivery is attempted.
+   - In Development, one-time links are printed to the API console because email is not delivered. Treat the output as a credential and do not share or retain it.
 
 4. **Accept invitation**: Open the `/setup-password?token=...` link, choose a password, then sign in at `/admin`. The workspace resolves the active organization membership from the signed-in account; no organization ID is hardcoded.
 
 ### Email Delivery
 
-Verification, password-reset, and invitation messages are sent through `IEmailSender`. Development uses a non-delivery placeholder that logs only a generic warning and fails explicitly; it never logs recipients, subjects, message bodies, or one-time tokens. To exercise email delivery, run outside Development with TLS-enabled SMTP. Set `Smtp__Host`, `Smtp__Port`, `Smtp__FromAddress`, and `Smtp__UseSsl=true`; optionally set both `Smtp__Username` and `Smtp__Password`. Startup fails outside Development if the SMTP settings are missing or invalid. Keep credentials in a secret manager, user-secrets, or environment variables.
+Verification, password-reset, and invitation messages are sent through `IEmailSender`. The Development sender does not deliver email; it writes the complete one-time action link to the API console automatically. Run the API in Development (the default for local runs) and check its console after registration, resend verification, password reset, or invitation actions. These links contain sensitive tokens, so use only a private local run and never retain or share the logs. To deliver email, run outside Development with TLS-enabled SMTP. Set `Smtp__Host`, `Smtp__Port`, `Smtp__FromAddress`, and `Smtp__UseSsl=true`; optionally set both `Smtp__Username` and `Smtp__Password`. Startup fails outside Development if the SMTP settings are missing or invalid. Keep credentials in a secret manager, user-secrets, or environment variables.
 
 ---
 
@@ -745,7 +745,7 @@ The `compose.yaml` file provides PostgreSQL 17 with:
 ### Production Considerations
 
 - **HTTPS required** for `__Host-` cookie prefix and `SecurePolicy.Always`
-- **SMTP provider** — TLS-enabled SMTP is required outside Development; no action link or email body is written to logs
+- **SMTP provider** — TLS-enabled SMTP is required outside Development; local Development writes one-time links to the API console instead of delivering them
 - **Object storage** — replace `LocalFileStorage` with production-grade storage + malware scanning
 - **Secret management** — use environment variables, user-secrets, or a secret manager (never commit secrets)
 - **Database** — use separate `civicflow_migrator` for migrations, `civicflow_runtime` for the running API
@@ -777,11 +777,11 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 | Problem | Likely cause | Fix |
 |---|---|---|
-| **Sign-in fails** | Email not confirmed or DB unreachable | Check SMTP delivery/configuration (confirmation links are never written to application logs); verify PostgreSQL is running |
+| **Sign-in fails** | Email not confirmed or DB unreachable | After an unconfirmed-email message, choose **Resend the verification email** on the sign-in page. In Development, check the API console for the link; outside Development, check SMTP delivery/configuration. Verify PostgreSQL is running |
 | **"This account is not a citizen/organization account"** | Signed in through wrong portal | Citizens use `/citizen/login`, staff use `/admin`, superadmins use `/super-platform-admin` |
 | **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
 | **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |
-| **Invitation email not received** | SMTP is not configured or delivery failed | Configure/check the SMTP host, TLS, sender address, and provider credentials; tokens are never logged |
+| **Invitation email not received** | SMTP is not configured or delivery failed | In Development, check the API console; outside Development, configure/check the SMTP host, TLS, sender address, and provider credentials |
 | **404 from frontend** | `VITE_API_BASE_URL` missing or wrong | Set to API base URL (e.g., `http://localhost:5000`), restart Vite dev server |
 | **401/403 in workspace** | Session cookie missing/expired (401) or insufficient role (403) | Sign in again; check organization membership/role |
 | **CSRF 400 on save** | Anti-forgery token missing/expired | Refresh the page and retry; frontend fetches token from `GET /api/auth/csrf` |
@@ -825,7 +825,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Local file storage only (no object storage, malware scanning, or retention policy)
 - Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
 - Live PostgreSQL checks are manual probes, not CI integration tests
-- Development intentionally does not deliver email; use a TLS-enabled SMTP relay outside Development, and never expect action links in application logs
+- Development does not deliver email. It writes one-time links (including sensitive tokens) to the API console automatically; use this only in a private Development environment. Use TLS-enabled SMTP for delivery outside Development.
 - Citizen case intake supports active-organization selection and optional arbitrary-file attachments; citizen case tracking is not yet available
 
 ### Not Started
