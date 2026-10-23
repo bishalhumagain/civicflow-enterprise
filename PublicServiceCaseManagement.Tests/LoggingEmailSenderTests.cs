@@ -1,33 +1,32 @@
 using Microsoft.Extensions.Logging;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
-using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
 
-/// <summary>
-/// The development email sender writes the message body — which carries the
-/// one-time email-confirmation and password-reset links — to the log. The
-/// body must be logged at Information level so the links are visible with
-/// the default log configuration.
-/// </summary>
 public sealed class LoggingEmailSenderTests
 {
     [Fact]
-    public async Task SendAsync_LogsBodyAtInformationLevel()
+    public async Task SendAsync_DoesNotLogMessageContentAndFailsExplicitly()
     {
+        const string actionToken = "sensitive-action-token";
         var logger = new RecordingLogger<LoggingEmailSender>();
         var sender = new LoggingEmailSender(logger);
 
-        await sender.SendAsync(
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync(
             "citizen@example.com",
             "Confirm your email address",
-            "https://localhost:5173/citizen/verify-email?email=citizen%40example.com&token=abc123");
+            $"https://localhost/verify?token={actionToken}"));
 
         var entry = Assert.Single(logger.Entries);
 
-        Assert.Equal(LogLevel.Information, entry.Level);
-        Assert.Contains("citizen@example.com", entry.Message);
-        Assert.Contains("abc123", entry.Message);
+        Assert.Equal(
+            "Email delivery is not configured for this environment.",
+            exception.Message);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.DoesNotContain("citizen@example.com", entry.Message);
+        Assert.DoesNotContain("Confirm your email address", entry.Message);
+        Assert.DoesNotContain(actionToken, entry.Message);
+        Assert.Contains("no message was sent", entry.Message);
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

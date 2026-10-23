@@ -1,9 +1,8 @@
 namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 /// <summary>
-/// Development placeholder email sender that writes messages to the log
-/// instead of delivering them. It never includes secrets in logs beyond
-/// the message body, which in development contains one-time action links.
+/// Development placeholder that explicitly fails instead of logging or
+/// pretending to deliver a message containing a one-time action link.
 /// </summary>
 public sealed class LoggingEmailSender(
     ILogger<LoggingEmailSender> logger) : IEmailSender
@@ -14,16 +13,11 @@ public sealed class LoggingEmailSender(
         string body,
         CancellationToken cancellationToken = default)
     {
-        // The message body contains one-time action links (email confirmation,
-        // password reset). Logging it at Information makes the flow usable in
-        // development without an SMTP server; production deployments replace
-        // this sender with a real delivery implementation.
-        logger.LogInformation(
-            "Email queued for {Recipient} with subject '{Subject}'. Body: {Body}",
-            toEmail,
-            subject,
-            body);
-
-        return Task.CompletedTask;
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogWarning(
+            "Email delivery is not configured in Development; no message was sent.");
+        return Task.FromException(
+            new InvalidOperationException(
+                "Email delivery is not configured for this environment."));
     }
 }

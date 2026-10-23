@@ -2,8 +2,8 @@ namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 /// <summary>
 /// Abstraction for sending account lifecycle emails (verification,
-/// password reset). The default implementation logs the message so the
-/// flow is fully functional in development without an SMTP dependency.
+/// password reset, and invitations). Development explicitly rejects delivery;
+/// other environments use the configured TLS-protected SMTP transport.
 /// </summary>
 public interface IEmailSender
 {

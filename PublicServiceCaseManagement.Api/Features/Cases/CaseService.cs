@@ -154,6 +154,9 @@ public sealed class CaseService(
         CancellationToken cancellationToken,
         Guid? assignedToStaffMemberId = null)
     {
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         var query = dbContext.Cases
             .AsNoTracking()
             .Where(c => c.OrganizationId == organizationId &&
@@ -323,6 +326,7 @@ public sealed class CaseService(
             .ThenBy(history => history.Id)
             .ToListAsync(cancellationToken);
     }
+
     public async Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
         Guid caseId,
         Guid organizationId,
@@ -344,6 +348,5 @@ public sealed class CaseService(
             .OrderBy(h => h.AssignedAt)
             .ThenBy(h => h.Id)
             .ToListAsync(cancellationToken);
-
     }
 }

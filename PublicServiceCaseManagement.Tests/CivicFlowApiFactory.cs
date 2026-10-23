@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -106,6 +105,16 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             "Security:RequireAntiforgery",
             requireAntiforgery ? "true" : "false");
+        if (!string.Equals(
+                environmentName,
+                "Development",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            builder.UseSetting("Smtp:Host", "smtp.test.invalid");
+            builder.UseSetting("Smtp:Port", "587");
+            builder.UseSetting("Smtp:FromAddress", "no-reply@example.test");
+            builder.UseSetting("Smtp:UseSsl", "true");
+        }
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -120,6 +129,17 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 ["FileStorage:RootPath"] =
                     Path.Combine(Path.GetTempPath(), databaseName)
             };
+
+            if (!string.Equals(
+                    environmentName,
+                    "Development",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                values["Smtp:Host"] = "smtp.test.invalid";
+                values["Smtp:Port"] = "587";
+                values["Smtp:FromAddress"] = "no-reply@example.test";
+                values["Smtp:UseSsl"] = "true";
+            }
 
             foreach (var setting in settings)
             {
@@ -141,14 +161,13 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                         TestAuthenticationHandler.SchemeName,
                         _ => { });
 
-                services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(
-                    options =>
-                    {
-                        options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
-                        options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
-                        options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
-                        options.DefaultScheme = TestAuthenticationHandler.SchemeName;
-                    });
+                services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultScheme = TestAuthenticationHandler.SchemeName;
+                });
             }
 
             services.RemoveAll<IDbContextOptionsConfiguration<CivicFlowDbContext>>();
@@ -159,7 +178,6 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(databaseName)
                     .ConfigureWarnings(warnings =>
                         warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
-
         });
     }
 
@@ -278,9 +296,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var now = DateTimeOffset.UtcNow;
 
         var user = await dbContext.ApplicationUsers
-            .SingleOrDefaultAsync(
-                candidate =>
-                    candidate.Id == TestAuthenticationHandler.DefaultUserId);
+            .SingleOrDefaultAsync(candidate =>
+                candidate.Id == TestAuthenticationHandler.DefaultUserId);
 
         if (user is null)
         {
@@ -332,9 +349,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var now = DateTimeOffset.UtcNow;
 
         var user = await dbContext.ApplicationUsers
-            .SingleOrDefaultAsync(
-                candidate =>
-                    candidate.Id == TestAuthenticationHandler.DefaultUserId);
+            .SingleOrDefaultAsync(candidate =>
+                candidate.Id == TestAuthenticationHandler.DefaultUserId);
 
         if (user is null)
         {
@@ -359,9 +375,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
 
-        var user = await dbContext.ApplicationUsers.SingleAsync(
-            candidate =>
-                candidate.Id == TestAuthenticationHandler.DefaultUserId);
+        var user = await dbContext.ApplicationUsers.SingleAsync(candidate =>
+            candidate.Id == TestAuthenticationHandler.DefaultUserId);
 
         var now = DateTimeOffset.UtcNow;
 

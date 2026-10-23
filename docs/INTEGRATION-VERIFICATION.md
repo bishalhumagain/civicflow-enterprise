@@ -235,7 +235,7 @@ dotnet test PublicServiceCaseManagement.sln \
 
 The Compose fixture initializes separate `civicflow_migrator` and `civicflow_runtime` PostgreSQL roles. Configure the API connection with the runtime role and use the migration role only for `dotnet ef database update`.
 
-Email verification and password-reset messages are produced by `IEmailSender`. The default `LoggingEmailSender` writes them to the application log at `Information` level (including the link), which is sufficient for local verification without an SMTP server; replace it with a real implementation for production.
+Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. The Development placeholder logs only that delivery is unavailable and throws; it never logs recipients, subjects, bodies, or action tokens.
 
 > Do not run the migration command against a persistent or production database. Do not put database passwords, email credentials, or any tokens in the repository, test output, or documentation.
 

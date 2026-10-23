@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
@@ -21,18 +22,13 @@ public sealed class StaffPhoneTests
     }
 
     [Fact]
-    public async Task CreateAsync_StoresThePhoneNumber()
+    public async Task StaffMemberCreate_StoresThePhoneNumber()
     {
         await using var dbContext = CreateDbContext();
 
-        var service = new StaffService(dbContext, new RecordingAuditLogger());
-
-        var staffMember = await service.CreateAsync(
-            OrganizationId,
-            "Test Officer",
-            $"officer-{Guid.NewGuid():N}@example.com",
-            "+977-9800000000",
-            CancellationToken.None);
+        var staffMember = await AddStaffMemberAsync(
+            dbContext,
+            "+977-9800000000");
 
         Assert.Equal("+977-9800000000", staffMember.PhoneNumber);
 
@@ -42,35 +38,24 @@ public sealed class StaffPhoneTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithoutAPhoneNumber_StoresNoPhoneNumber()
+    public async Task StaffMemberCreate_WithoutAPhoneNumber_StoresNoPhoneNumber()
     {
         await using var dbContext = CreateDbContext();
 
-        var service = new StaffService(dbContext, new RecordingAuditLogger());
-
-        var staffMember = await service.CreateAsync(
-            OrganizationId,
-            "Test Officer",
-            $"officer-{Guid.NewGuid():N}@example.com",
-            null,
-            CancellationToken.None);
+        var staffMember = await AddStaffMemberAsync(dbContext, null);
 
         Assert.Null(staffMember.PhoneNumber);
     }
 
     [Fact]
-    public async Task CreateAsync_WithAnInvalidPhoneNumber_Throws()
+    public void StaffMemberCreate_WithAnInvalidPhoneNumber_Throws()
     {
-        await using var dbContext = CreateDbContext();
-
-        var service = new StaffService(dbContext, new RecordingAuditLogger());
-
-        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(
+        Assert.Throws<ArgumentException>(() => StaffMember.Create(
             OrganizationId,
             "Test Officer",
             $"officer-{Guid.NewGuid():N}@example.com",
             "not-a-number",
-            CancellationToken.None));
+            DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -80,12 +65,9 @@ public sealed class StaffPhoneTests
 
         var service = new StaffService(dbContext, new RecordingAuditLogger());
 
-        var staffMember = await service.CreateAsync(
-            OrganizationId,
-            "Test Officer",
-            $"officer-{Guid.NewGuid():N}@example.com",
-            "+977-9800000000",
-            CancellationToken.None);
+        var staffMember = await AddStaffMemberAsync(
+            dbContext,
+            "+977-9800000000");
 
         var updated = await service.UpdatePhoneNumberAsync(
             OrganizationId,
@@ -104,12 +86,9 @@ public sealed class StaffPhoneTests
 
         var service = new StaffService(dbContext, new RecordingAuditLogger());
 
-        var staffMember = await service.CreateAsync(
-            OrganizationId,
-            "Test Officer",
-            $"officer-{Guid.NewGuid():N}@example.com",
-            "+977-9800000000",
-            CancellationToken.None);
+        var staffMember = await AddStaffMemberAsync(
+            dbContext,
+            "+977-9800000000");
 
         var updated = await service.UpdatePhoneNumberAsync(
             OrganizationId,
@@ -128,12 +107,9 @@ public sealed class StaffPhoneTests
 
         var service = new StaffService(dbContext, new RecordingAuditLogger());
 
-        var staffMember = await service.CreateAsync(
-            OrganizationId,
-            "Test Officer",
-            $"officer-{Guid.NewGuid():N}@example.com",
-            "+977-9800000000",
-            CancellationToken.None);
+        var staffMember = await AddStaffMemberAsync(
+            dbContext,
+            "+977-9800000000");
 
         var updated = await service.UpdatePhoneNumberAsync(
             Guid.NewGuid(),
@@ -142,5 +118,22 @@ public sealed class StaffPhoneTests
             CancellationToken.None);
 
         Assert.Null(updated);
+    }
+
+    private static async Task<StaffMember> AddStaffMemberAsync(
+        CivicFlowDbContext dbContext,
+        string? phoneNumber)
+    {
+        var staffMember = StaffMember.Create(
+            OrganizationId,
+            "Test Officer",
+            $"officer-{Guid.NewGuid():N}@example.com",
+            phoneNumber,
+            DateTimeOffset.UtcNow);
+
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        return staffMember;
     }
 }

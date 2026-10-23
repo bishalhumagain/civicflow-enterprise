@@ -47,7 +47,7 @@ CivicFlow Enterprise is a public-service case management platform designed for g
 The platform is built around three core principles:
 - **Security by design** — No secrets in the browser, no temporary passwords, CSRF protection, rate limiting, audit everything.
 - **Organization scoping** — All case data is tenant-scoped with server-side enforcement and PostgreSQL row-level security.
-- **Role-based access** — Three roles (`citizen`, `staff`, `superadmin`) with strict portal separation and least-privilege authorization.
+- **Role-based access** — Three server-validated platform roles (`citizen`, `staff`, `superadmin`) with strict portal separation, plus organization-scoped `Viewer`, `CaseWorker`, and `OrganizationAdmin` memberships.
 
 ---
 
@@ -646,13 +646,13 @@ Public registration only creates citizen accounts. To get a staff/organization l
    Headers: X-Organization-Id: {orgId}
    Body: { "fullName": "John Doe", "email": "john@example.com", "role": "CaseWorker" }
    ```
-   - The invitation link appears in the API log (via `LoggingEmailSender` at `Information` level — search for `setup-password?token=`)
+   - Email links are never written to application logs. Configure a delivery provider as described below; the Development placeholder fails explicitly if email delivery is attempted.
 
 4. **Accept invitation**: Open the `/setup-password?token=...` link, choose a password, then sign in at `/admin`. The workspace resolves the active organization membership from the signed-in account; no organization ID is hardcoded.
 
 ### Email Delivery
 
-Verification and password-reset emails are sent via `IEmailSender`. The default `LoggingEmailSender` logs the message — including the verification/reset link — at `Information` level, so the link is visible in the API log during local development. Replace it with a real SMTP/provider implementation for production.
+Verification, password-reset, and invitation messages are sent through `IEmailSender`. Development uses a non-delivery placeholder that logs only a generic warning and fails explicitly; it never logs recipients, subjects, message bodies, or one-time tokens. To exercise email delivery, run outside Development with TLS-enabled SMTP. Set `Smtp__Host`, `Smtp__Port`, `Smtp__FromAddress`, and `Smtp__UseSsl=true`; optionally set both `Smtp__Username` and `Smtp__Password`. Startup fails outside Development if the SMTP settings are missing or invalid. Keep credentials in a secret manager, user-secrets, or environment variables.
 
 ---
 
@@ -717,7 +717,7 @@ The `compose.yaml` file provides PostgreSQL 17 with:
 ### Production Considerations
 
 - **HTTPS required** for `__Host-` cookie prefix and `SecurePolicy.Always`
-- **SMTP provider** — replace `LoggingEmailSender` with a real `IEmailSender` implementation
+- **SMTP provider** — TLS-enabled SMTP is required outside Development; no action link or email body is written to logs
 - **Object storage** — replace `LocalFileStorage` with production-grade storage + malware scanning
 - **Secret management** — use environment variables, user-secrets, or a secret manager (never commit secrets)
 - **Database** — use separate `civicflow_migrator` for migrations, `civicflow_runtime` for the running API
@@ -736,6 +736,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 | **[README.md](README.md)** (this file) | Project overview, architecture, API reference, setup, testing |
 | **[CHANGELOG.md](CHANGELOG.md)** | All notable changes, Keep a Changelog format |
 | **[docs/USER_MANUAL.md](docs/USER_MANUAL.md)** | End-user guide: accessing CivicFlow, sign-in, workflows, troubleshooting, glossary |
+| **[docs/API-AUTHORIZATION.md](docs/API-AUTHORIZATION.md)** | Current API endpoint inventory, request/response contracts, tenant scoping, and role/resource matrix |
 | **[docs/DELIVERY-ROADMAP.md](docs/DELIVERY-ROADMAP.md)** | Implementation-first roadmap: completed baseline, active delivery, deferred work |
 | **[docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.md)** | Verification evidence: test coverage, over-HTTP results, acceptance checklist |
 | **[docs/RLS-DESIGN.md](docs/RLS-DESIGN.md)** | PostgreSQL row-level security design and verification |
@@ -748,11 +749,11 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 | Problem | Likely cause | Fix |
 |---|---|---|
-| **Sign-in fails** | Email not confirmed or DB unreachable | Check API log for confirmation link (`Email queued for …`); verify PostgreSQL is running |
+| **Sign-in fails** | Email not confirmed or DB unreachable | Check SMTP delivery/configuration (confirmation links are never written to application logs); verify PostgreSQL is running |
 | **"This account is not a citizen/organization account"** | Signed in through wrong portal | Citizens use `/citizen/login`, staff use `/admin`, superadmins use `/super-platform-admin` |
 | **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
 | **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |
-| **Invitation email not received** | `LoggingEmailSender` logs to API console | Search API log for `setup-password?token=` |
+| **Invitation email not received** | SMTP is not configured or delivery failed | Configure/check the SMTP host, TLS, sender address, and provider credentials; tokens are never logged |
 | **404 from frontend** | `VITE_API_BASE_URL` missing or wrong | Set to API base URL (e.g., `http://localhost:5000`), restart Vite dev server |
 | **401/403 in workspace** | Session cookie missing/expired (401) or insufficient role (403) | Sign in again; check organization membership/role |
 | **CSRF 400 on save** | Anti-forgery token missing/expired | Refresh the page and retry; frontend fetches token from `GET /api/auth/csrf` |
@@ -796,7 +797,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Local file storage only (no object storage, malware scanning, or retention policy)
 - Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
 - Live PostgreSQL checks are manual probes, not CI integration tests
-- `LoggingEmailSender` for development — real SMTP/provider required for production
+- Development intentionally does not deliver email; use a TLS-enabled SMTP relay outside Development, and never expect action links in application logs
 - Citizen case intake supports active-organization selection and optional arbitrary-file attachments; citizen case tracking is not yet available
 
 ### Not Started

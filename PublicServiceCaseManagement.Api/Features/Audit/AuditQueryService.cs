@@ -13,6 +13,7 @@ public sealed class AuditQueryService(
     CivicFlowDbContext dbContext) : IAuditQueryService
 {
     private const int MaximumPageSize = 200;
+    private const int MaximumPageNumber = 1_000_000;
 
     public Task<AuditEventPageResponse> GetPlatformEventsAsync(
         AuditQuery query,
@@ -32,7 +33,7 @@ public sealed class AuditQueryService(
         CancellationToken cancellationToken,
         Guid? requiredActorUserId = null)
     {
-        var page = Math.Max(1, query.Page);
+        var page = Math.Clamp(query.Page, 1, MaximumPageNumber);
         var pageSize = Math.Clamp(query.PageSize, 1, MaximumPageSize);
 
         var events = dbContext.AuditEvents
@@ -67,8 +68,7 @@ public sealed class AuditQueryService(
 
         if (requiredActorUserId.HasValue)
         {
-            events = events.Where(
-                audit => audit.ActorUserId == requiredActorUserId.Value);
+            events = events.Where(audit => audit.ActorUserId == requiredActorUserId.Value);
         }
 
         if (query.From.HasValue)

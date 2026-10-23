@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace PublicServiceCaseManagement.Api.Features.Audit;
 
 /// <summary>
@@ -29,23 +31,34 @@ public sealed record AuditEventPageResponse(
 /// <summary>
 /// The filters administrators can apply to the audit log.
 /// </summary>
-public sealed record AuditQuery
+public sealed record AuditQuery : IValidatableObject
 {
-    public string? Category { get; init; }
+    [StringLength(100)] public string? Category { get; init; }
 
-    public string? Action { get; init; }
+    [StringLength(100)] public string? Action { get; init; }
 
     public Guid? ActorUserId { get; init; }
 
     public Guid? OrganizationId { get; init; }
 
-    public string? Search { get; init; }
+    [StringLength(200)] public string? Search { get; init; }
 
     public DateTimeOffset? From { get; init; }
 
     public DateTimeOffset? To { get; init; }
 
-    public int Page { get; init; } = 1;
+    [Range(1, 1_000_000)] public int Page { get; init; } = 1;
 
-    public int PageSize { get; init; } = 50;
+    [Range(1, 200)] public int PageSize { get; init; } = 50;
+
+    public IEnumerable<ValidationResult> Validate(
+        ValidationContext validationContext)
+    {
+        if (From.HasValue && To.HasValue && From.Value > To.Value)
+        {
+            yield return new ValidationResult(
+                "'from' must be earlier than or equal to 'to'.",
+                [nameof(From), nameof(To)]);
+        }
+    }
 }

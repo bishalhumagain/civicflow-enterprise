@@ -1,6 +1,6 @@
 # CivicFlow Enterprise — User Manual
 
-**Document Status:** Based on verified implementation. Some workflows may be limited or require proper configuration.
+**Document Status:** Based on verified implementation. Some workflows may be limited or require proper configuration. See the [API authorization matrix](API-AUTHORIZATION.md) for exact server-enforced permissions.
 
 **Audience:** Citizens, Government Officers (Staff), Organization Administrators, and Platform Super Administrators
 
@@ -36,7 +36,7 @@ This manual describes how to use the currently implemented features of CivicFlow
 | **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, and optional staff/invitation phone numbers |
 | **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload; citizen case tracking is not yet available |
 | **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
-| **Limitations** | Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production |
+| **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require a configured SMTP sender |
 
 ### Supported Environment
 
@@ -497,7 +497,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 - Watch for toast notifications — they provide real-time feedback
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
-- Verification and password-reset emails are logged by the API in local development (see [README](../README.md))
+- Verification, password-reset, and invitation links are never written to application logs; configure SMTP delivery as described in the [README](../README.md)
 - A personal access token is displayed only once, at creation; if you lose it, revoke it and create a new one
 
 ---
@@ -533,7 +533,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 
 | Area | Limitation |
 |---|---|
-| **Email delivery** | Verification and password-reset emails require a configured email sender in production (local development logs them) |
+| **Email delivery** | Verification, reset, and invitation messages require TLS-enabled SMTP outside Development; Development does not deliver, log, or pretend to send action emails |
 | **Citizen portal scope** | Citizens may submit cases to active organizations and attach an optional arbitrary file up to 10 MB; citizen case tracking is not available yet |
 | **Environment dependent** | Many features require proper backend/frontend configuration |
 | **No offline support** | Requires network connectivity |

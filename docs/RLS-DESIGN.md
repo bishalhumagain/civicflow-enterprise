@@ -2,6 +2,9 @@
 
 This document describes the row-level security (RLS) design that enforces organization-scoped data isolation in CivicFlow Enterprise. For the project overview, see the [README](../README.md).
 
+The complete endpoint inventory and role/resource authorization matrix are
+maintained in [API Contract and Authorization Matrix](API-AUTHORIZATION.md).
+
 ---
 
 ## Table of Contents

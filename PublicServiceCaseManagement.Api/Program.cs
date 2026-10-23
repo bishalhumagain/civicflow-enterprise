@@ -262,7 +262,15 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+if (isDevelopment)
+{
+    builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender>(
+        new SmtpEmailSender(builder.Configuration));
+}
 
 // The audit trail is scoped because it writes through the request scoped
 // database context and resolves the actor from the current HTTP context.

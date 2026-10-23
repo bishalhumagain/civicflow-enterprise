@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests: platform administration integration tests (organization deletion `204`/`404`/`409` and the forbidden case, platform directory and overview, platform and organization audit endpoints, staff phone update), plus audit persistence/querying, organization deletion, platform directory, and phone validation unit tests.
 
 ### Fixed
+- One-time verification, reset, and invitation links are no longer written to application logs. The Development email placeholder reports non-delivery and fails explicitly; non-Development uses a TLS-required SMTP sender configured through runtime settings.
+- Application error listing now bounds page/pageSize inputs, honors request cancellation, and returns `404` when marking an unknown error handled; identifier routes require GUIDs.
 - Organization administrators can invite staff with the Staff portal role and cannot invite, add, or promote another organization administrator. Platform administrators retain organization-admin provisioning.
 - Organization workspace `403` caused by the frontend sending a static `VITE_CIVICFLOW_ORGANIZATION_ID` that could differ from an invitee's organization. The server continues to validate `X-Organization-Id` against active membership; the frontend now resolves valid organizations from the authenticated session.
 - Organization dashboard statistics now use the server-resolved membership context and reject a supplied organization ID that does not match it.

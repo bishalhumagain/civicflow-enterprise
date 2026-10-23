@@ -6,7 +6,8 @@ namespace PublicServiceCaseManagement.Api.Infrastructure.Errors;
 
 public sealed class ErrorLogger(CivicFlowDbContext dbContext) : IErrorLogger
 {
-    public async Task LogErrorAsync(Exception exception, Guid? userId = null, Guid? organizationId = null, string? additionalData = null)
+    public async Task LogErrorAsync(Exception exception, Guid? userId = null, Guid? organizationId = null,
+        string? additionalData = null)
     {
         try
         {
@@ -35,9 +36,16 @@ public sealed class ErrorLogger(CivicFlowDbContext dbContext) : IErrorLogger
         }
     }
 
-    public async Task<List<ApplicationError>> GetErrorsAsync(bool? isHandled = null, int page = 1, int pageSize = 25)
+    public async Task<List<ApplicationError>> GetErrorsAsync(
+        bool? isHandled = null,
+        int page = 1,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default)
     {
         var query = dbContext.ApplicationErrors.AsQueryable();
+
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 200);
 
         if (isHandled.HasValue)
         {
@@ -48,24 +56,33 @@ public sealed class ErrorLogger(CivicFlowDbContext dbContext) : IErrorLogger
             .OrderByDescending(e => e.OccurredAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<ApplicationError?> GetErrorAsync(Guid errorId)
+    public async Task<ApplicationError?> GetErrorAsync(
+        Guid errorId,
+        CancellationToken cancellationToken = default)
     {
         return await dbContext.ApplicationErrors
-            .FirstOrDefaultAsync(e => e.Id == errorId);
+            .FirstOrDefaultAsync(
+                e => e.Id == errorId,
+                cancellationToken);
     }
 
-    public async Task MarkAsHandledAsync(Guid errorId)
+    public async Task<bool> MarkAsHandledAsync(
+        Guid errorId,
+        CancellationToken cancellationToken = default)
     {
         var error = await dbContext.ApplicationErrors
-            .FirstOrDefaultAsync(e => e.Id == errorId);
+            .FirstOrDefaultAsync(
+                e => e.Id == errorId,
+                cancellationToken);
 
-        if (error != null)
-        {
-            error.IsHandled = true;
-            await dbContext.SaveChangesAsync();
-        }
+        if (error is null)
+            return false;
+
+        error.IsHandled = true;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }

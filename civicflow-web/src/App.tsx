@@ -719,9 +719,7 @@ function App() {
     }
   }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
-  // The audit trail is read through two endpoints: the platform-wide log for
-  // super administrators and the organization-scoped log for organization
-  // administrators. The API stays authoritative about who may read what.
+  // Organization activity is actor-scoped for staff; the API enforces access.
   const auditScope = activeView === 'platform-audit'
     ? 'platform'
     : activeView === 'activity'
