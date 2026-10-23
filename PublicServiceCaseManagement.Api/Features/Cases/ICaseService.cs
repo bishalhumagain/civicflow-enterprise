@@ -42,7 +42,8 @@ public interface ICaseService
         Guid organizationId,
         CaseStatus newStatus,
         Guid? changedByUserId = null,
-        Guid? authorizedStaffMemberId = null);
+        Guid? authorizedStaffMemberId = null,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
         Guid caseId,

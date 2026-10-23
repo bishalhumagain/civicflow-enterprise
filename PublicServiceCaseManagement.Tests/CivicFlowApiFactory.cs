@@ -98,6 +98,7 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             "BusinessEndpoints:Enabled",
             enableBusinessEndpoints.ToString());
+        builder.UseSetting("BackgroundJobs:Enabled", "false");
 
         // Anti-forgery is disabled for the general integration-test factory
         // because the test authentication scheme bypasses the browser cookie

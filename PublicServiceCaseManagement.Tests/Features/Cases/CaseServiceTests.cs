@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Features.Cases;
+using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
 
@@ -46,6 +47,25 @@ public sealed class CaseServiceTests
             null,
             Now);
 
+    private static CaseService CreateService(CivicFlowDbContext dbContext) =>
+        new(dbContext, new RecordingAuditLogger(), new EmptyNotificationOutbox());
+
+    private sealed class EmptyNotificationOutbox : INotificationOutbox
+    {
+        public Task<Guid?> EnqueueAsync(
+            Guid recipientUserId,
+            string type,
+            string title,
+            string message,
+            string? entityType,
+            Guid? entityId,
+            string idempotencyKey,
+            Guid? organizationId,
+            string? correlationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Guid?>(null);
+    }
+
     [Fact]
     public async Task ChangeStatusAsync_WhenStatusChanges_SavesCaseAndHistory()
     {
@@ -57,7 +77,7 @@ public sealed class CaseServiceTests
         dbContext.Cases.Add(caseEntity);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         var result = await service.ChangeStatusAsync(
             caseEntity.Id,
@@ -84,7 +104,7 @@ public sealed class CaseServiceTests
     {
         await using var dbContext = CreateDbContext();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         var result = await service.ChangeStatusAsync(
             Guid.NewGuid(),
@@ -105,7 +125,7 @@ public sealed class CaseServiceTests
         dbContext.Cases.Add(caseEntity);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ChangeStatusAsync(
@@ -128,7 +148,7 @@ public sealed class CaseServiceTests
         dbContext.Cases.Add(caseEntity);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         var result = await service.ChangeStatusAsync(
             caseEntity.Id,
@@ -153,7 +173,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         var result = await service.AssignAsync(
             caseEntity.Id,
@@ -191,7 +211,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.AddRange(firstStaffMember, secondStaffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         await service.AssignAsync(
             caseEntity.Id,
@@ -235,7 +255,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         await service.AssignAsync(
             caseEntity.Id,
@@ -267,7 +287,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
         await service.AssignAsync(
             caseEntity.Id,
             OrganizationId,
@@ -306,7 +326,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.AssignAsync(
@@ -331,7 +351,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.AssignAsync(
@@ -356,7 +376,7 @@ public sealed class CaseServiceTests
         dbContext.StaffMembers.Add(staffMember);
         await dbContext.SaveChangesAsync();
 
-        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        var service = CreateService(dbContext);
 
         var result = await service.AssignAsync(
             caseEntity.Id,

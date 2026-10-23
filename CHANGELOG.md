@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- EF Core/PostgreSQL persistent background jobs, attempt history, transactional in-app notification outbox, lease-based hosted worker, bounded exponential retries, stale-lease recovery, retention cleanup, and SuperAdmin-only audited job inspection/retry/cancel APIs.
+- Authenticated-user notification APIs and a workspace notification panel; platform administrators now have a status-filtered background-job monitor. Case submission, assignment, and status changes notify only the authenticated submitter or active assigned staff account.
+- Migrations `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion`, worker configuration defaults, and integration tests for outbox idempotency, notification recipient isolation/read state, job state transitions, and platform job authorization.
 - Assigned CaseWorkers can now edit case title and description; only organization administrators can permanently delete cases, after explicit confirmation. Case deletion removes its assignment/status history and document metadata, records an audit event, and deletes the associated stored files.
 - Organization staff can now use the activity screen without receiving a forbidden response: organization administrators retain organization-wide activity visibility, while CaseWorkers and Viewers are constrained server-side to events performed by their own authenticated account.
 - Regression tests cover staff audit actor isolation, CaseWorker detail edits, Viewer read-only behavior, and organization-admin-confirmed deletion.

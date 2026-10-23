@@ -24,7 +24,8 @@ CivicFlow Enterprise helps government and public-service organizations intake, t
   - [Authentication & Authorization](#authentication--authorization)
   - [Database & Data Isolation](#database--data-isolation)
   - [Security Model](#security-model)
-- [API Reference](#api-reference)
+  - [Background Jobs & Notifications](#background-jobs--notifications)
+  - [API Reference](#api-reference)
 - [Getting Started](#getting-started)
 - [Testing](#testing)
 - [Deployment & CI](#deployment--ci)
@@ -220,7 +221,7 @@ The backend follows a **feature-based** organization with clear layering:
 | `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `Organization`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
 | `Features/` | Controllers + service contracts + service implementations, organized by feature area |
 | `Infrastructure/` | Cross-cutting: `Identity/` (roles, PAT auth handler, anti-forgery, security headers, seeder, email sender, audit logger), `Organizations/` (context, resolvers, middleware), `Persistence/` (DbContext, factory), `Files/` (local storage), `Errors/` (global handler, error logger), `Audit/` (audit trail writer), `Authorization/` (business endpoint gate) |
-| `Migrations/` | 18 EF Core migrations from initial create through audit trail and application errors |
+| `Migrations/` | EF Core migrations, including persistent background jobs and notifications |
 
 **Startup (`Program.cs`)** configures in order:
 1. Identity core (password policy, lockout, email confirmation)
@@ -377,7 +378,7 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-**Migrations**: 18 migrations from `InitialCreate` through `AddApplicationErrors`, including the `MigrateToAspNetCoreIdentity` migration that backfills existing users and the `AddTenantRowLevelSecurity` migration that enables RLS.
+**Migrations**: 20 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion` for the durable queue, notification outbox, attempt history, and job concurrency protection.
 
 ### Security Model
 
@@ -400,6 +401,33 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | **Enumeration safety** | Registration and password-recovery responses do not disclose whether an email exists |
 
 ---
+
+## Background Jobs & Notifications
+
+CivicFlow uses EF Core and PostgreSQL as its durable queue and transactional outbox; it does not add Redis or a separate broker. `background_jobs`, `background_job_attempts`, and `notifications` are created by `AddPersistentBackgroundJobsAndNotifications`. The domain change, in-app notification, and email job are written in the same EF unit of work. The notification is independently durable, so an unavailable email relay cannot erase the in-app item.
+
+The hosted `BackgroundJobWorker` claims work with a PostgreSQL `FOR UPDATE SKIP LOCKED` update and a time-limited lease. Only the registered `notification.email` job is accepted; its payload contains a notification ID, never an address, password, bearer token, invitation secret, or arbitrary executable data. Job states are `Queued → Running → Succeeded`, `RetryScheduled`, or `Failed`; queued and retry-scheduled work can also be `Cancelled`. A lease-expired job is recovered on a later poll. Transient email failures use exponential delay (default base 30 seconds, capped at one hour) with 0.75–1.25 jitter and a default maximum of five attempts (clamped to 1–20). Failed work remains inspectable until retention cleanup. A SuperAdmin retry is audited, retains monotonic attempt history, and can extend the total attempt ceiling only up to 20.
+
+Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), and case status changes (to the case submitter). Messages are generic and do not reveal case details. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
+
+Authenticated users can list their own notifications with `GET /api/notifications?page=1&pageSize=20&unreadOnly=false`, read their unread count at `GET /api/notifications/unread-count`, mark one read with `PATCH /api/notifications/{id}/read`, or mark their own unread notifications read with `POST /api/notifications/read`. All reads and writes are recipient-scoped. The notification panel in the workspace refreshes the count every 60 seconds.
+
+Only the `superadmin` role can access `GET /api/platform/jobs` and `GET /api/platform/jobs/{id}` or the audited, rate-limited `POST /api/platform/jobs/{id}/cancel` and `/retry` actions. Responses contain job metadata and sanitized errors, never payload JSON, stack traces, or secrets. Organization administrators, staff, and citizens cannot inspect or operate jobs. The platform workspace includes a status-filtered job monitor; endpoint authorization is enforced by the API, not the UI.
+
+| Setting (environment variable form) | Default | Purpose |
+|---|---:|---|
+| `BackgroundJobs__Enabled` | `true` | Enable the hosted worker; queued rows remain durable when disabled. |
+| `BackgroundJobs__Concurrency` | `2` | Worker claims per poll (clamped to 1–16). |
+| `BackgroundJobs__PollingMilliseconds` | `1000` | Idle poll delay (clamped to 100–60,000 ms). |
+| `BackgroundJobs__LeaseSeconds` | `300` | Claim lease (clamped to 30–3,600 seconds). |
+| `BackgroundJobs__MaxAttempts` | `5` | New-job retry ceiling (clamped to 1–20). |
+| `BackgroundJobs__RetryBaseSeconds` / `BackgroundJobs__RetryMaxSeconds` | `30` / `3600` | Exponential retry base and cap. |
+| `BackgroundJobs__RetentionDays` | `90` | Completed-job retention; expired notifications are removed by the daily worker cleanup. |
+| `Smtp__Host`, `Smtp__Port`, `Smtp__FromAddress`, `Smtp__UseSsl` | No usable relay by default | SMTP host, port, sender, and required TLS. |
+| `Smtp__Username`, `Smtp__Password` | Empty | Optional paired SMTP credentials; configure via a secret manager or user-secrets, never source control. |
+| `Smtp__FromName` | `CivicFlow` | Optional display name. |
+
+Apply the new migration before starting a worker-enabled deployment (`dotnet ef database update --project PublicServiceCaseManagement.Api --startup-project PublicServiceCaseManagement.Api`). Development intentionally does not deliver email; use a TLS-enabled SMTP relay outside Development. The worker is database-backed and requires PostgreSQL/Npgsql; it intentionally does not consume jobs when tests use EF InMemory.
 
 ## API Reference
 
@@ -769,7 +797,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 ### Implemented and Verified
 
-- Backend API with EF Core/PostgreSQL and 18 migrations
+- Backend API with EF Core/PostgreSQL and 20 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
 - Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
@@ -788,7 +816,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 299 automated tests (unit + integration)
+- 322 automated tests (unit + integration)
 - CI pipeline (GitHub Actions)
 
 ### Implemented but Limited

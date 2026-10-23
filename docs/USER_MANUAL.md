@@ -4,7 +4,7 @@
 
 **Audience:** Citizens, Government Officers (Staff), Organization Administrators, and Platform Super Administrators
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-23
 
 ---
 
@@ -33,7 +33,7 @@ This manual describes how to use the currently implemented features of CivicFlow
 
 | Status | Features |
 |---|---|
-| **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, and optional staff/invitation phone numbers |
+| **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, optional staff/invitation phone numbers, persisted in-app notifications, and a PostgreSQL-backed email job queue |
 | **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload; citizen case tracking is not yet available |
 | **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
 | **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require a configured SMTP sender |
@@ -183,7 +183,12 @@ The navigation only shows the views your account is entitled to. Entries are det
 - Forms with validation
 - Tables with sorting/filtering (where implemented)
 - Toast notifications for feedback (success/error/info/warning)
+- A persisted notification panel with unread count, paging, read state, and minute-level refresh
 - Loading states
+
+### Notifications
+
+The Notifications button in the workspace header shows your unread count and a paginated list of your own notifications. The count refreshes approximately once per minute. Use “Mark read” for an individual item or “Mark all read.” Case submission, assignment, and status updates are currently supported. Staff with organization access can use “Open case” to switch to the normal case workspace; its organization and assignment checks remain authoritative. Citizen notifications do not expose a case link because citizen case tracking is not available. The notification list does not grant access to a case.
 
 ---
 
@@ -205,6 +210,10 @@ The navigation only shows the views your account is entitled to. Entries are det
 - Manage personal access tokens
 - Update own profile
 
+### Platform job monitoring
+
+Only platform Super Administrators can see the Background jobs screen. Filter by status to inspect queue state, attempt counts, timestamps, and sanitized failure codes. Retry is offered for failed work; cancel is offered only for pending work. The API verifies the role and current job state for every request. Organization administrators and ordinary staff cannot inspect this global queue.
+
 ### Platform Administrator
 
 **Access requirements:** Authenticated platform super administrator account, signed in at `/super-platform-admin`.
@@ -217,6 +226,7 @@ The navigation only shows the views your account is entitled to. Entries are det
 - Read the platform-wide audit log
 - View platform dashboard statistics (total cases, per-status, per-priority, weekly/monthly trends)
 - Track and manage application errors (list, filter, view detail, mark as handled)
+- Monitor background email jobs by status and attempt count; inspect sanitized failures and retry failed or cancel pending work. Job operations are audited and rate-limited.
 - Manage personal access tokens
 - Update own profile
 
@@ -533,7 +543,8 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 
 | Area | Limitation |
 |---|---|
-| **Email delivery** | Verification, reset, and invitation messages require TLS-enabled SMTP outside Development; Development does not deliver, log, or pretend to send action emails |
+| **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development does not deliver, log, or pretend to send action emails |
+| **Notifications** | Notification count is polled once per minute; push/WebSocket delivery and SMS are not implemented. Invitation lifecycle events use the existing invitation email flow, not the job queue. |
 | **Citizen portal scope** | Citizens may submit cases to active organizations and attach an optional arbitrary file up to 10 MB; citizen case tracking is not available yet |
 | **Environment dependent** | Many features require proper backend/frontend configuration |
 | **No offline support** | Requires network connectivity |
@@ -545,11 +556,10 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 ### Not Implemented
 
 - Advanced reporting and analytics (beyond the dashboard statistics)
-- Real-time notifications (beyond toasts)
 - Bulk operations
 - Mobile app
 - Advanced search capabilities
-- Email/SMS notifications
+- SMS notifications
 - Workflow automation
 - Per-token scopes for personal access tokens
 - Per-organization sign-in selection (multi-org staff use `X-Organization-Id` header)

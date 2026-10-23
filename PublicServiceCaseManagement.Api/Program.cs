@@ -9,12 +9,14 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Audit;
 using PublicServiceCaseManagement.Api.Features.Auth;
+using PublicServiceCaseManagement.Api.Features.BackgroundJobs;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Citizens;
 using PublicServiceCaseManagement.Api.Features.Dashboard;
 using PublicServiceCaseManagement.Api.Features.Errors;
 using PublicServiceCaseManagement.Api.Features.Invitations;
 using PublicServiceCaseManagement.Api.Features.Memberships;
+using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Features.Platform;
 using PublicServiceCaseManagement.Api.Features.Profiles;
@@ -232,9 +234,29 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+
+    options.AddPolicy("job-admin", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddScoped<ICaseService, CaseService>();
+builder.Services.AddScoped<INotificationOutbox, NotificationOutbox>();
+builder.Services.AddScoped<BackgroundJobProcessor>();
+if (builder.Configuration.GetValue("BackgroundJobs:Enabled", true))
+{
+    builder.Services.AddHostedService<BackgroundJobWorker>();
+}
 builder.Services.AddScoped<ICaseDocumentService, CaseDocumentService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();

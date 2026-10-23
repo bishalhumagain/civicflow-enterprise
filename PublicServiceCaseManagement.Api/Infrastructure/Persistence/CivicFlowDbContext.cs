@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Audit;
+using PublicServiceCaseManagement.Api.Domain.BackgroundJobs;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Errors;
+using PublicServiceCaseManagement.Api.Domain.Notifications;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -37,6 +39,10 @@ public sealed class CivicFlowDbContext(
         Set<PersonalAccessToken>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<ApplicationError> ApplicationErrors => Set<ApplicationError>();
+    public DbSet<BackgroundJob> BackgroundJobs => Set<BackgroundJob>();
+    public DbSet<BackgroundJobAttempt> BackgroundJobAttempts =>
+        Set<BackgroundJobAttempt>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -630,6 +636,73 @@ public sealed class CivicFlowDbContext(
                 error.OrganizationId,
                 error.OccurredAt
             });
+        });
+
+        modelBuilder.Entity<BackgroundJob>(entity =>
+        {
+            entity.ToTable("background_jobs");
+            entity.HasKey(job => job.Id);
+            entity.Property(job => job.Type).HasMaxLength(100).IsRequired();
+            entity.Property(job => job.PayloadJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(job => job.Status).HasMaxLength(30).IsRequired();
+            entity.Property(job => job.Version).IsConcurrencyToken();
+            entity.Property(job => job.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.Property(job => job.CorrelationId).HasMaxLength(100).IsRequired();
+            entity.Property(job => job.EntityType).HasMaxLength(50);
+            entity.Property(job => job.LeaseOwner).HasMaxLength(100);
+            entity.Property(job => job.ErrorCode).HasMaxLength(100);
+            entity.Property(job => job.ErrorDetails).HasMaxLength(500);
+            entity.HasIndex(job => job.IdempotencyKey).IsUnique();
+            entity.HasIndex(job => new { job.Status, job.ScheduledAt });
+            entity.HasIndex(job => job.LeaseExpiresAt);
+            entity.HasIndex(job => job.CorrelationId);
+            entity.HasIndex(job => new { job.Type, job.CreatedAt });
+        });
+
+        modelBuilder.Entity<BackgroundJobAttempt>(entity =>
+        {
+            entity.ToTable("background_job_attempts");
+            entity.HasKey(attempt => attempt.Id);
+            entity.Property(attempt => attempt.Status).HasMaxLength(30).IsRequired();
+            entity.Property(attempt => attempt.ErrorCode).HasMaxLength(100);
+            entity.Property(attempt => attempt.ErrorDetails).HasMaxLength(500);
+            entity.HasIndex(attempt => new { attempt.JobId, attempt.AttemptNumber })
+                .IsUnique();
+            entity.HasOne<BackgroundJob>()
+                .WithMany()
+                .HasForeignKey(attempt => attempt.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("notifications");
+            entity.HasKey(notification => notification.Id);
+            entity.Property(notification => notification.Type).HasMaxLength(50).IsRequired();
+            entity.Property(notification => notification.Title).HasMaxLength(150).IsRequired();
+            entity.Property(notification => notification.Message).HasMaxLength(500).IsRequired();
+            entity.Property(notification => notification.RelatedEntityType).HasMaxLength(50);
+            entity.Property(notification => notification.DeliveryChannel).HasMaxLength(30).IsRequired();
+            entity.Property(notification => notification.DeliveryStatus).HasMaxLength(30).IsRequired();
+            entity.Property(notification => notification.DeliveryErrorCode).HasMaxLength(100);
+            entity.Property(notification => notification.DeliveryErrorDetails).HasMaxLength(500);
+            entity.Property(notification => notification.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.HasIndex(notification => notification.IdempotencyKey).IsUnique();
+            entity.HasIndex(notification => new
+            {
+                notification.RecipientUserId,
+                notification.IsRead,
+                notification.CreatedAt
+            });
+            entity.HasIndex(notification => notification.ExpiresAt);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(notification => notification.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<BackgroundJob>()
+                .WithMany()
+                .HasForeignKey(notification => notification.BackgroundJobId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<IdentityRole<Guid>>(entity =>

@@ -42,6 +42,8 @@ The request/response names below refer to the DTOs in
 | Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers | Platform staff directory |
 | Case reads | No case read/track endpoint | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
 | Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign; delete with confirmation | No implicit case-wide bypass |
+| Notifications | Own notifications only | Own notifications only | Own notifications only | Own notifications only | Own notifications only |
+| Background jobs | No | No | No | No | Global job summaries/details and state-eligible retry/cancel |
 | Memberships/invitations | No | No | No | Selected organization; cannot grant `OrganizationAdmin`; invitations create `CaseWorker` memberships | Platform-authorized organization membership and invitation operations, including permitted admin provisioning |
 | Audit | No | Own actor events in selected organization | Own actor events in selected organization | All events in selected organization | Platform-wide audit and explicitly authorized organization audit |
 | Platform directory, organizations, dashboard, errors | No | No | No | No | Explicit platform management and cross-organization reports |
@@ -177,6 +179,23 @@ repeat organization/assignment checks; the query predicates and PostgreSQL RLS
 provide additional tenant isolation. A Viewer assignment cannot update status,
 details, or documents.
 
+### Notifications and background jobs
+
+All notification endpoints require an authenticated user (cookie session or PAT); each query is constrained to the database-resolved caller's `RecipientUserId`. Unsafe cookie-authenticated operations remain subject to CSRF middleware. Page range is 1–1,000,000 and page size is 1–100. Expired notifications are excluded. The API returns only notification content and sanitized delivery codes, never email job payloads.
+
+| Method and path | Access / parameters | Success, failures, and effects |
+|---|---|---|
+| `GET /api/notifications?page={n}&pageSize={n}&unreadOnly={bool}` | Authenticated caller; defaults page `1`, pageSize `20`; pageSize max `100` | `200 NotificationPageResponse` with the caller's items, total count, and unread count; `400` invalid paging. |
+| `GET /api/notifications/unread-count` | Authenticated caller | `200 {count}` for the caller's unexpired unread notifications. |
+| `PATCH /api/notifications/{id:guid}/read` | Authenticated recipient only | `204`; `404` if absent or owned by another user. Idempotent if already read. |
+| `POST /api/notifications/read` | Authenticated caller | `200 {updatedCount}`; marks only the caller's unexpired unread items as read. |
+| `GET /api/platform/jobs?status={status}&type={type}&from={date}&to={date}&correlationId={id}&page={n}&pageSize={n}` | SuperAdmin only; page defaults `1`, pageSize `25`, pageSize max `100` | `200 BackgroundJobPageResponse`; supported status/type filters only; invalid filters, bounds, or reversed dates return `400`. |
+| `GET /api/platform/jobs/{id:guid}` | SuperAdmin only | `200 BackgroundJobDetailsResponse` with summary and sanitized attempt history; `404` unknown job. No raw payload or stack trace is returned. |
+| `POST /api/platform/jobs/{id:guid}/cancel` | SuperAdmin only; rate-limited to 20 operations/minute per source IP | `204` queued/retry-scheduled job cancelled; `404` unknown job; `409` if job is running or terminal. Audited. |
+| `POST /api/platform/jobs/{id:guid}/retry` | SuperAdmin only; same rate limit | `204` failed job requeued; `404` unknown job; `409` unless failed. Audited; the attempt ceiling and attempt history remain bounded. |
+
+The worker accepts only the registered `notification.email` type and looks up the destination through the notification's recipient account. Case submission notifies its submitting user, assignment notifies the active account linked to the active same-organization staff record, and status changes notify the submitting user. These messages contain no private case text. Invitation emails remain on their existing synchronous email path because the single-use invitation secret is intentionally not persisted. Membership and organization administration currently produce no new notification events.
+
 ### Audit, platform administration, dashboard, and errors
 
 | Method and path | Access / parameters | Success, failures, and effects |
@@ -229,3 +248,6 @@ details, or documents.
 - The email sender is secure by default but requires SMTP configuration outside
   Development; see the README deployment settings. Development logs no message
   body or action token and fails explicitly when delivery is attempted.
+- PostgreSQL worker claim, SMTP delivery, and lease recovery require a live
+  PostgreSQL instance and SMTP relay; EF InMemory tests do not exercise that
+  provider-specific execution path.

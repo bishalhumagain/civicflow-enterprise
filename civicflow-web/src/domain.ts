@@ -13,6 +13,7 @@ export type WorkspaceView =
   | 'platform-dashboard'
   | 'organization-dashboard'
   | 'platform-errors'
+  | 'platform-jobs'
 
 export type CaseRecord = {
   id: string

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Notifications;
+using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -9,7 +11,8 @@ namespace PublicServiceCaseManagement.Api.Features.Cases;
 
 public sealed class CaseService(
     CivicFlowDbContext dbContext,
-    IAuditLogger auditLogger) : ICaseService
+    IAuditLogger auditLogger,
+    INotificationOutbox notificationOutbox) : ICaseService
 {
     public async Task<Case> CreateAsync(
         Guid organizationId,
@@ -30,6 +33,21 @@ public sealed class CaseService(
             submittedByUserId);
 
         dbContext.Cases.Add(newCase);
+        if (submittedByUserId.HasValue)
+        {
+            await notificationOutbox.EnqueueAsync(
+                submittedByUserId.Value,
+                NotificationTypes.CaseSubmitted,
+                "Case received",
+                "Your case was received and is awaiting review.",
+                "Case",
+                newCase.Id,
+                $"case-submitted:{newCase.Id}",
+                organizationId,
+                newCase.Id.ToString("N"),
+                cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await auditLogger.RecordAsync(
@@ -180,7 +198,8 @@ public sealed class CaseService(
         Guid organizationId,
         CaseStatus newStatus,
         Guid? changedByUserId = null,
-        Guid? authorizedStaffMemberId = null)
+        Guid? authorizedStaffMemberId = null,
+        CancellationToken cancellationToken = default)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(c =>
@@ -188,7 +207,8 @@ public sealed class CaseService(
                 c.OrganizationId == organizationId &&
                 (authorizedStaffMemberId == null ||
                  (c.AssignedToStaffMemberId == authorizedStaffMemberId &&
-                  c.AssignedRole == CaseAssignmentRole.CaseWorker)));
+                  c.AssignedRole == CaseAssignmentRole.CaseWorker)),
+                cancellationToken);
 
         if (caseEntity is null)
         {
@@ -217,7 +237,22 @@ public sealed class CaseService(
 
         dbContext.CaseStatusHistories.Add(history);
 
-        await dbContext.SaveChangesAsync();
+        if (caseEntity.SubmittedByUserId.HasValue)
+        {
+            await notificationOutbox.EnqueueAsync(
+                caseEntity.SubmittedByUserId.Value,
+                NotificationTypes.CaseStatusChanged,
+                "Case update",
+                "There is an update to your case.",
+                "Case",
+                caseEntity.Id,
+                $"case-status:{history.Id}",
+                organizationId,
+                history.Id.ToString("N"),
+                cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         await auditLogger.RecordAsync(
             new AuditRecord
@@ -292,6 +327,33 @@ public sealed class CaseService(
             assignedByUserId);
 
         dbContext.CaseAssignmentHistories.Add(history);
+
+        var assignedUserId = await (
+            from membership in dbContext.OrganizationMemberships
+            join user in dbContext.ApplicationUsers
+                on membership.UserId equals user.Id
+            where membership.OrganizationId == organizationId &&
+                  membership.IsActive &&
+                  user.IsActive &&
+                  user.Email != null &&
+                  user.Email.ToUpper() == staffMember.Email.ToUpper()
+            select (Guid?)user.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (assignedUserId.HasValue)
+        {
+            await notificationOutbox.EnqueueAsync(
+                assignedUserId.Value,
+                NotificationTypes.CaseAssigned,
+                "Case assignment",
+                "A case was assigned to you.",
+                "Case",
+                caseEntity.Id,
+                $"case-assigned:{history.Id}",
+                organizationId,
+                history.Id.ToString("N"),
+                cancellationToken);
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

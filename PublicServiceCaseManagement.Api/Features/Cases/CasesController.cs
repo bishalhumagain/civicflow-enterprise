@@ -339,7 +339,8 @@ public sealed class CasesController(
                 organizationId.Value,
                 request.NewStatus,
                 applicationUserId.Value,
-                authorizedStaffMemberId);
+                authorizedStaffMemberId,
+                cancellationToken);
 
             if (caseEntity is null)
                 return NotFound();

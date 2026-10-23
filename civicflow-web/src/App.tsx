@@ -52,6 +52,8 @@ import { CitizenDashboard } from './components/CitizenDashboard'
 import { PlatformDashboard } from './components/PlatformDashboard'
 import { OrganizationDashboard } from './components/OrganizationDashboard'
 import { PlatformErrors } from './components/PlatformErrors'
+import { NotificationCenter } from './components/NotificationCenter'
+import { BackgroundJobsPage } from './components/BackgroundJobsPage'
 import { LandingPage } from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
 import PlatformAdminLoginPage from './pages/PlatformAdminLoginPage'
@@ -254,7 +256,7 @@ function App() {
     }
 
     if (platformAdminAccess) {
-      views.push('platform-dashboard', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors')
+      views.push('platform-dashboard', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors', 'platform-jobs')
     }
 
     if (organizationAccess) {
@@ -298,6 +300,7 @@ function App() {
       items.push({ view: 'platform-directory', label: 'Directory', icon: '◍' })
       items.push({ view: 'platform-audit', label: 'Audit log', icon: '☰' })
       items.push({ view: 'platform-errors', label: 'Errors', icon: '⚠' })
+      items.push({ view: 'platform-jobs', label: 'Background jobs', icon: '↻' })
     }
 
     return items
@@ -1779,6 +1782,7 @@ function App() {
     'platform-directory': 'Directory',
     'platform-audit': 'Audit log',
     'platform-errors': 'Errors',
+    'platform-jobs': 'Background jobs',
   }
 
   return (
@@ -1850,6 +1854,14 @@ function App() {
             </div>
 
             <div className="topbar-actions">
+              <NotificationCenter
+                onOpenCase={organizationAccess
+                  ? (caseId) => {
+                      setViewSelection('cases')
+                      setSelectedCaseId(caseId)
+                    }
+                  : undefined}
+              />
               <button className="auth-button" onClick={handleSignOut} type="button">
                 Sign out
               </button>
@@ -1857,6 +1869,10 @@ function App() {
           </header>
 
           <section className="content">
+            {activeView === 'platform-jobs' && platformAdminAccess ? (
+              <BackgroundJobsPage />
+            ) : (
+            <>
             {error && (
               <div className="auth-error" role="alert">
                 {error}
@@ -2214,6 +2230,8 @@ function App() {
                     onOpenIntake={() => setViewSelection('citizen')}
                     onOpenProfile={() => setViewSelection('profile')}
                 />
+            )}
+            </>
             )}
 
             <p className="footer-note">
