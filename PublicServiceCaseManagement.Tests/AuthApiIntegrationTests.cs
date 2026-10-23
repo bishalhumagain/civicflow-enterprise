@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Auth;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
@@ -186,6 +188,23 @@ public sealed class AuthApiIntegrationTests
         var email = $"login-{Guid.NewGuid():N}@example.com";
 
         await RegisterAsync(client, email);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var savedUser = await dbContext.ApplicationUsers
+                .SingleAsync(user => user.Email == email);
+
+            Assert.False(string.IsNullOrWhiteSpace(savedUser.PasswordHash));
+            Assert.DoesNotContain(StrongPassword, savedUser.PasswordHash);
+            Assert.True(await userManager.CheckPasswordAsync(
+                savedUser,
+                StrongPassword));
+        }
+
         await ConfirmEmailAsync(factory, client, email);
 
         var loginResponse = await client.PostAsJsonAsync(
@@ -203,6 +222,78 @@ public sealed class AuthApiIntegrationTests
         Assert.NotNull(me);
         Assert.Equal(email, me!.Email);
         Assert.Contains("citizen", me.Roles);
+    }
+
+    [Fact]
+    public async Task LegacyAccountWithoutPassword_CanResetAndSignIn()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+        var email = $"legacy-password-{Guid.NewGuid():N}@example.com";
+        var now = DateTimeOffset.UtcNow;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var user = ApplicationUser.Create(
+                "Migrated Citizen",
+                email,
+                now);
+            user.EmailConfirmed = true;
+
+            var createResult = await userManager.CreateAsync(user);
+            Assert.True(createResult.Succeeded);
+
+            var roleResult = await userManager.AddToRoleAsync(
+                user,
+                AppRoles.Citizen);
+            Assert.True(roleResult.Succeeded);
+        }
+
+        var forgotResponse = await client.PostAsJsonAsync(
+            "/api/auth/forgot-password",
+            new { email });
+        Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
+
+        var resetMessage = factory.EmailSender.LastFor(email);
+        Assert.NotNull(resetMessage);
+        Assert.Contains("Reset your CivicFlow password", resetMessage!.Subject);
+
+        var resetToken = factory.EmailSender.ExtractToken(
+            resetMessage.Body,
+            "token");
+        Assert.False(string.IsNullOrWhiteSpace(resetToken));
+
+        const string newPassword = "New-Legacy-Password-9!";
+        var resetResponse = await client.PostAsJsonAsync(
+            "/api/auth/reset-password",
+            new { email, token = resetToken, newPassword });
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var savedUser = await dbContext.ApplicationUsers
+                .SingleAsync(user => user.Email == email);
+
+            Assert.False(string.IsNullOrWhiteSpace(savedUser.PasswordHash));
+            Assert.True(await userManager.CheckPasswordAsync(
+                savedUser,
+                newPassword));
+        }
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = newPassword });
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
     }
 
     [Fact]

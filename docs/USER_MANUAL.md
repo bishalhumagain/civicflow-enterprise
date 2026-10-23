@@ -131,6 +131,8 @@ Invitations expire (72 hours by default) and stop working after the first succes
 
 **Note:** Authentication is server-authoritative using an HttpOnly session cookie with CSRF protection. A session expires after 30 minutes without activity; active use renews the cookie. No authentication tokens are stored in the browser's JavaScript-accessible storage.
 
+Passwords for newly registered accounts and invited staff are stored as ASP.NET Core Identity password hashes, never as plaintext. Accounts migrated from the former external identity provider have no local password hash because CivicFlow cannot retrieve that provider's password; use **Forgot password** to set a new CivicFlow password before signing in.
+
 ---
 
 ## 3. Understanding the Interface
@@ -483,7 +485,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | Error | Possible Cause | Recovery |
 |---|---|---|
 | Organization workspace reports no active membership | The account has no active membership, or its organization is inactive | Contact an organization administrator; the frontend resolves organization IDs from membership and does not configure them |
-| "Invalid email or password" | Wrong credentials, wrong portal, inactive/unconfirmed account, or an account record requiring administrator review | Check the correct portal and try **Forgot password** for recovery. Verification resend is on that page. If sign-in still fails, contact an administrator to verify account status; CivicFlow intentionally does not disclose whether an email is registered. |
+| "Invalid email or password" | Wrong credentials, wrong portal, inactive/unconfirmed account, or an account record requiring administrator review | Check the correct portal and try **Forgot password** for recovery. Accounts migrated from the previous external identity provider must set a new local password; their previous provider password is not available to CivicFlow. Verification resend is on the recovery page. If sign-in still fails, contact an administrator to verify account status; CivicFlow intentionally does not disclose whether an email is registered. |
 | "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
 | "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |
 | "This account is not a platform administrator" | Signed in at `/super-platform-admin` with a staff or citizen account | Staff use `/admin`; citizens use `/citizen/login` |

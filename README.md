@@ -75,7 +75,7 @@ The platform is built around three core principles:
 | **Portal-scoped sign-in** | Three exclusive endpoints: citizen (`/api/auth/login`), organization (`/api/auth/login/organization`), and platform-admin (`/api/auth/login/platform-admin`). Wrong-portal attempts are rejected with machine-readable codes and no leftover session. |
 | **Email verification** | Registration requires email confirmation before sign-in is permitted (`RequireConfirmedEmail = true`). |
 | **Password policy** | 12+ characters, upper/lower/digit/non-alphanumeric, 6 unique characters. Account lockout after 5 failed attempts (15-minute window). |
-| **Password recovery** | Forgot-password/reset-password flow with enumeration-safe responses (no disclosure of whether an email exists). |
+| **Password recovery** | Forgot-password/reset-password flow with enumeration-safe responses (no disclosure of whether an email exists). Accounts migrated from the former external identity provider have no local password hash; they must set a local password through this flow. |
 | **Personal access tokens (PATs)** | `Authorization: Bearer civicflow_pat_<id>_<secret>` for non-browser clients. Stored as SHA-256 hash, shown once at creation, revocable, optional expiry, max 25 per user. PATs carry the owner's roles and policies. |
 | **CSRF protection** | Anti-forgery cookie + `X-CSRF-TOKEN` header validated on all unsafe `/api/*` methods. |
 | **Rate limiting** | Fixed-window: 20/min on auth endpoints, 8/5min on password endpoints. |
@@ -619,9 +619,11 @@ Edit `appsettings.json`:
 - `ConnectionStrings:CivicFlow` — use the `civicflow_migrator` credentials for migrations, `civicflow_runtime` for the running API
 - `Cors:AllowedOrigins` — add the frontend origin (default: `http://localhost:5173`)
 - `Frontend:BaseUrl` — the frontend URL (for invitation links)
-- `SeedAdmin:Email` / `SeedAdmin:Password` / `SeedAdmin:FullName` — optional, for initial super-admin
+- `SeedAdmin:Email` / `SeedAdmin:Password` / `SeedAdmin:FullName` — optional, for initial super-admin. The configured password is hashed by ASP.NET Core Identity; it is set when the account is first created and does not overwrite a later password change.
 
 > **Never commit `appsettings.json`** — it is gitignored. Use environment variables or .NET user-secrets for production.
+
+For a one-time reset of an existing seeded administrator to the configured password, set `SeedAdmin:ResetPassword=true` for a single API startup, then remove the setting. This is intentionally opt-in so normal restarts cannot silently replace an administrator's password.
 
 ### Step 4: Apply Migrations
 
@@ -777,7 +779,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 | Problem | Likely cause | Fix |
 |---|---|---|
-| **Sign-in fails** | Wrong portal, unconfirmed email, account state, credentials, or DB unavailable | Use the correct portal. For password recovery or email verification, open **Forgot password** and enter the account email. In Development, check the API console for a one-time link; outside Development, check SMTP delivery/configuration. If credentials still fail, ask an administrator to verify the account is active and confirmed; the UI intentionally does not reveal account existence or status. |
+| **Sign-in fails** | Wrong portal, unconfirmed email, account state, credentials, or DB unavailable | Use the correct portal. For password recovery or email verification, open **Forgot password** and enter the account email. Accounts migrated from the previous external identity provider have no local password and must set one through **Forgot password**; old provider credentials cannot be checked by CivicFlow. In Development, check the API console for a one-time link; outside Development, check SMTP delivery/configuration. If credentials still fail, ask an administrator to verify the account is active and confirmed; the UI intentionally does not reveal account existence or status. |
 | **"This account is not a citizen/organization account"** | Signed in through wrong portal | Citizens use `/citizen/login`, staff use `/admin`, superadmins use `/super-platform-admin` |
 | **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
 | **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |
