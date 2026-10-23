@@ -182,7 +182,7 @@ The platform is built around three core principles:
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
 │   └── Migrations/                         # 18 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (272 tests)
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (291 tests)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── src/
 │   │   ├── App.tsx                         # Session, routing, workspace
@@ -263,6 +263,8 @@ HTTP request
 | `api/citizens.ts` | Citizen profile API client. |
 | `api/profile.ts` | Unified profile API client. |
 
+The organization workspace obtains active memberships from `GET /api/organizations/me`. The UI selects a membership and sends its ID as `X-Organization-Id`; the API validates the authenticated user's active account, membership, and organization on every scoped request. The organization ID is not configured in the frontend build environment.
+
 **Routing**:
 
 | Route | Page |
@@ -321,10 +323,11 @@ A rejected attempt's session cookie is dropped — no usable session is left beh
 #### Organization Scoping
 
 1. User authenticates (cookie or PAT).
-2. `AuthenticatedOrganizationResolver` resolves the organization from the authenticated user + `X-Organization-Id` header + active membership check.
-3. `OrganizationTransactionContext` sets PostgreSQL `set_config('civicflow.organization_id', ..., true)`.
-4. RLS policies enforce isolation on tenant-owned tables.
-5. `OrganizationTransactionMiddleware` completes/rolls back the transaction context.
+2. `GET /api/organizations/me` returns only the caller's active organization memberships; the user selects a membership in the workspace.
+3. `AuthenticatedOrganizationResolver` treats `X-Organization-Id` only as a requested membership selector and verifies the user, active account, active membership, and active organization.
+4. `OrganizationTransactionContext` sets PostgreSQL `set_config('civicflow.organization_id', ..., true)`.
+5. RLS policies enforce isolation on tenant-owned tables.
+6. `OrganizationTransactionMiddleware` completes/rolls back the transaction context.
 
 #### Invitation-Based Onboarding
 
@@ -439,27 +442,27 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| POST | `/api/cases` | StaffClient | Create a case |
-| GET | `/api/cases` | StaffClient | List cases (paged, searchable, filterable) |
-| GET | `/api/cases/{id}` | StaffClient | Get case detail |
-| PATCH | `/api/cases/{id}/status` | StaffClient | Change case status |
-| GET | `/api/cases/{id}/history` | StaffClient | Get status history |
-| PATCH | `/api/cases/{id}/assignment` | StaffClient | Assign case |
-| GET | `/api/cases/{id}/assignment-history` | StaffClient | Get assignment history |
-| POST | `/api/cases/{id}/documents` | StaffClient | Upload document (multipart, 10MB) |
-| GET | `/api/cases/{id}/documents` | StaffClient | List documents |
-| GET | `/api/cases/{id}/documents/{docId}` | StaffClient | Download document |
+| POST | `/api/cases` | Active CaseWorker or OrganizationAdmin membership | Create a case in the selected organization |
+| GET | `/api/cases` | Active organization membership | List cases for the selected organization (paged; Viewer, CaseWorker, and OrganizationAdmin currently have organization-wide read visibility) |
+| GET | `/api/cases/{id}` | Active organization membership | Get details only when the case belongs to the selected organization |
+| PATCH | `/api/cases/{id}/status` | Active CaseWorker or OrganizationAdmin membership | Change status for a case in the selected organization |
+| GET | `/api/cases/{id}/history` | Active organization membership | Read status history for an owned case |
+| PATCH | `/api/cases/{id}/assignment` | Active CaseWorker or OrganizationAdmin membership | Assign to active staff in the selected organization |
+| GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an owned case |
+| POST | `/api/cases/{id}/documents` | Active CaseWorker or OrganizationAdmin membership | Upload document (multipart, 10MB) |
+| GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an owned case |
+| GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download document for an owned case |
 
 ### Staff (`/api/staff`)
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| GET | `/api/staff` | StaffClient | List organization staff |
-| POST | `/api/staff` | StaffClient + OrgAdmin | Create staff member |
+| GET | `/api/staff` | Active organization membership | List staff only for the selected organization; phone numbers are visible only to its OrganizationAdmin |
+| POST | `/api/staff` | OrganizationAdmin membership | Create staff member |
 | GET | `/api/staff/platform` | SuperAdmin | List all platform staff |
-| PATCH | `/api/staff/{id}/deactivate` | StaffClient + OrgAdmin | Deactivate staff |
-| PATCH | `/api/staff/{id}/reactivate` | StaffClient + OrgAdmin | Reactivate staff |
-| PATCH | `/api/staff/{id}/phone` | StaffClient + OrgAdmin | Update phone number |
+| PATCH | `/api/staff/{id}/deactivate` | OrganizationAdmin membership | Deactivate staff in the selected organization |
+| PATCH | `/api/staff/{id}/reactivate` | OrganizationAdmin membership | Reactivate staff in the selected organization |
+| PATCH | `/api/staff/{id}/phone` | OrganizationAdmin membership | Update phone number |
 | PATCH | `/api/staff/platform/{id}/deactivate` | SuperAdmin | Deactivate platform user |
 | PATCH | `/api/staff/platform/{id}/reactivate` | SuperAdmin | Reactivate platform user |
 
@@ -467,24 +470,25 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| GET | `/api/organizations` | StaffClient | List organizations |
+| GET | `/api/organizations/me` | StaffClient + active account | Return only the caller's active memberships and organization-level roles; no organization header required |
+| GET | `/api/organizations` | SuperAdmin | List organizations |
 | POST | `/api/organizations` | SuperAdmin | Create organization |
-| GET | `/api/organizations/{id}` | StaffClient | Get organization detail |
-| PUT | `/api/organizations/{id}` | StaffClient | Rename/update organization |
-| PATCH | `/api/organizations/{id}/deactivate` | StaffClient | Deactivate organization |
-| PATCH | `/api/organizations/{id}/reactivate` | StaffClient | Reactivate organization |
+| GET | `/api/organizations/{id}` | SuperAdmin | Get organization detail |
+| PUT | `/api/organizations/{id}` | SuperAdmin | Rename/update organization |
+| PATCH | `/api/organizations/{id}/deactivate` | SuperAdmin | Deactivate organization |
+| PATCH | `/api/organizations/{id}/reactivate` | SuperAdmin | Reactivate organization |
 | DELETE | `/api/organizations/{id}` | SuperAdmin | Delete (204/404/409 if cases exist) |
 
 ### Memberships (`/api/organizations/{orgId}/memberships`)
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| POST | — | StaffClient | Add membership |
-| GET | — | StaffClient | List memberships |
-| GET | `/{id}` | StaffClient | Get membership detail |
-| PUT | `/{id}/role` | StaffClient | Change role |
-| PATCH | `/{id}/deactivate` | StaffClient | Deactivate membership |
-| PATCH | `/{id}/reactivate` | StaffClient | Reactivate membership |
+| POST | — | OrganizationAdmin of `{orgId}` or SuperAdmin | Add an organization-level membership |
+| GET | — | OrganizationAdmin of `{orgId}` or SuperAdmin | List memberships |
+| GET | `/{id}` | OrganizationAdmin of `{orgId}` or SuperAdmin | Get membership detail |
+| PUT | `/{id}/role` | OrganizationAdmin of `{orgId}` or SuperAdmin | Change among Viewer, CaseWorker, OrganizationAdmin |
+| PATCH | `/{id}/deactivate` | OrganizationAdmin of `{orgId}` or SuperAdmin | Deactivate membership |
+| PATCH | `/{id}/reactivate` | OrganizationAdmin of `{orgId}` or SuperAdmin | Reactivate membership |
 
 ### Invitations (`/api/organizations/{orgId}/invitations`)
 
@@ -519,9 +523,9 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | GET | `/api/platform/staff` | SuperAdmin | All staff memberships |
 | GET | `/api/platform/audit` | SuperAdmin | Platform-wide audit trail |
 | GET | `/api/platform/audit/categories` | SuperAdmin | Audit category list |
-| GET | `/api/organizations/{orgId}/audit` | StaffClient | Organization audit trail |
+| GET | `/api/organizations/{orgId}/audit` | OrganizationAdmin of `{orgId}` or SuperAdmin | Organization audit trail |
 | GET | `/api/dashboard/platform` | SuperAdmin | Platform case statistics |
-| GET | `/api/dashboard` | StaffClient | Organization case statistics |
+| GET | `/api/dashboard/organization?organizationId=...` | Active organization membership | Organization statistics; a supplied ID must match the authorized organization context |
 | GET | `/api/errors` | SuperAdmin | List application errors (paged) |
 | GET | `/api/errors/{id}` | SuperAdmin | Get error detail |
 | PATCH | `/api/errors/{id}/mark-handled` | SuperAdmin | Mark error as handled |
@@ -599,7 +603,7 @@ dotnet run --project PublicServiceCaseManagement.Api
 
 ```bash
 cd civicflow-web
-cp .env.example .env.local   # Edit VITE_API_BASE_URL and VITE_CIVICFLOW_ORGANIZATION_ID
+cp .env.example .env.local   # Edit VITE_API_BASE_URL if needed
 npm ci
 npm run dev
 ```
@@ -629,7 +633,7 @@ Public registration only creates citizen accounts. To get a staff/organization l
    ```
    - The invitation link appears in the API log (via `LoggingEmailSender` at `Information` level — search for `setup-password?token=`)
 
-4. **Accept invitation**: Open the `/setup-password?token=...` link, choose a password, then sign in at `/admin`.
+4. **Accept invitation**: Open the `/setup-password?token=...` link, choose a password, then sign in at `/admin`. The workspace resolves the active organization membership from the signed-in account; no organization ID is hardcoded.
 
 ### Email Delivery
 
@@ -645,7 +649,7 @@ Verification and password-reset emails are sent via `IEmailSender`. The default 
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**272 tests** covering:
+**291 tests** covering:
 
 | Category | What's tested |
 |---|---|

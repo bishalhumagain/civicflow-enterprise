@@ -162,10 +162,12 @@ public sealed class StaffController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
+        var organizationRole =
+            await organizationContext.GetOrganizationRoleAsync(cancellationToken);
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
 
-        if (organizationId is null)
+        if (organizationId is null || organizationRole is null)
             return Forbid();
 
         var staffMembers = await staffService.GetAllAsync(
@@ -178,7 +180,9 @@ public sealed class StaffController(
             staff.Id,
             staff.FullName,
             staff.Email,
-            staff.PhoneNumber,
+            PhoneNumber = organizationRole == OrganizationRole.OrganizationAdmin
+                ? staff.PhoneNumber
+                : null,
             staff.IsActive,
             staff.CreatedAt,
             staff.UpdatedAt

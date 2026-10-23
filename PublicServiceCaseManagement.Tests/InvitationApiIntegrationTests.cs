@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Auth;
+using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
@@ -231,6 +232,85 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.NotNull(me);
         Assert.Contains(AppRoles.Staff, me!.Roles);
+    }
+
+    [Fact]
+    public async Task AcceptedOrganizationAdmin_CanLoadOrganizationWorkspace()
+    {
+        await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
+        {
+            UseTestAuthentication = false
+        };
+
+        var (adminEmail, organizationId) =
+            await CreateOrganizationAdminAsync(factory);
+
+        using var adminClient = CreateCookieClient(factory);
+        await SignInAsync(adminClient, adminEmail, StrongPassword);
+        adminClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var inviteeEmail = $"workspace-admin-{Guid.NewGuid():N}@example.com";
+        var token = await InviteAsync(
+            factory,
+            adminClient,
+            organizationId,
+            inviteeEmail,
+            nameof(OrganizationRole.OrganizationAdmin));
+
+        using var inviteeClient = CreateCookieClient(factory);
+        var acceptResponse = await inviteeClient.PostAsJsonAsync(
+            "/api/auth/invitations/accept",
+            new { token, password = InviteePassword });
+        Assert.Equal(HttpStatusCode.OK, acceptResponse.StatusCode);
+        await SignInAsync(inviteeClient, inviteeEmail, InviteePassword);
+        inviteeClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var organizationsResponse =
+            await inviteeClient.GetAsync("/api/organizations/me");
+        var staffResponse = await inviteeClient.GetAsync("/api/staff");
+        var casesResponse = await inviteeClient.GetAsync(
+            "/api/cases?page=1&pageSize=20");
+
+        Assert.Equal(HttpStatusCode.OK, organizationsResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, staffResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, casesResponse.StatusCode);
+
+        var memberships =
+            await organizationsResponse.Content.ReadFromJsonAsync<
+                IReadOnlyList<OrganizationWorkspaceOption>>();
+        Assert.Equal(organizationId, Assert.Single(memberships!).Id);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var user = await dbContext.ApplicationUsers.SingleAsync(
+                candidate => candidate.Email == inviteeEmail);
+            var membership = await dbContext.OrganizationMemberships
+                .SingleAsync(candidate =>
+                    candidate.OrganizationId == organizationId &&
+                    candidate.UserId == user.Id);
+
+            Assert.Equal(
+                OrganizationRole.OrganizationAdmin,
+                membership.Role);
+        }
+
+        inviteeClient.DefaultRequestHeaders.Remove("X-Organization-Id");
+        inviteeClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            Guid.NewGuid().ToString());
+
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await inviteeClient.GetAsync("/api/staff")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await inviteeClient.GetAsync("/api/cases?page=1&pageSize=20")).StatusCode);
     }
 
     [Fact]
@@ -651,6 +731,83 @@ public sealed class InvitationApiIntegrationTests
             new { email = existingEmail, password = InviteePassword });
 
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invitation_AcceptanceReactivatesMembershipWithInvitedRole()
+    {
+        await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
+        {
+            UseTestAuthentication = false
+        };
+
+        var (adminEmail, organizationId) =
+            await CreateOrganizationAdminAsync(factory);
+        await EnsureRolesAsync(factory);
+
+        var inviteeEmail = $"reactivated-{Guid.NewGuid():N}@example.com";
+        Guid inviteeId;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var invitee = ApplicationUser.Create(
+                "Reactivated Member",
+                inviteeEmail,
+                DateTimeOffset.UtcNow);
+            invitee.EmailConfirmed = true;
+
+            var createResult = await userManager.CreateAsync(
+                invitee,
+                StrongPassword);
+            Assert.True(createResult.Succeeded);
+            inviteeId = invitee.Id;
+
+            var membership = OrganizationMembership.Create(
+                inviteeId,
+                organizationId,
+                OrganizationRole.Viewer,
+                DateTimeOffset.UtcNow);
+            membership.Deactivate(DateTimeOffset.UtcNow);
+            dbContext.OrganizationMemberships.Add(membership);
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var adminClient = CreateCookieClient(factory);
+        await SignInAsync(adminClient, adminEmail, StrongPassword);
+        adminClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var token = await InviteAsync(
+            factory,
+            adminClient,
+            organizationId,
+            inviteeEmail,
+            nameof(OrganizationRole.OrganizationAdmin));
+
+        using var inviteeClient = CreateCookieClient(factory);
+        var acceptResponse = await inviteeClient.PostAsJsonAsync(
+            "/api/auth/invitations/accept",
+            new { token, password = InviteePassword });
+
+        Assert.Equal(HttpStatusCode.OK, acceptResponse.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var reactivatedMembership = await verifyDbContext.OrganizationMemberships
+            .SingleAsync(candidate =>
+                candidate.UserId == inviteeId &&
+                candidate.OrganizationId == organizationId);
+
+        Assert.True(reactivatedMembership.IsActive);
+        Assert.Equal(
+            OrganizationRole.OrganizationAdmin,
+            reactivatedMembership.Role);
     }
 
     [Fact]

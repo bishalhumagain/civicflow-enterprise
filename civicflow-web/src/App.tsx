@@ -13,7 +13,6 @@ import {
 import './App.css'
 
 import {
-  organizationId,
   statusLabels,
   statusOptions,
   type AccountInvitation,
@@ -32,13 +31,14 @@ import {
   type Membership,
   type MembershipsData,
   type Organization,
+  type OrganizationWorkspaceOption,
   type PlatformOverview,
   type PlatformStaff,
   type PlatformUser,
   type StaffMember,
   type WorkspaceView,
 } from './domain'
-import { requestJson } from './api-client'
+import { requestJson, setRequestOrganizationId } from './api-client'
 import { StatusPill } from './components/StatusPill'
 import { StatCard } from './components/StatCard'
 import { CaseDetails } from './components/CaseDetails'
@@ -174,15 +174,20 @@ function App() {
 
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [workspaceOrganizations, setWorkspaceOrganizations] = useState<OrganizationWorkspaceOption[]>([])
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [membershipsData, setMembershipsData] = useState<MembershipsData | null>(null)
+  const [workspaceMemberships, setWorkspaceMemberships] = useState<Membership[]>([])
   const [invitationsData, setInvitationsData] = useState<{
     organizationId: string
     items: AccountInvitation[]
   } | null>(null)
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState(organizationId ?? '')
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<'All' | CaseStatus>('All')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [retryVersion, setRetryVersion] = useState(0)
+  const [organizationRetryVersion, setOrganizationRetryVersion] = useState(0)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -218,6 +223,9 @@ function App() {
   const [auditLoading, setAuditLoading] = useState(false)
 
   const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
+  const activeOrganization = workspaceOrganizations.find(
+    (item) => item.id === organizationId,
+  ) ?? null
 
   // The API reports the roles the session actually carries. Every dashboard,
   // navigation entry, and data request below is derived from them so the UI
@@ -334,6 +342,66 @@ function App() {
   }, [])
 
   useEffect(() => {
+    setRequestOrganizationId(null)
+
+    if (!currentUser || !organizationAccess) return
+
+    let mounted = true
+
+    async function loadWorkspaceOrganizations() {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const memberships = await requestJson<OrganizationWorkspaceOption[]>(
+          '/api/organizations/me',
+          undefined,
+          '',
+        )
+
+        if (!mounted) return
+
+        setWorkspaceOrganizations(memberships)
+        const firstMembership = memberships[0]
+        if (firstMembership) {
+          setRequestOrganizationId(firstMembership.id)
+          setOrganizationId(firstMembership.id)
+        } else {
+          setError('This account has no active organization membership. Contact an administrator.')
+        }
+      } catch (reason) {
+        if (mounted) {
+          setError(reason instanceof Error
+            ? reason.message
+            : 'Your organization memberships could not be loaded. Retry by refreshing the workspace.')
+        }
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    void loadWorkspaceOrganizations()
+
+    return () => {
+      mounted = false
+    }
+  }, [currentUser, organizationAccess, organizationRetryVersion])
+
+  function selectWorkspaceOrganization(nextOrganizationId: string) {
+    if (!workspaceOrganizations.some((item) => item.id === nextOrganizationId)) return
+
+    setRequestOrganizationId(nextOrganizationId)
+    setOrganizationId(nextOrganizationId)
+    setCases([])
+    setStaff([])
+    setWorkspaceMemberships([])
+    setSelectedCaseId(null)
+    setCasePage(1)
+    setInvitationsData(null)
+    setError(null)
+  }
+
+  useEffect(() => {
     let mounted = true
 
     void getCurrentUser()
@@ -404,7 +472,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, organizationAccess, casePage])
+  }, [currentUser, organizationAccess, organizationId, casePage, retryVersion])
 
   useEffect(() => {
     if (!currentUser || !organizationAccess || !selectedCase || selectedCase.id.startsWith('demo-')) return
@@ -445,7 +513,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, organizationAccess, selectedCase])
+  }, [currentUser, organizationAccess, organizationId, selectedCase, retryVersion])
 
   useEffect(() => {
     if (!currentUser || !platformAdminAccess || activeView !== 'organizations') return
@@ -476,7 +544,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, platformAdminAccess, activeView])
+  }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
   useEffect(() => {
     if (!currentUser || !platformAdminAccess || activeView !== 'organizations' || !selectedOrganizationId) return
@@ -504,7 +572,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, platformAdminAccess, activeView, selectedOrganizationId])
+  }, [currentUser, platformAdminAccess, activeView, selectedOrganizationId, retryVersion])
 
   useEffect(() => {
     if (!currentUser || !platformAdminAccess || activeView !== 'platform-directory') return
@@ -544,7 +612,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, platformAdminAccess, activeView])
+  }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
   // Load platform dashboard statistics
   useEffect(() => {
@@ -579,7 +647,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, platformAdminAccess, activeView])
+  }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
   // Load organization dashboard statistics
   useEffect(() => {
@@ -614,7 +682,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, organizationAccess, activeView, organizationId])
+  }, [currentUser, organizationAccess, activeView, organizationId, retryVersion])
 
   // Load application errors
   useEffect(() => {
@@ -649,7 +717,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [currentUser, platformAdminAccess, activeView])
+  }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
   // The audit trail is read through two endpoints: the platform-wide log for
   // super administrators and the organization-scoped log for organization
@@ -722,12 +790,14 @@ function App() {
     auditOrganizationId,
     auditPage,
     auditFilters,
+    retryVersion,
   ])
 
   const invitationsOrganizationId =
     activeView === 'organizations'
       ? selectedOrganizationId
-      : activeView === 'staff'
+      : activeView === 'staff' &&
+          activeOrganization?.role === 'OrganizationAdmin'
         ? organizationId ?? ''
         : ''
 
@@ -771,7 +841,85 @@ function App() {
     platformAdminAccess,
     organizationAccess,
     invitationsOrganizationId,
+    retryVersion,
   ])
+
+  useEffect(() => {
+    if (!currentUser ||
+        !organizationAccess ||
+        activeView !== 'staff' ||
+        !organizationId ||
+        activeOrganization?.role !== 'OrganizationAdmin') {
+      return
+    }
+
+    let mounted = true
+    const targetOrganizationId = organizationId
+
+    void requestJson<Membership[]>(
+      `/api/organizations/${targetOrganizationId}/memberships`,
+      undefined,
+      targetOrganizationId,
+    )
+      .then((loaded) => {
+        if (mounted) setWorkspaceMemberships(loaded)
+      })
+      .catch((reason: unknown) => {
+        if (mounted) {
+          setError(reason instanceof Error
+            ? reason.message
+            : 'Organization memberships could not be loaded.')
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [
+    currentUser,
+    organizationAccess,
+    activeView,
+    organizationId,
+    activeOrganization?.role,
+    retryVersion,
+  ])
+
+  async function updateWorkspaceMembership(
+    membership: Membership,
+    role?: string,
+  ) {
+    if (!organizationId || activeOrganization?.role !== 'OrganizationAdmin') return
+
+    const path = role
+      ? `/api/organizations/${organizationId}/memberships/${membership.id}/role`
+      : `/api/organizations/${organizationId}/memberships/${membership.id}/${membership.isActive ? 'deactivate' : 'reactivate'}`
+
+    setAdminLoading(true)
+    setError(null)
+
+    try {
+      const updated = await requestJson<Membership>(
+        path,
+        role
+          ? { method: 'PUT', body: JSON.stringify({ role }) }
+          : { method: 'PATCH' },
+        organizationId,
+      )
+
+      setWorkspaceMemberships((current) =>
+        current.map((item) => item.id === updated.id ? updated : item))
+      setRetryVersion((version) => version + 1)
+      showToast('Membership updated.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'The membership could not be updated.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
 
   async function inviteStaff(
     organizationIdForRequest: string,
@@ -962,7 +1110,11 @@ function App() {
 
   const handleSignOut = () => {
     void logoutRequest()
+    setRequestOrganizationId(null)
     setCurrentUser(null)
+    setOrganizationId(null)
+    setWorkspaceOrganizations([])
+    setWorkspaceMemberships([])
     setCases([])
     setStaff([])
     setOrganizations([])
@@ -996,6 +1148,7 @@ function App() {
       setNewTitle('')
       setNewDescription('')
       setShowCreateForm(false)
+      setRetryVersion((version) => version + 1)
       showToast('Case created.', 'success')
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Case creation failed. Your role may not permit this action.'
@@ -1032,6 +1185,7 @@ function App() {
       )
 
       setCaseHistoryData({ caseId, items: loadedHistory })
+      setRetryVersion((version) => version + 1)
       showToast('Status updated.', 'success')
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Status update failed. Your role may not permit this action.'
@@ -1053,6 +1207,7 @@ function App() {
         method: 'PATCH',
         body: JSON.stringify({ staffMemberId }),
       })
+      setRetryVersion((version) => version + 1)
       showToast('Assignment updated.', 'success')
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Assignment failed. Your role may not permit this action.'
@@ -1141,6 +1296,7 @@ function App() {
       )
 
       setStaff((current) => current.map((item) => item.id === result.id ? result : item))
+      setRetryVersion((version) => version + 1)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Staff status change failed.')
     } finally {
@@ -1239,6 +1395,7 @@ function App() {
       )
 
       setStaff((current) => current.map((item) => item.id === updated.id ? updated : item))
+      setRetryVersion((version) => version + 1)
       showToast('Phone number updated.', 'success')
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Phone number update failed.'
@@ -1528,7 +1685,7 @@ function App() {
   }
 
   const caseEmptyMessage = !organizationId
-      ? 'Configure an organization ID to load cases.'
+      ? 'Loading your organization workspace.'
       : cases.length === 0
           ? 'No cases are available in this organization.'
           : 'No cases match the current filter.'
@@ -1536,7 +1693,7 @@ function App() {
   const dataSourceLabel = loading
       ? 'Loading from API'
       : !organizationId
-          ? 'Organization configuration required'
+          ? 'Resolving organization membership'
           : 'Live organization data'
 
   const workspaceLabel = activePortal === 'citizen'
@@ -1547,7 +1704,7 @@ function App() {
 
   const workspaceCaption = activePortal === 'citizen'
       ? currentUser.email
-      : organizationId || 'Configure an organization ID'
+      : activeOrganization?.name ?? 'Organization membership required'
 
   const viewLabels: Record<WorkspaceView, string> = {
     'citizen-dashboard': 'Dashboard',
@@ -1577,10 +1734,26 @@ function App() {
           <div className="organization-switcher">
             <span className="organization-icon">CF</span>
             <span>
-            <strong>{workspaceLabel}</strong>
-            <small>{workspaceCaption}</small>
-          </span>
+              <strong>{workspaceLabel}</strong>
+              <small>{workspaceCaption}</small>
+            </span>
           </div>
+          {organizationAccess && workspaceOrganizations.length > 1 && (
+            <label className="organization-select-label">
+              Organization
+              <select
+                aria-label="Active organization"
+                value={organizationId ?? ''}
+                onChange={(event) => selectWorkspaceOrganization(event.target.value)}
+              >
+                {workspaceOrganizations.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.role})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <nav className="navigation" aria-label="Primary navigation">
             {navigationItems.map((item) => (
@@ -1624,7 +1797,23 @@ function App() {
           </header>
 
           <section className="content">
-            {error && <div className="auth-error" role="alert">{error}</div>}
+            {error && (
+              <div className="auth-error" role="alert">
+                {error}
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setRetryVersion((version) => version + 1)
+                    if (!organizationId) {
+                      setOrganizationRetryVersion((version) => version + 1)
+                    }
+                  }}
+                  type="button"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {activeView === 'citizen-dashboard' ? (
               <CitizenDashboard
@@ -1642,6 +1831,8 @@ function App() {
                 <StaffDirectory
                     staff={staff}
                     invitations={staffInvitations}
+                    memberships={workspaceMemberships}
+                    canManage={activeOrganization?.role === 'OrganizationAdmin'}
                     authenticated={Boolean(currentUser)}
                     loading={adminLoading}
                     onInvite={(fullName, email, phoneNumber, role) =>
@@ -1652,6 +1843,10 @@ function App() {
                       revokeInvitation(organizationId ?? '', invitationId)}
                     onToggle={setStaffActive}
                     onUpdatePhone={updateStaffPhone}
+                    onUpdateMembership={(membership, role) =>
+                      updateWorkspaceMembership(membership, role)}
+                    onToggleMembership={(membership) =>
+                      updateWorkspaceMembership(membership)}
                 />
             ) : activeView === 'activity' && organizationAccess ? (
                 <AuditLog

@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import type { AccountInvitation, StaffMember } from '../domain'
+import type { AccountInvitation, Membership, StaffMember } from '../domain'
 import { InvitationManager } from './InvitationManager'
 
 export function StaffDirectory({
   staff,
   invitations,
+  memberships,
+  canManage,
   authenticated,
   loading,
   onInvite,
@@ -12,9 +14,13 @@ export function StaffDirectory({
   onRevoke,
   onToggle,
   onUpdatePhone,
+  onUpdateMembership,
+  onToggleMembership,
 }: {
   staff: StaffMember[]
   invitations: AccountInvitation[]
+  memberships: Membership[]
+  canManage: boolean
   authenticated: boolean
   loading: boolean
   onInvite: (
@@ -27,6 +33,8 @@ export function StaffDirectory({
   onRevoke: (invitationId: string) => Promise<void>
   onToggle: (member: StaffMember) => Promise<void>
   onUpdatePhone: (member: StaffMember, phoneNumber: string) => Promise<void>
+  onUpdateMembership: (membership: Membership, role: string) => Promise<void>
+  onToggleMembership: (membership: Membership) => Promise<void>
 }) {
   const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null)
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -49,14 +57,15 @@ export function StaffDirectory({
           <p className="eyebrow">ORGANIZATION DIRECTORY</p>
           <h1>Staff &amp; team</h1>
           <p className="muted">
-            Invite staff to this organization and manage who can work on cases.
-            Each invitee receives a single-use link and chooses their own
-            password.
+            {canManage
+              ? 'Invite staff to this organization and manage who can work on cases.'
+              : 'View the staff directory and case assignment contacts.'}
+            {canManage ? ' Each invitee receives a single-use link and chooses their own password.' : ''}
           </p>
         </div>
       </div>
 
-      {authenticated ? (
+      {authenticated && canManage ? (
         <InvitationManager
           invitations={invitations}
           loading={loading}
@@ -65,6 +74,43 @@ export function StaffDirectory({
           onRevoke={onRevoke}
         />
       ) : null}
+
+      {canManage && (
+        <section className="case-card directory-card">
+          <h2>Organization memberships</h2>
+          {memberships.length === 0 ? (
+            <p className="muted empty-state">No memberships were returned.</p>
+          ) : (
+            <div className="membership-list">
+              {memberships.map((membership) => (
+                <article className="membership-row" key={membership.id}>
+                  <code title={membership.userId}>{membership.userId}</code>
+                  <select
+                    aria-label={`Role for ${membership.userId}`}
+                    disabled={loading}
+                    onChange={(event) =>
+                      void onUpdateMembership(membership, event.target.value)}
+                    value={membership.role}
+                  >
+                    <option value="Viewer">Viewer</option>
+                    <option value="CaseWorker">CaseWorker</option>
+                    <option value="OrganizationAdmin">OrganizationAdmin</option>
+                  </select>
+                  <span>{membership.isActive ? 'Active' : 'Inactive'}</span>
+                  <button
+                    className="secondary-button"
+                    disabled={loading}
+                    onClick={() => void onToggleMembership(membership)}
+                    type="button"
+                  >
+                    {membership.isActive ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="case-card directory-card">
         <h2>Active staff</h2>
@@ -80,7 +126,7 @@ export function StaffDirectory({
                 <div>
                   <strong>{member.fullName}</strong>
                   <span>{member.email}</span>
-                  {editingPhoneFor === member.id ? (
+                  {canManage && editingPhoneFor === member.id ? (
                     <span style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <input
                         aria-label={`Phone number for ${member.fullName}`}
@@ -110,8 +156,10 @@ export function StaffDirectory({
                     </span>
                   ) : (
                     <span>
-                      {member.phoneNumber ?? 'No phone number'}{' '}
-                      <button
+                      {canManage
+                        ? member.phoneNumber ?? 'No phone number'
+                        : 'Contact details restricted'}{' '}
+                      {canManage && <button
                         className="link-button"
                         disabled={loading}
                         onClick={() => startEditing(member)}
@@ -119,19 +167,21 @@ export function StaffDirectory({
                         type="button"
                       >
                         Edit
-                      </button>
+                      </button>}
                     </span>
                   )}
                   <small>{member.isActive ? 'Active' : 'Inactive'}</small>
                 </div>
-                <button
-                  className="secondary-button"
-                  disabled={loading}
-                  onClick={() => void onToggle(member)}
-                  type="button"
-                >
-                  {member.isActive ? 'Deactivate' : 'Reactivate'}
-                </button>
+                {canManage && (
+                  <button
+                    className="secondary-button"
+                    disabled={loading}
+                    onClick={() => void onToggle(member)}
+                    type="button"
+                  >
+                    {member.isActive ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                )}
               </article>
             ))}
           </div>

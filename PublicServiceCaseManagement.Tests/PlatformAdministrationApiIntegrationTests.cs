@@ -337,6 +337,29 @@ public sealed class PlatformAdministrationApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetOrganizationStatistics_CannotSelectAnotherOrganization()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin);
+        using var client = factory.CreateClient();
+
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.OrganizationAdmin);
+        var otherOrganizationId =
+            await factory.SeedOrganizationWithoutMembershipAsync();
+
+        client.DefaultRequestHeaders.Remove("X-Organization-Id");
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await client.GetAsync(
+            $"/api/dashboard/organization?organizationId={otherOrganizationId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UpdateStaffPhone_WithInvalidPhone_ReturnsBadRequest()
     {
         await using var factory = new CivicFlowApiFactory(

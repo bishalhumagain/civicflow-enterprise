@@ -61,9 +61,8 @@ cp .env.example .env.local
 | Variable | Purpose | Local default |
 |---|---|---|
 | `VITE_API_BASE_URL` | CivicFlow API base URL | `http://localhost:5000` |
-| `VITE_CIVICFLOW_ORGANIZATION_ID` | Default workspace organization | seeded org id |
 
-`.env` and `.env.local` are gitignored; only `.env.example` is committed. The API enforces its own session, anti-forgery, membership, organization, and role checks — the frontend values are convenience defaults, not a security boundary. Restart `npm run dev` after changing these values (Vite reads them at startup).
+The workspace resolves active organization memberships from the authenticated session with `GET /api/organizations/me`; no organization ID is configured in the frontend. `.env` and `.env.local` are gitignored; only `.env.example` is committed. The API enforces its own session, anti-forgery, membership, organization, and role checks — frontend configuration is not a security boundary. Restart `npm run dev` after changing the API URL (Vite reads it at startup).
 
 > **Port note**: the API listens on `http://localhost:5000` by default, but macOS's AirPlay Receiver can also bind port `5000`, which makes the API fail to start. Run the API on another port (for example `--urls http://localhost:5001`) and set `VITE_API_BASE_URL` to that same URL in `.env.local`, then restart the Vite dev server. The frontend origin (`http://localhost:5173`) must remain in the API's `Cors:AllowedOrigins`; the API port does not affect CORS.
 

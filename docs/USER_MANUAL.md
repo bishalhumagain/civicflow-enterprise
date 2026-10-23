@@ -194,16 +194,11 @@ The navigation only shows the views your account is entitled to. Entries are det
 **Access requirements:** Authenticated staff account with the `staff` role; must have appropriate organization membership/role as enforced by the API.
 
 **Available actions:**
-- View and manage cases (create, list, search, filter, view detail)
-- Update case status through the state machine
-- Assign cases to staff members
-- Upload and download case documents
-- View case status history and assignment history
-- Manage the staff directory (deactivate/reactivate)
-- Invite staff (send, resend, or revoke single-use invitations)
-- Collect a phone number when inviting a staff member
-- View and correct a staff member's phone number (organization administrators)
-- Read the organization activity log (organization administrators)
+- View the selected organization's cases, search, filter, and inspect details and history. Current Viewer, CaseWorker, and OrganizationAdmin rules permit organization-wide case reads; case actions are role-gated by the API.
+- CaseWorker and OrganizationAdmin users can create cases, change status, assign cases to active staff in the same organization, and manage case documents.
+- View the selected organization's staff directory and active staff assignment contacts.
+- Organization administrators can inspect and update organization memberships, invite staff with Viewer, CaseWorker, or OrganizationAdmin roles, deactivate/reactivate memberships and staff, and manage invitations.
+- Organization administrators can collect and update staff phone numbers and read the organization activity log.
 - View organization dashboard statistics
 - Manage personal access tokens
 - Update own profile
@@ -294,6 +289,8 @@ The Organizations view consists of two main sections: "Organizations" and "Membe
 4. Click on a case in the table to view details in the right panel
 5. View case information, status history, assignment history, and documents
 
+The workspace resolves the active organization from the signed-in account's active memberships. If the account belongs to multiple organizations, choose the organization in the workspace selector. The server validates every selection; changing the selector cannot grant access to a non-member organization.
+
 ### 5.2 Creating a Case
 
 1. Go to **Cases** view
@@ -337,11 +334,10 @@ The Organizations view consists of two main sections: "Organizations" and "Membe
 ### 5.6 Managing Staff
 
 1. Navigate to **Staff & team**
-2. Use the invitation form to add new staff members (full name, email, and an optional phone number); the invitee receives a single-use link and chooses their own password
-3. Review the invitation list (pending, accepted, expired, revoked) and resend or revoke invitations
-4. Toggle staff member active/inactive status using the action buttons
-5. Correct a staff member's phone number inline with the **Edit** action next to the number
-6. Changes require appropriate permissions
+2. Organization administrators invite staff with a permitted organization role and optional phone number; invitees receive a single-use link and choose their own password
+3. Review and manage invitations, organization memberships, membership roles, and active status
+4. Organization administrators can toggle staff active/inactive status and correct phone numbers inline
+5. Other staff can view the current organization's directory but do not receive membership-management or staff-administration controls
 
 **Note on phone numbers:** A phone number is optional and must be 6–30 characters with at least 6 digits. When an invitation carries a number, it is stored on the new account and staff record; for an account that already exists the number is only filled in when the account has none of its own, so a number someone entered themselves is never overwritten.
 
@@ -462,7 +458,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 
 | Error | Possible Cause | Recovery |
 |---|---|---|
-| "Configure an organization ID to load cases" | Missing `VITE_CIVICFLOW_ORGANIZATION_ID` | Configure environment variables (see [README](../README.md)) |
+| Organization workspace reports no active membership | The account has no active membership, or its organization is inactive | Contact an organization administrator; the frontend resolves organization IDs from membership and does not configure them |
 | "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
 | "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
 | "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |

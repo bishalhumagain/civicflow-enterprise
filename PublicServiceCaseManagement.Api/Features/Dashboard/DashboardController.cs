@@ -28,9 +28,22 @@ public sealed class DashboardController(
 
     [HttpGet("organization")]
     public async Task<ActionResult<CaseStatistics>> GetOrganizationStatistics(
-        [FromQuery] Guid organizationId)
+        [FromQuery] Guid? organizationId,
+        CancellationToken cancellationToken)
     {
-        var statistics = await dashboardService.GetOrganizationStatisticsAsync(organizationId);
+        var authorizedOrganizationId =
+            await organizationContext.GetOrganizationIdAsync(cancellationToken);
+
+        if (authorizedOrganizationId is null ||
+            (organizationId.HasValue &&
+             organizationId.Value != authorizedOrganizationId.Value))
+        {
+            return Forbid();
+        }
+
+        var statistics = await dashboardService.GetOrganizationStatisticsAsync(
+            authorizedOrganizationId.Value);
+
         return Ok(statistics);
     }
 

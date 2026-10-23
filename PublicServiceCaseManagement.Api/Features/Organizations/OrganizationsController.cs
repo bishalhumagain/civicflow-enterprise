@@ -64,6 +64,26 @@ public sealed class OrganizationsController(
         return Ok(organizations.Select(ToResponse).ToList());
     }
 
+    [HttpGet("me")]
+    public async Task<ActionResult<IReadOnlyList<OrganizationWorkspaceOption>>>
+        GetMyMemberships(CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        var userId = await organizationContext.GetApplicationUserIdAsync(
+            cancellationToken);
+
+        if (userId is null)
+            return Forbid();
+
+        var memberships = await organizationService.GetMembershipsForUserAsync(
+            userId.Value,
+            cancellationToken);
+
+        return Ok(memberships);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OrganizationResponse>> GetById(
         Guid id,

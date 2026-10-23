@@ -91,10 +91,13 @@ The same policy shape applies to all five protected tables. `FORCE ROW LEVEL SEC
 ## Application-Level Organization Predicates
 
 The application-level organization predicates (in `AuthenticatedOrganizationResolver` and the service layer) remain an additional defense. They:
-- Resolve the organization from the authenticated user's `ClaimTypes.NameIdentifier` + `X-Organization-Id` header
+- Resolve the authenticated user from `ClaimTypes.NameIdentifier` and treat `X-Organization-Id` only as a requested membership selector
 - Verify active membership and active organization
+- Verify the application account is active
 - Set the `civicflow.organization_id` transaction context via `OrganizationTransactionContext`
 - Provide defense in depth alongside RLS
+
+`GET /api/organizations/me` returns only the caller's active memberships and is the frontend's source for organization selection. Organization dashboard statistics are derived from this validated context; a supplied organization ID is rejected when it does not match.
 
 ---
 

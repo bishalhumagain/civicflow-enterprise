@@ -16,7 +16,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite uses EF Core InMemory and a synthetic authentication handler for most API tests (272 tests total). A subset exercises the real ASP.NET Core Identity flow through the cookie scheme.
+The automated suite uses EF Core InMemory and a synthetic authentication handler for most API tests (291 tests total). A subset exercises the real ASP.NET Core Identity flow through the cookie scheme.
 
 ### Authentication lifecycle
 
@@ -68,6 +68,10 @@ Covered by automated integration tests:
 - An attempt to invite `superadmin` is rejected
 - Cross-organization invitation access is denied
 - An invitation for an existing citizen links that account instead of duplicating it
+- An accepted OrganizationAdmin can load `/api/staff` and `/api/cases?page=1&pageSize=20` after signing in
+- Accepting an invitation reactivates an inactive membership and assigns the invitation's organization role
+- `GET /api/organizations/me` returns only the caller's active memberships; non-member organization selection is forbidden
+- Organization dashboard statistics reject an organization ID outside the caller's resolved membership context
 
 ### Super administrator bootstrap
 

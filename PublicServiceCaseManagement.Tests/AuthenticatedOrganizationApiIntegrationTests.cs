@@ -2,12 +2,37 @@ using System.Net;
 using System.Net.Http.Json;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Features.Organizations;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
 
 public sealed class AuthenticatedOrganizationApiIntegrationTests
 {
+    [Fact]
+    public async Task GetMyOrganizations_ReturnsOnlyActiveMembershipsForCurrentUser()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            enableBusinessEndpoints: true);
+
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.OrganizationAdmin);
+        await factory.SeedOrganizationWithoutMembershipAsync();
+
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync("/api/organizations/me");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var organizations =
+            await response.Content.ReadFromJsonAsync<
+                IReadOnlyList<OrganizationWorkspaceOption>>();
+
+        var organization = Assert.Single(organizations!);
+        Assert.Equal(organizationId, organization.Id);
+        Assert.Equal(nameof(OrganizationRole.OrganizationAdmin), organization.Role);
+    }
+
     [Fact]
     public async Task GetCases_WithActiveMembership_ReturnsOk()
     {

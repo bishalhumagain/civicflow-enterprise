@@ -62,6 +62,37 @@ public sealed class OrganizationService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<OrganizationWorkspaceOption>>
+        GetMembershipsForUserAsync(
+            Guid userId,
+            CancellationToken cancellationToken)
+    {
+        var memberships = await (
+            from membership in dbContext.OrganizationMemberships.AsNoTracking()
+            join organization in dbContext.Organizations.AsNoTracking()
+                on membership.OrganizationId equals organization.Id
+            where membership.UserId == userId &&
+                  membership.IsActive &&
+                  organization.IsActive
+            orderby organization.Name, organization.Id
+            select new
+            {
+                organization.Id,
+                organization.Name,
+                organization.Code,
+                membership.Role
+            }
+        ).ToListAsync(cancellationToken);
+
+        return memberships
+            .Select(membership => new OrganizationWorkspaceOption(
+                membership.Id,
+                membership.Name,
+                membership.Code,
+                membership.Role.ToString()))
+            .ToList();
+    }
+
     public async Task<Organization?> GetByIdAsync(
         Guid organizationId,
         CancellationToken cancellationToken)

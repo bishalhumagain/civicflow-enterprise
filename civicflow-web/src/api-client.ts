@@ -1,5 +1,10 @@
 import { apiRequest } from './api'
-import { organizationId } from './domain'
+
+let requestOrganizationId: string | null = null
+
+export function setRequestOrganizationId(organizationId: string | null): void {
+  requestOrganizationId = organizationId
+}
 
 /**
  * Error raised by an organization-scoped API request. It carries the HTTP
@@ -58,7 +63,7 @@ export async function requestJson<T>(
 ): Promise<T> {
   const response = await apiRequest(
     path,
-    organizationIdOverride ?? organizationId ?? '',
+    organizationIdOverride ?? requestOrganizationId ?? '',
     init,
   )
 

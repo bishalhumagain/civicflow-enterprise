@@ -27,7 +27,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 - SuperAdmin cross-organization membership administration without automatic case access
 - Explicit `BusinessEndpoints:Enabled` gate; production business endpoints remain disabled by default
 - Case document metadata and local file-storage abstraction with filename/path, size, content-type, and hash validation
-- xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests (272 tests)
+- xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests (291 tests)
 - Disposable Compose fixtures for PostgreSQL roles
 
 **Authentication & identity:**

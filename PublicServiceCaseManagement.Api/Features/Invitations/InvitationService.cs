@@ -437,6 +437,7 @@ public sealed class InvitationService(
         else if (!membership.IsActive)
         {
             membership.Reactivate(now);
+            membership.ChangeRole(invitation.OrganizationRole, now);
         }
 
         var staffMember = await dbContext.StaffMembers

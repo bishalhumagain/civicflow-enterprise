@@ -105,6 +105,8 @@
 .field-error{color:#a33a3a;font-size:10px}
 .field-hint{color:#98a2b3;font-size:10px}
 .profile-stat-grid .stat-card strong{font-size:15px;line-height:1.35;word-break:break-word}
+.organization-select-label{display:grid;gap:6px;margin-top:10px;padding:0 4px;color:#667085;font-size:11px}
+.organization-select-label select{width:100%;min-width:0;border:1px solid #dfe5ec;border-radius:6px;padding:8px;font:inherit;color:#172033;background:#fff}
 @media(max-width:1050px){.profile-layout{grid-template-columns:1fr}.profile-summary{display:block}}
 @media(max-width:760px){.profile-form-row{grid-template-columns:1fr}}
 
