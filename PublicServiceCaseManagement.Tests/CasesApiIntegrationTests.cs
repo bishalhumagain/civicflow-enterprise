@@ -101,14 +101,53 @@ public class CasesApiIntegrationTests
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
+        var createdCase = await dbContext.Cases
+            .SingleAsync(caseEntity => caseEntity.Id == caseId);
+        var staffMember = await dbContext.StaffMembers
+            .SingleAsync(candidate =>
+                candidate.OrganizationId == createdCase.OrganizationId);
         var applicationUserId = await dbContext.ApplicationUsers
             .Where(user => user.Id == TestAuthenticationHandler.DefaultUserId)
             .Select(user => user.Id)
             .SingleAsync();
 
+        Assert.Equal(staffMember.Id, createdCase.AssignedToStaffMemberId);
+        Assert.Equal(CaseAssignmentRole.CaseWorker, createdCase.AssignedRole);
         Assert.Equal(
             applicationUserId,
             historyEntry.GetProperty("changedByUserId").GetGuid());
+    }
+
+    [Fact]
+    public async Task
+        CreateCase_WhenCaseWorkerHasNoActiveStaffMember_ReturnsForbiddenWithoutCreatingCase()
+    {
+        await using var factory = new CivicFlowApiFactory(OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var staffMember = await dbContext.StaffMembers.SingleAsync();
+            staffMember.Deactivate(DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Case worker without active staff member",
+                description = "Case creation must be rejected without an active staff profile."
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        Assert.Empty(await verifyDbContext.Cases.ToListAsync());
     }
 
     [Theory]

@@ -46,6 +46,19 @@ public sealed class CasesController(
         if (applicationUserId is null)
             return Forbid();
 
+        var organizationRole =
+            await organizationContext.GetOrganizationRoleAsync(cancellationToken);
+        var creatingStaffMemberId = organizationRole == OrganizationRole.CaseWorker
+            ? await GetCurrentStaffMemberIdAsync(
+                organizationId.Value,
+                cancellationToken)
+            : null;
+        if (organizationRole == OrganizationRole.CaseWorker &&
+            creatingStaffMemberId is null)
+        {
+            return Forbid();
+        }
+
         var newCase = await caseService.CreateAsync(
             organizationId.Value,
             request.Title,
@@ -53,22 +66,15 @@ public sealed class CasesController(
             cancellationToken,
             applicationUserId.Value);
 
-        if (await organizationContext.GetOrganizationRoleAsync(cancellationToken)
-                == OrganizationRole.CaseWorker)
+        if (creatingStaffMemberId is not null)
         {
-            var staffMemberId = await GetCurrentStaffMemberIdAsync(
+            newCase = (await caseService.AssignAsync(
+                newCase.Id,
                 organizationId.Value,
-                cancellationToken);
-            if (staffMemberId is not null)
-            {
-                newCase = (await caseService.AssignAsync(
-                    newCase.Id,
-                    organizationId.Value,
-                    staffMemberId.Value,
-                    cancellationToken,
-                    applicationUserId.Value,
-                    CaseAssignmentRole.CaseWorker))!;
-            }
+                creatingStaffMemberId.Value,
+                cancellationToken,
+                applicationUserId.Value,
+                CaseAssignmentRole.CaseWorker))!;
         }
 
         var response = new CreateCaseResponse(
