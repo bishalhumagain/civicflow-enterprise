@@ -1,4 +1,5 @@
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
+import { Icon } from '../components/Icon'
 
 export type StaffLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
@@ -31,7 +32,8 @@ export function StaffLoginPage({
             <h2 style={{ margin: 0 }}>Organization &amp; Platform Sign In</h2>
             {onBack ? (
               <button className="secondary-button" type="button" onClick={onBack}>
-                ← Back
+                <Icon name="arrow-left" />
+                Back
               </button>
             ) : null}
           </div>

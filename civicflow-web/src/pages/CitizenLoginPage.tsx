@@ -1,4 +1,5 @@
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
+import { Icon } from '../components/Icon'
 
 export type CitizenLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
@@ -32,7 +33,8 @@ export function CitizenLoginPage({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h2 style={{ margin: 0 }}>Citizen Sign In</h2>
             <button className="secondary-button" type="button" onClick={onBack}>
-              ← Back
+              <Icon name="arrow-left" />
+              Back
             </button>
           </div>
           <p className="muted" style={{ marginTop: 0 }}>

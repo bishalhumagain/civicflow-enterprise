@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { PlatformOverview, PlatformStaff, PlatformUser } from '../domain'
+import { Icon } from './Icon'
 
 /**
  * Platform-wide directory. Platform administrators use this to see every
@@ -35,7 +36,7 @@ export function PlatformDirectory({
       {overview && (
         <div className="stat-grid">
           <div className="stat-card">
-            <span className="stat-icon blue">◎</span>
+            <span className="stat-icon blue"><Icon className="app-icon" name="building" /></span>
             <div>
               <span>Accounts</span>
               <strong>{overview.userCount}</strong>
@@ -43,7 +44,7 @@ export function PlatformDirectory({
             </div>
           </div>
           <div className="stat-card">
-            <span className="stat-icon purple">♙</span>
+            <span className="stat-icon purple"><Icon className="app-icon" name="directory" /></span>
             <div>
               <span>Staff memberships</span>
               <strong>{overview.staffCount}</strong>
@@ -51,7 +52,7 @@ export function PlatformDirectory({
             </div>
           </div>
           <div className="stat-card">
-            <span className="stat-icon green">⌂</span>
+            <span className="stat-icon green"><Icon className="app-icon" name="staff" /></span>
             <div>
               <span>Organizations</span>
               <strong>{overview.organizationCount}</strong>
@@ -59,7 +60,7 @@ export function PlatformDirectory({
             </div>
           </div>
           <div className="stat-card">
-            <span className="stat-icon amber">✉</span>
+            <span className="stat-icon amber"><Icon className="app-icon" name="mail" /></span>
             <div>
               <span>Invitations</span>
               <strong>{overview.invitationCount}</strong>

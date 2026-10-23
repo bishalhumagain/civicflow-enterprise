@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ToastContext, type ToastType } from './toast-context'
+import { Icon } from './Icon'
 
 type Toast = {
   id: number
@@ -36,8 +37,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast toast-${toast.type}`} role="status">
             <span>{toast.message}</span>
-            <button type="button" onClick={() => removeToast(toast.id)} aria-label="Close">
-              ×
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              aria-label="Close notification"
+              data-tooltip="Dismiss notification"
+              title="Dismiss notification"
+            >
+              <Icon className="app-icon" name="x" />
             </button>
           </div>
         ))}

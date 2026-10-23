@@ -71,7 +71,7 @@ The platform is built around three core principles:
 
 | Capability | Description |
 |---|---|
-| **First-party ASP.NET Core Identity** | Cookie-based sessions (HttpOnly, SameSite=Lax, 8-hour sliding expiration). No external identity provider required. |
+| **First-party ASP.NET Core Identity** | Cookie-based sessions (HttpOnly, SameSite=Lax, 30-minute inactivity timeout with sliding renewal). No external identity provider required. |
 | **Portal-scoped sign-in** | Three exclusive endpoints: citizen (`/api/auth/login`), organization (`/api/auth/login/organization`), and platform-admin (`/api/auth/login/platform-admin`). Wrong-portal attempts are rejected with machine-readable codes and no leftover session. |
 | **Email verification** | Registration requires email confirmation before sign-in is permitted (`RequireConfirmedEmail = true`). |
 | **Password policy** | 12+ characters, upper/lower/digit/non-alphanumeric, 6 unique characters. Account lockout after 5 failed attempts (15-minute window). |
@@ -777,7 +777,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 | Problem | Likely cause | Fix |
 |---|---|---|
-| **Sign-in fails** | Email not confirmed or DB unreachable | After an unconfirmed-email message, choose **Resend the verification email** on the sign-in page. In Development, check the API console for the link; outside Development, check SMTP delivery/configuration. Verify PostgreSQL is running |
+| **Sign-in fails** | Wrong portal, unconfirmed email, account state, credentials, or DB unavailable | Use the correct portal. For password recovery or email verification, open **Forgot password** and enter the account email. In Development, check the API console for a one-time link; outside Development, check SMTP delivery/configuration. If credentials still fail, ask an administrator to verify the account is active and confirmed; the UI intentionally does not reveal account existence or status. |
 | **"This account is not a citizen/organization account"** | Signed in through wrong portal | Citizens use `/citizen/login`, staff use `/admin`, superadmins use `/super-platform-admin` |
 | **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
 | **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |

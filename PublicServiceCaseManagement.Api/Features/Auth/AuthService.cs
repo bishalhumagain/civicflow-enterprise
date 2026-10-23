@@ -28,7 +28,7 @@ public sealed class AuthService(
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
-        var existing = await userManager.FindByEmailAsync(email);
+        var existing = await FindUserByEmailAsync(email, cancellationToken);
 
         if (existing is not null)
         {
@@ -107,7 +107,7 @@ public sealed class AuthService(
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await FindUserByEmailAsync(email, cancellationToken);
 
         if (user is null || !user.IsActive)
         {
@@ -282,7 +282,7 @@ public sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await FindUserByEmailAsync(email, cancellationToken);
 
         if (user is null)
         {
@@ -311,7 +311,7 @@ public sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await FindUserByEmailAsync(email, cancellationToken);
 
         if (user is not null && !user.EmailConfirmed && user.IsActive)
         {
@@ -327,7 +327,7 @@ public sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await FindUserByEmailAsync(email, cancellationToken);
 
         if (user is not null && user.IsActive)
         {
@@ -351,7 +351,7 @@ public sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await FindUserByEmailAsync(email, cancellationToken);
 
         if (user is null || !user.IsActive)
         {
@@ -470,6 +470,27 @@ public sealed class AuthService(
             BuildBody(
                 "Confirm your email address to activate your CivicFlow account.",
                 link));
+    }
+
+    private async Task<ApplicationUser?> FindUserByEmailAsync(
+        string email,
+        CancellationToken cancellationToken)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+
+        if (user is not null)
+        {
+            return user;
+        }
+
+        var matches = await dbContext.ApplicationUsers
+            .Where(candidate =>
+                candidate.Email != null &&
+                candidate.Email.ToLower() == email.ToLower())
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        return matches.Count == 1 ? matches[0] : null;
     }
 
     private static string BuildBody(string preamble, string link) =>

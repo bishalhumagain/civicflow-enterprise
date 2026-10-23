@@ -296,3 +296,21 @@ td:first-child{color:var(--color-text)}
 .search:focus-within{outline:3px solid var(--color-focus);outline-offset:2px}
 .case-row-button:focus-visible{outline:3px solid var(--color-focus);outline-offset:2px;border-radius:3px}
 @media(max-width:760px){.main-content{width:100%;padding:0}}
+
+/* Shared icon, tooltip, and native-select treatment. */
+.nav-icon,.app-icon{display:block;flex:none;width:18px;height:18px}
+.nav-icon{border:0;border-radius:0;font-size:initial}
+.notification-toggle{display:inline-flex;align-items:center;gap:8px}
+select{appearance:none;min-height:42px;padding:8px 38px 8px 12px;border:1px solid var(--color-border-strong);border-radius:8px;background-color:var(--color-surface);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2358677d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-position:right 12px center;background-repeat:no-repeat;background-size:16px;color:var(--color-text);font:inherit;cursor:pointer}
+select:hover:not(:disabled){border-color:#94a3b8}
+select:focus-visible{outline:3px solid var(--color-focus);outline-offset:2px}
+select:disabled{background-color:var(--color-surface-subtle);color:var(--color-text-muted);cursor:not-allowed}
+select option{padding:8px;background:var(--color-surface);color:var(--color-text)}
+[data-tooltip]{position:relative}
+[data-tooltip]::after{position:absolute;z-index:1000;left:50%;bottom:calc(100% + 8px);width:max-content;max-width:min(240px,calc(100vw - 32px));padding:6px 9px;border-radius:6px;background:#172033;color:#fff;content:attr(data-tooltip);font-size:11px;font-weight:500;line-height:1.35;white-space:normal;pointer-events:none;opacity:0;visibility:hidden;transform:translate(-50%,3px);transition:opacity .12s ease,transform .12s ease,visibility .12s ease}
+[data-tooltip]:hover::after,[data-tooltip]:focus-visible::after{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.recovery-actions{display:flex;flex-wrap:wrap;gap:8px}
+.recovery-footer{display:flex;justify-content:flex-start}
+.recovery-actions button,.recovery-footer button{display:inline-flex;align-items:center;gap:7px}
+.recovery-footer .app-icon{width:15px;height:15px}
+@media(max-width:480px){.recovery-actions{display:grid}.recovery-actions button{width:100%;justify-content:center}}

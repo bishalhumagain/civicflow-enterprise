@@ -1,8 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using PublicServiceCaseManagement.Api.Features.Auth;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
@@ -49,6 +54,18 @@ public sealed class AuthApiIntegrationTests
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApplicationCookie_ExpiresAfterThirtyMinutesOfInactivity()
+    {
+        await using var factory = new CivicFlowApiFactory();
+        var options = factory.Services
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+
+        Assert.True(options.SlidingExpiration);
+        Assert.Equal(TimeSpan.FromMinutes(30), options.ExpireTimeSpan);
     }
 
     private static async Task<string> ConfirmEmailAsync(
@@ -332,6 +349,42 @@ public sealed class AuthApiIntegrationTests
             new { email, password = NewPassword });
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_FindsAccountWhenLegacyNormalizedEmailIsStale()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = $"legacy-{Guid.NewGuid():N}@example.com";
+
+        await RegisterAsync(client, email);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var user = await dbContext.ApplicationUsers
+                .SingleAsync(candidate => candidate.Email == email);
+
+            user.EmailConfirmed = true;
+            user.NormalizedEmail = "STALE_NORMALIZED_EMAIL";
+            await dbContext.SaveChangesAsync();
+        }
+
+        var loginResponse = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = StrongPassword });
+
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 
     [Fact]

@@ -11,6 +11,7 @@ import {
   type SignInPortal,
 } from './auth'
 import './App.css'
+import { Icon, type IconName } from './components/Icon'
 
 import {
   statusLabels,
@@ -277,31 +278,31 @@ function App() {
   const navigationItems = useMemo(() => {
     if (!currentUser) return []
 
-    const items: { view: WorkspaceView; label: string; icon: string }[] = []
+    const items: { view: WorkspaceView; label: string; icon: IconName }[] = []
 
     if (citizenAccess) {
-      items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: 'D' })
-      items.push({ view: 'citizen', label: 'Public intake', icon: 'I' })
+      items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: 'dashboard' })
+      items.push({ view: 'citizen', label: 'Public intake', icon: 'intake' })
     }
 
     if (organizationAccess) {
-      items.push({ view: 'organization-dashboard', label: 'Dashboard', icon: 'D' })
-      items.push({ view: 'cases', label: 'Cases', icon: 'C' })
-      items.push({ view: 'staff', label: 'Staff & team', icon: 'T' })
-      items.push({ view: 'activity', label: 'Activity log', icon: 'A' })
+      items.push({ view: 'organization-dashboard', label: 'Dashboard', icon: 'dashboard' })
+      items.push({ view: 'cases', label: 'Cases', icon: 'cases' })
+      items.push({ view: 'staff', label: 'Staff & team', icon: 'staff' })
+      items.push({ view: 'activity', label: 'Activity log', icon: 'activity' })
     }
 
     if (citizenAccess || organizationAccess) {
-      items.push({ view: 'profile', label: 'My profile', icon: 'P' })
+      items.push({ view: 'profile', label: 'My profile', icon: 'profile' })
     }
 
     if (platformAdminAccess) {
-      items.push({ view: 'platform-dashboard', label: 'Dashboard', icon: 'D' })
-      items.push({ view: 'organizations', label: 'Organizations', icon: 'O' })
-      items.push({ view: 'platform-directory', label: 'Directory', icon: 'U' })
-      items.push({ view: 'platform-audit', label: 'Audit log', icon: 'A' })
-      items.push({ view: 'platform-errors', label: 'Errors', icon: 'E' })
-      items.push({ view: 'platform-jobs', label: 'Background jobs', icon: 'J' })
+      items.push({ view: 'platform-dashboard', label: 'Dashboard', icon: 'dashboard' })
+      items.push({ view: 'organizations', label: 'Organizations', icon: 'building' })
+      items.push({ view: 'platform-directory', label: 'Directory', icon: 'directory' })
+      items.push({ view: 'platform-audit', label: 'Audit log', icon: 'activity' })
+      items.push({ view: 'platform-errors', label: 'Errors', icon: 'alert' })
+      items.push({ view: 'platform-jobs', label: 'Background jobs', icon: 'jobs' })
     }
 
     return items
@@ -1834,12 +1835,14 @@ function App() {
             {navigationItems.map((item) => (
               <button
                 aria-current={activeView === item.view ? 'page' : undefined}
+                data-tooltip={item.label}
+                title={item.label}
                 className={activeView === item.view ? 'active' : ''}
                 key={item.view}
                 onClick={() => setViewSelection(item.view)}
                 type="button"
               >
-                <span aria-hidden="true" className="nav-icon">{item.icon}</span>
+                <Icon aria-hidden="true" className="nav-icon" name={item.icon} />
                 <span>{item.label}</span>
                 {item.view === 'cases' && caseTotalCount > 0 && <b>{caseTotalCount}</b>}
               </button>
@@ -1847,7 +1850,9 @@ function App() {
           </nav>
 
           <div className="sidebar-footer">
-            <button className="link-button" onClick={handleBackToLanding} type="button">⚙ <span>Back to landing</span></button>
+            <button className="link-button" onClick={handleBackToLanding} type="button">
+              <Icon name="home" /> <span>Back to landing</span>
+            </button>
             <div className="profile">
               <span className="avatar">CF</span>
               <span>

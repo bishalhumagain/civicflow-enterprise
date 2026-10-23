@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api'
+import { Icon } from './Icon'
 
 type NotificationItem = {
   id: string
@@ -108,9 +109,12 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
         aria-expanded={open}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
         className="auth-button notification-toggle"
+        data-tooltip="Open notifications"
         onClick={() => setOpen((value) => !value)}
+        title="Open notifications"
         type="button"
       >
+        <Icon className="app-icon" name="bell" />
         Notifications {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
       </button>
       {open && (

@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { resendVerification } from '../auth'
 import { useToast } from './use-toast'
 
 export type LoginCredentials = { email: string; password: string }
@@ -18,7 +17,6 @@ export function LoginForm({
 }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [resending, setResending] = useState(false)
   const { showToast } = useToast()
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -28,29 +26,6 @@ export function LoginForm({
       return
     }
     onSubmit({ email: email.trim(), password })
-  }
-
-  async function handleResend() {
-    if (!email.trim()) {
-      showToast('Enter your email address first.', 'warning')
-      return
-    }
-
-    setResending(true)
-
-    try {
-      const result = await resendVerification(email.trim())
-      showToast(result.message, 'info')
-    } catch (reason) {
-      showToast(
-        reason instanceof Error
-          ? reason.message
-          : 'Unable to resend the verification email.',
-        'error',
-      )
-    } finally {
-      setResending(false)
-    }
   }
 
   return (
@@ -94,17 +69,6 @@ export function LoginForm({
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </div>
-      <p className="muted" style={{ margin: 0 }}>
-        Haven’t received your verification email?{' '}
-        <button
-          className="link-button"
-          type="button"
-          onClick={handleResend}
-          disabled={resending || loading}
-        >
-          {resending ? 'Resending…' : 'Resend verification email'}
-        </button>
-      </p>
       <small className="muted">
         Sessions are validated server-side; no credentials or tokens are stored
         in the browser.

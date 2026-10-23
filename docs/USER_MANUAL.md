@@ -84,7 +84,7 @@ If you use the wrong portal, the sign-in is refused with a message such as *"Thi
 4. After successful authentication, you'll be taken to the organization workspace
 5. Authentication and authorization are enforced server-side by the API
 
-If your email address has not been confirmed yet, sign-in is rejected with a message offering **Resend the verification email**. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
+If your email address has not been confirmed yet, open **Forgot password** and choose **Resend verification email** after entering your account email. Verification resend is available there rather than on the sign-in form. If the credentials are wrong, the form reports **Invalid email or password** without revealing whether the account exists.
 
 #### For Platform Super Administrators
 
@@ -109,7 +109,7 @@ Invitations expire (72 hours by default) and stop working after the first succes
 
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
-3. Confirm your email using the verification link, then sign in. If sign-in says your email is unconfirmed, choose **Resend the verification email**; in Development the link appears in the API console, otherwise it is emailed.
+3. Confirm your email using the verification link, then sign in. If you need another verification email, open **Forgot password**, enter the account email, and choose **Resend verification email**. In Development the one-time link appears in the API console; otherwise it is emailed.
 4. After signing in, you land on your **citizen dashboard**, which shows your account status and the actions available to you
 5. Open **My profile** to create or update your profile
 6. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
@@ -120,15 +120,16 @@ Invitations expire (72 hours by default) and stop working after the first succes
 #### Password Recovery
 
 1. On the citizen or staff sign-in page, choose **Forgot password**
-2. Enter your email; a reset link is sent if the account exists
-3. Open the reset link and choose a new password
+2. Enter your email and choose **Send recovery link**; a reset link is sent if the account exists
+3. If the account needs email confirmation, choose **Resend verification email** on this same page
+4. Open the recovery link and choose a new password
 
 #### Logging Out
 
 1. In the workspace, click **"Sign out"** in the top bar
 2. You'll be returned to the landing page
 
-**Note:** Authentication is server-authoritative using an HttpOnly session cookie with CSRF protection. No authentication tokens are stored in the browser's JavaScript-accessible storage.
+**Note:** Authentication is server-authoritative using an HttpOnly session cookie with CSRF protection. A session expires after 30 minutes without activity; active use renews the cookie. No authentication tokens are stored in the browser's JavaScript-accessible storage.
 
 ---
 
@@ -144,6 +145,8 @@ The workspace consists of:
 ### Navigation Menu
 
 The navigation only shows the views your account is entitled to. Entries are determined by the roles the server reports for your session, so a citizen never sees organization surfaces and a staff member never sees the citizen dashboard.
+
+Navigation and action icons use inline SVGs without a third-party icon service. Where an icon or control has a tooltip, it appears on hover and keyboard focus; visible text labels remain available for primary actions. Dropdowns retain native keyboard and screen-reader behavior with consistent application styling.
 
 **Citizen accounts (citizen portal):**
 
@@ -480,7 +483,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | Error | Possible Cause | Recovery |
 |---|---|---|
 | Organization workspace reports no active membership | The account has no active membership, or its organization is inactive | Contact an organization administrator; the frontend resolves organization IDs from membership and does not configure them |
-| "Invalid email or password" | Wrong credentials | Retry; use **Forgot password** if needed |
+| "Invalid email or password" | Wrong credentials, wrong portal, inactive/unconfirmed account, or an account record requiring administrator review | Check the correct portal and try **Forgot password** for recovery. Verification resend is on that page. If sign-in still fails, contact an administrator to verify account status; CivicFlow intentionally does not disclose whether an email is registered. |
 | "This account is not a citizen account" | Signed in through the Organization Portal | Sign in through the **Citizen Portal** (`/citizen/login`) |
 | "This account is not an organization account" | Signed in through the Citizen Portal | Sign in through the **Organization Portal** (`/admin`) |
 | "This account is not a platform administrator" | Signed in at `/super-platform-admin` with a staff or citizen account | Staff use `/admin`; citizens use `/citizen/login` |

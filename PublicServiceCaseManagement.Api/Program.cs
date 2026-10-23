@@ -141,7 +141,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.Path = "/";
     options.SlidingExpiration = true;
-    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
 
     options.Events.OnRedirectToLogin = context =>
     {

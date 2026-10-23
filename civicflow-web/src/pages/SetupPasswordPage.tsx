@@ -5,6 +5,7 @@ import {
   lookupInvitation,
   type InvitationDetails,
 } from '../auth'
+import { Icon } from '../components/Icon'
 
 export type SetupPasswordPageProps = {
   onSignIn: () => void
@@ -109,7 +110,8 @@ export function SetupPasswordPage({ onSignIn, onBack }: SetupPasswordPageProps) 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h2 style={{ margin: 0 }}>Set up your password</h2>
             <button className="secondary-button" type="button" onClick={onBack}>
-              ← Back
+              <Icon name="arrow-left" />
+              Back
             </button>
           </div>
 

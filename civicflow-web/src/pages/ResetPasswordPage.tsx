@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { resetPassword } from '../auth'
+import { Icon } from '../components/Icon'
 
 export type ResetPasswordPageProps = {
   onBack: () => void
@@ -50,7 +51,8 @@ export function ResetPasswordPage({ onBack, onSignIn }: ResetPasswordPageProps) 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h2 style={{ margin: 0 }}>Choose a new password</h2>
             <button className="secondary-button" type="button" onClick={onBack}>
-              ← Back
+              <Icon name="arrow-left" />
+              Back
             </button>
           </div>
 

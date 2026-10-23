@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { register } from '../auth'
+import { Icon } from '../components/Icon'
 
 export type CitizenAuthPageProps = {
   onBack: () => void
@@ -61,7 +62,8 @@ export function CitizenRegisterPage({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h2 style={{ margin: 0 }}>Create a Citizen Account</h2>
             <button className="secondary-button" type="button" onClick={onBack}>
-              ← Back
+              <Icon name="arrow-left" />
+              Back
             </button>
           </div>
           <form className="case-card create-form" onSubmit={handleSubmit}>
