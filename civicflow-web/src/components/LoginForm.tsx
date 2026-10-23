@@ -15,14 +15,11 @@ export function LoginForm({
   onSubmit,
   loading = false,
   error = null,
-  errorCode = null,
 }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [resending, setResending] = useState(false)
   const { showToast } = useToast()
-
-  const needsEmailConfirmation = errorCode === 'email_not_confirmed'
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -66,20 +63,6 @@ export function LoginForm({
       {error && (
         <div className="auth-error" role="alert">
           {error}
-          {needsEmailConfirmation && (
-            <div style={{ marginTop: 8 }}>
-              <button
-                className="link-button"
-                type="button"
-                onClick={handleResend}
-                disabled={resending}
-              >
-                {resending
-                  ? 'Resending…'
-                  : 'Resend the verification email'}
-              </button>
-            </div>
-          )}
         </div>
       )}
       <label>
@@ -111,6 +94,17 @@ export function LoginForm({
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </div>
+      <p className="muted" style={{ margin: 0 }}>
+        Haven’t received your verification email?{' '}
+        <button
+          className="link-button"
+          type="button"
+          onClick={handleResend}
+          disabled={resending || loading}
+        >
+          {resending ? 'Resending…' : 'Resend verification email'}
+        </button>
+      </p>
       <small className="muted">
         Sessions are validated server-side; no credentials or tokens are stored
         in the browser.
