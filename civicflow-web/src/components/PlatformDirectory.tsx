@@ -93,7 +93,7 @@ export function PlatformDirectory({
           users.length === 0 ? (
             <p className="muted empty-state">No accounts were returned.</p>
           ) : (
-            <div className="table-wrap">
+            <div aria-label="Platform accounts" className="table-wrap" role="region" tabIndex={0}>
               <table>
                 <thead>
                   <tr>
@@ -140,7 +140,7 @@ export function PlatformDirectory({
         ) : staff.length === 0 ? (
           <p className="muted empty-state">No staff memberships were returned.</p>
         ) : (
-          <div className="table-wrap">
+          <div aria-label="Platform staff memberships" className="table-wrap" role="region" tabIndex={0}>
             <table>
               <thead>
                 <tr>

@@ -199,6 +199,7 @@ function App() {
   const [activePortal, setActivePortal] = useState<SignInPortal | null>(null)
   const [casePage, setCasePage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [caseTotalCount, setCaseTotalCount] = useState(0)
   const [adminLoading, setAdminLoading] = useState(false)
   const [route, setRoute] = useState<AppRoute>(() => resolveRoute(window.location.pathname))
   const [loginLoading, setLoginLoading] = useState(false)
@@ -279,28 +280,28 @@ function App() {
     const items: { view: WorkspaceView; label: string; icon: string }[] = []
 
     if (citizenAccess) {
-      items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: '⌂' })
-      items.push({ view: 'citizen', label: 'Public intake', icon: '✎' })
+      items.push({ view: 'citizen-dashboard', label: 'Dashboard', icon: 'D' })
+      items.push({ view: 'citizen', label: 'Public intake', icon: 'I' })
     }
 
     if (organizationAccess) {
-      items.push({ view: 'organization-dashboard', label: 'Dashboard', icon: '📊' })
-      items.push({ view: 'cases', label: 'Cases', icon: '▣' })
-      items.push({ view: 'staff', label: 'Staff & team', icon: '♙' })
-      items.push({ view: 'activity', label: 'Activity log', icon: '☰' })
+      items.push({ view: 'organization-dashboard', label: 'Dashboard', icon: 'D' })
+      items.push({ view: 'cases', label: 'Cases', icon: 'C' })
+      items.push({ view: 'staff', label: 'Staff & team', icon: 'T' })
+      items.push({ view: 'activity', label: 'Activity log', icon: 'A' })
     }
 
     if (citizenAccess || organizationAccess) {
-      items.push({ view: 'profile', label: 'My profile', icon: '☺' })
+      items.push({ view: 'profile', label: 'My profile', icon: 'P' })
     }
 
     if (platformAdminAccess) {
-      items.push({ view: 'platform-dashboard', label: 'Dashboard', icon: '📊' })
-      items.push({ view: 'organizations', label: 'Organizations', icon: '⌂' })
-      items.push({ view: 'platform-directory', label: 'Directory', icon: '◍' })
-      items.push({ view: 'platform-audit', label: 'Audit log', icon: '☰' })
-      items.push({ view: 'platform-errors', label: 'Errors', icon: '⚠' })
-      items.push({ view: 'platform-jobs', label: 'Background jobs', icon: '↻' })
+      items.push({ view: 'platform-dashboard', label: 'Dashboard', icon: 'D' })
+      items.push({ view: 'organizations', label: 'Organizations', icon: 'O' })
+      items.push({ view: 'platform-directory', label: 'Directory', icon: 'U' })
+      items.push({ view: 'platform-audit', label: 'Audit log', icon: 'A' })
+      items.push({ view: 'platform-errors', label: 'Errors', icon: 'E' })
+      items.push({ view: 'platform-jobs', label: 'Background jobs', icon: 'J' })
     }
 
     return items
@@ -453,6 +454,7 @@ function App() {
 
         setCases(caseResult.items)
         setTotalPages(Math.max(1, caseResult.totalPages))
+        setCaseTotalCount(caseResult.totalCount)
         setStaff(staffMembers)
         setSelectedCaseId((current) => {
           if (current && caseResult.items.some((item) => item.id === current)) {
@@ -625,13 +627,19 @@ function App() {
 
     async function loadPlatformStatistics() {
       setDashboardLoading(true)
+      setPlatformStatistics(null)
+      setError(null)
 
       try {
-        const statistics = await requestJson<CaseStatistics>('/api/dashboard/platform')
+        const [statistics, overview] = await Promise.all([
+          requestJson<CaseStatistics>('/api/dashboard/platform'),
+          requestJson<PlatformOverview>('/api/platform/overview'),
+        ])
 
         if (!mounted) return
 
         setPlatformStatistics(statistics)
+        setPlatformOverview(overview)
       } catch (reason) {
         if (mounted) {
           setError(
@@ -660,6 +668,8 @@ function App() {
 
     async function loadOrganizationStatistics() {
       setDashboardLoading(true)
+      setOrganizationStatistics(null)
+      setError(null)
 
       try {
         const statistics = await requestJson<CaseStatistics>(`/api/dashboard/organization?organizationId=${organizationId}`)
@@ -1787,6 +1797,7 @@ function App() {
 
   return (
       <div className="app-shell">
+        <a className="skip-link" href="#main-content">Skip to main content</a>
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-mark">C</span>
@@ -1822,13 +1833,15 @@ function App() {
           <nav className="navigation" aria-label="Primary navigation">
             {navigationItems.map((item) => (
               <button
+                aria-current={activeView === item.view ? 'page' : undefined}
                 className={activeView === item.view ? 'active' : ''}
                 key={item.view}
                 onClick={() => setViewSelection(item.view)}
                 type="button"
               >
-                {item.icon} <span>{item.label}</span>
-                {item.view === 'cases' && <b>{cases.length}</b>}
+                <span aria-hidden="true" className="nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+                {item.view === 'cases' && caseTotalCount > 0 && <b>{caseTotalCount}</b>}
               </button>
             ))}
           </nav>
@@ -1845,7 +1858,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="main-content">
+        <main className="main-content" id="main-content">
           <header className="topbar">
             <div className="breadcrumb">
               <span>{workspaceLabel}</span>
@@ -1956,12 +1969,14 @@ function App() {
             ) : activeView === 'platform-dashboard' && platformAdminAccess ? (
                 <PlatformDashboard
                     statistics={platformStatistics}
+                    overview={platformOverview}
                     loading={dashboardLoading}
                 />
             ) : activeView === 'organization-dashboard' && organizationAccess ? (
                 <OrganizationDashboard
                     statistics={organizationStatistics}
                     loading={dashboardLoading}
+                    organizationName={activeOrganization?.name ?? 'Organization'}
                 />
             ) : activeView === 'platform-directory' && platformAdminAccess ? (
                 <PlatformDirectory
@@ -2138,7 +2153,7 @@ function App() {
                       ) : visibleCases.length === 0 ? (
                           <p className="muted empty-state">{caseEmptyMessage}</p>
                       ) : (
-                          <div className="table-wrap">
+                          <div aria-label="Cases list" className="table-wrap" role="region" tabIndex={0}>
                             <table>
                               <thead>
                               <tr>
@@ -2153,11 +2168,17 @@ function App() {
                                   <tr
                                       className={selectedCase?.id === item.id ? 'selected-row' : ''}
                                       key={item.id}
-                                      onClick={() => setSelectedCaseId(item.id)}
                                   >
                                     <td>
-                                      <strong>{item.referenceNumber}</strong>
-                                      <span>{item.title}</span>
+                                      <button
+                                        aria-pressed={selectedCase?.id === item.id}
+                                        className="case-row-button"
+                                        onClick={() => setSelectedCaseId(item.id)}
+                                        type="button"
+                                      >
+                                        <strong>{item.referenceNumber}</strong>
+                                        <span>{item.title}</span>
+                                      </button>
                                     </td>
                                     <td><StatusPill status={item.status} /></td>
                                     <td>

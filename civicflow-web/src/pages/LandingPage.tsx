@@ -25,7 +25,7 @@ function Card({
 }) {
   return (
     <article className="landing-card">
-      <div className="landing-brand" style={{ fontSize: 28 }}>
+      <div className="landing-card-icon" aria-hidden="true">
         {icon}
       </div>
       <h2>{title}</h2>
@@ -66,9 +66,9 @@ export function LandingPage({
         </section>
         <section className="landing-actions landing-actions-compact">
           <Card
-            icon={<span>👤</span>}
+            icon={<span>C</span>}
             title="Citizen Portal"
-            description="Submit service requests, track progress, and manage your citizen profile."
+            description="Submit service requests and manage your citizen profile. Case tracking is not yet available."
             actions={
               <>
                 <button
@@ -91,7 +91,7 @@ export function LandingPage({
             }
           />
           <Card
-            icon={<span>🏛️</span>}
+            icon={<span>O</span>}
             title="Organization Portal"
             description="Staff and Organization Administrators access the organization workspace."
             actions={

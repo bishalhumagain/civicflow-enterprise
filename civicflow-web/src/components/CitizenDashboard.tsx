@@ -53,17 +53,15 @@ export function CitizenDashboard({
           detail="Public self-service only"
           tone="purple"
         />
-        <StatCard
-          label="Case handling"
-          value="Staff"
-          detail="Handled by the responsible team"
-          tone="amber"
-        />
+      </div>
+
+      <div className="info-banner citizen-tracking-note" role="status">
+        Case tracking and status updates are not available in the citizen portal yet. You can submit a new request using public intake.
       </div>
 
       <div className="section-heading">
         <div>
-          <h2>What you can do</h2>
+          <h2>Quick actions</h2>
           <span className="muted">Citizen self-service</span>
         </div>
       </div>

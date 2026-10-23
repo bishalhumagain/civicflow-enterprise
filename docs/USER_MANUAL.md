@@ -137,9 +137,9 @@ Invitations expire (72 hours by default) and stop working after the first succes
 ### Workspace Layout
 
 The workspace consists of:
-- **Sidebar** (left): Branding, workspace info, navigation menu, footer with user info and "Back to landing" option
-- **Top bar**: Breadcrumb navigation, auth status, sign in/out button
-- **Main content**: View-specific content
+- **Navigation**: Role-scoped views. On smaller screens, navigation is a horizontally scrollable row above the workspace.
+- **Top bar**: Current workspace and page breadcrumb, notifications, and sign-out action
+- **Main content**: View-specific content with a keyboard-accessible "Skip to main content" link
 
 ### Navigation Menu
 
@@ -173,7 +173,7 @@ The navigation only shows the views your account is entitled to. Entries are det
 | **Directory** | Platform overview counters, all accounts, and all staff memberships |
 | **Audit log** | Platform-wide audit trail |
 | **Errors** | Application error list with filter (all/unhandled/handled) and mark-as-handled |
-| **Dashboard** | Platform-wide case statistics (total, per-status, per-priority, weekly/monthly trends) |
+| **Dashboard** | Platform account and organization totals plus case statistics, status, priority, and weekly/monthly activity charts |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
 | **Profile** | Unified self-service profile (contact details for staff) |
 
@@ -212,7 +212,7 @@ The Notifications button in the workspace header shows your unread count and a p
 
 ### Platform job monitoring
 
-Only platform Super Administrators can see the Background jobs screen. Filter by status to inspect queue state, attempt counts, timestamps, and sanitized failure codes. Retry is offered for failed work; cancel is offered only for pending work. The API verifies the role and current job state for every request. Organization administrators and ordinary staff cannot inspect this global queue.
+Only platform Super Administrators can see the Background jobs screen. Filter by status to inspect queue state, attempt counts, timestamps, and sanitized failure codes. The interface labels running jobs as **Processing** and scheduled retries as **Retrying**. Retry is offered for failed work; cancel is offered only for pending work, and both actions require confirmation and prevent duplicate submissions while processing. The API verifies the role and current job state for every request. Organization administrators and ordinary staff cannot inspect this global queue.
 
 ### Platform Administrator
 
@@ -392,10 +392,13 @@ Organization administrators can edit case title and description and can permanen
 
 ### 5.10 Reviewing the Dashboard
 
-1. Platform administrators: open **Dashboard** for platform-wide statistics. Staff: open **Dashboard** for organization-scoped statistics.
-2. Review the overview cards showing total cases and per-status breakdown
-3. Review the per-priority distribution (Low, Normal, High, Critical)
-4. Review the weekly and monthly created/resolved case trends
+1. Platform administrators: open **Dashboard** for platform-wide case and platform-operation totals. Organization staff: open **Dashboard** for statistics scoped to the active organization.
+2. Review the cards for total and active cases, monthly creation and resolution, and (for platform administrators) active organizations, accounts, staff memberships, and pending invitations.
+3. Use **Cases by status** and **Priority mix** to compare current case totals. These charts include text labels and counts and do not rely on color alone.
+4. Use **Recent case activity** to compare the weekly and monthly created/resolved counts returned by the API. The dashboard does not estimate daily trends.
+5. Individual staff workload is not included in the current statistics API. Use **Cases** to review assignments.
+
+Citizen accounts can submit service requests, but case tracking and status updates are not available in the citizen portal yet. The dashboard explains this limitation rather than showing invented case counts.
 
 ### 5.11 Tracking Application Errors
 

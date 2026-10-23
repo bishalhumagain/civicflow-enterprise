@@ -11,11 +11,13 @@ Implemented:
 - Staff/organization portal sign-in at the dedicated `/admin` route.
 - Platform administrator sign-in at `/super-platform-admin` (intentionally unlinked from public site).
 - Session restoration on load via `GET /api/auth/me`.
-- Citizen workspace: a citizen dashboard with self-service actions (public intake, own profile, access tokens). Intake submits multipart cases to an active organization with an optional arbitrary-file attachment up to 10 MB.
+- Citizen workspace: a citizen dashboard with self-service actions (public intake, own profile, access tokens). Intake submits multipart cases to an active organization with an optional arbitrary-file attachment up to 10 MB. Case tracking is not available to citizens yet.
 - Organization workspace: cases, staff directory, organization administration, access tokens, with filtering, search, pagination, and case details (history, assignments, documents). Organization administration includes organization create/rename/activate/deactivate/delete, membership management (add/update roles/activate/deactivate), and invitation management.
 - Platform administrator workspace: organizations (organization/membership/invitation administration), platform directory (overview, accounts, staff memberships), platform audit log, and access tokens.
 - Portal-scoped sign-in: the API rejects an account that signs in through the wrong portal, and the client re-validates the issued session before rendering a workspace.
 - Role-derived navigation and views: the sidebar, the active view, and the API calls are computed from the roles the API reports.
+- Organization and platform dashboards visualize API-backed case status, priority, and weekly/monthly activity data; the platform dashboard also shows live organization, account, membership, and invitation totals.
+- Shared responsive workspace navigation, visible keyboard focus, a skip link, reduced-motion support, and accessible chart labels and data summaries.
 - Toast notifications and responsive layout.
 - TypeScript compilation, Vite production build, and ESLint validation pass.
 

@@ -142,7 +142,7 @@ export function AuditLog({
         ) : events.length === 0 ? (
           <p className="muted empty-state">{emptyMessage}</p>
         ) : (
-          <div className="table-wrap">
+          <div aria-label="Audit events" className="table-wrap" role="region" tabIndex={0}>
             <table>
               <thead>
                 <tr>

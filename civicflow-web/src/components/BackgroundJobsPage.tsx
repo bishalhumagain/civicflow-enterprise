@@ -31,6 +31,7 @@ export function BackgroundJobsPage() {
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<JobPage | null>(null)
   const [loading, setLoading] = useState(true)
+  const [changingJobId, setChangingJobId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -53,17 +54,23 @@ export function BackgroundJobsPage() {
   }, [load])
 
   const changeJob = async (job: JobSummary, action: 'cancel' | 'retry') => {
+    const actionLabel = action === 'retry' ? 'retry' : 'cancel'
+    if (!window.confirm(`Are you sure you want to ${actionLabel} job ${job.id}?`)) return
+
     setError(null)
+    setChangingJobId(job.id)
     try {
       await request(`/api/platform/jobs/${job.id}/${action}`, { method: 'POST' })
       await load()
     } catch {
       setError(`The job could not be ${action === 'retry' ? 'retried' : 'cancelled'}.`)
+    } finally {
+      setChangingJobId(null)
     }
   }
 
   return (
-    <section className="panel background-jobs-page">
+    <section aria-busy={loading} className="panel background-jobs-page">
       <div className="section-heading">
         <div>
           <p className="eyebrow">PLATFORM OPERATIONS</p>
@@ -84,20 +91,45 @@ export function BackgroundJobsPage() {
       {loading ? <p className="muted empty-state">Loading jobs…</p> : !result?.items.length ? (
         <p className="muted empty-state">No jobs found.</p>
       ) : (
-        <div className="table-wrap">
+        <div aria-label="Background jobs" className="table-wrap" role="region" tabIndex={0}>
           <table>
             <thead><tr><th>TYPE / ENTITY</th><th>STATUS</th><th>ATTEMPTS</th><th>CREATED / UPDATED</th><th>DETAILS</th><th>ACTIONS</th></tr></thead>
             <tbody>
               {result.items.map((job) => (
                 <tr key={job.id}>
                   <td><strong>{job.type}</strong><span>{job.entityType ?? '—'} {job.entityId ?? ''}</span></td>
-                  <td>{job.status}</td>
+                  <td>
+                    <span
+                      aria-label={`Job status: ${job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}`}
+                      className={`job-status job-status-${job.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                    >
+                      {job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}
+                    </span>
+                  </td>
                   <td>{job.attemptCount} / {job.maxAttempts}</td>
                   <td><span>{new Date(job.createdAt).toLocaleString()}</span><small>{job.lastAttemptAt ? new Date(job.lastAttemptAt).toLocaleString() : 'Not attempted'}</small></td>
                   <td>{job.errorCode && <><strong>{job.errorCode}</strong><span>{job.errorDetails}</span></>}</td>
                   <td>
-                    {job.status === 'Failed' && <button className="secondary-button" onClick={() => void changeJob(job, 'retry')} type="button">Retry</button>}
-                    {['Queued', 'RetryScheduled'].includes(job.status) && <button className="secondary-button" onClick={() => void changeJob(job, 'cancel')} type="button">Cancel</button>}
+                    {job.status === 'Failed' && (
+                      <button
+                        className="secondary-button"
+                        disabled={changingJobId !== null}
+                        onClick={() => void changeJob(job, 'retry')}
+                        type="button"
+                      >
+                        {changingJobId === job.id ? 'Retrying…' : 'Retry'}
+                      </button>
+                    )}
+                    {['Queued', 'RetryScheduled'].includes(job.status) && (
+                      <button
+                        className="secondary-button"
+                        disabled={changingJobId !== null}
+                        onClick={() => void changeJob(job, 'cancel')}
+                        type="button"
+                      >
+                        {changingJobId === job.id ? 'Cancelling…' : 'Cancel'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
