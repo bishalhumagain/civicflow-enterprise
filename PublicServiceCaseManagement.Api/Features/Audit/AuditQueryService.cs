@@ -22,13 +22,15 @@ public sealed class AuditQueryService(
     public Task<AuditEventPageResponse> GetOrganizationEventsAsync(
         Guid organizationId,
         AuditQuery query,
-        CancellationToken cancellationToken = default) =>
-        QueryAsync(organizationId, query, cancellationToken);
+        CancellationToken cancellationToken = default,
+        Guid? requiredActorUserId = null) =>
+        QueryAsync(organizationId, query, cancellationToken, requiredActorUserId);
 
     private async Task<AuditEventPageResponse> QueryAsync(
         Guid? organizationScope,
         AuditQuery query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? requiredActorUserId = null)
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, MaximumPageSize);
@@ -61,6 +63,12 @@ public sealed class AuditQueryService(
         if (query.ActorUserId.HasValue)
         {
             events = events.Where(audit => audit.ActorUserId == query.ActorUserId.Value);
+        }
+
+        if (requiredActorUserId.HasValue)
+        {
+            events = events.Where(
+                audit => audit.ActorUserId == requiredActorUserId.Value);
         }
 
         if (query.From.HasValue)

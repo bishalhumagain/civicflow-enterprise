@@ -14,11 +14,13 @@ public interface IAuditQueryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Reads the audit trail of a single organization. Only administrators of
-    /// that organization may call this.
+    /// Reads the audit trail of a single organization. The controller limits
+    /// staff callers to their own actor ID and administrators to their
+    /// organization.
     /// </summary>
     Task<AuditEventPageResponse> GetOrganizationEventsAsync(
         Guid organizationId,
         AuditQuery query,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? requiredActorUserId = null);
 }

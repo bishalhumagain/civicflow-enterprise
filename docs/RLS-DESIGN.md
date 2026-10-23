@@ -99,7 +99,9 @@ The application-level organization predicates (in `AuthenticatedOrganizationReso
 
 `GET /api/organizations/me` returns only the caller's active memberships and is the frontend's source for organization selection. Organization dashboard statistics are derived from this validated context; a supplied organization ID is rejected when it does not match.
 
-Case queries add resource-level authorization after organization resolution: organization administrators can query every case in their active organization, while staff list/detail/history/document endpoints are filtered to cases assigned to the authenticated user's active staff record. Assignment management is restricted to organization administrators. A CaseWorker assignment may update status and upload documents; a Viewer assignment is read-only. These checks complement organization predicates and RLS, and identifier-based lookups use the same assigned-case filter to avoid leaking unassigned or co-worker cases.
+Case queries add resource-level authorization after organization resolution: organization administrators can query every case in their active organization, while staff list/detail/history/document endpoints are filtered to cases assigned to the authenticated user's active staff record. Assignment management is restricted to organization administrators. A CaseWorker assignment may update case details and status and upload documents; a Viewer assignment is read-only. Only an organization administrator can delete a case, and the endpoint requires explicit confirmation. These checks complement organization predicates and RLS, and identifier-based lookups use the same assigned-case filter to avoid leaking unassigned or co-worker cases.
+
+Organization audit reads use the active organization selected by the server-validated membership context. Organization administrators see that organization's events; staff with an active CaseWorker or Viewer membership see only events whose actor ID matches their authenticated application account. A client-supplied `actorUserId` is an additional filter and cannot override or widen this mandatory actor scope.
 
 ---
 

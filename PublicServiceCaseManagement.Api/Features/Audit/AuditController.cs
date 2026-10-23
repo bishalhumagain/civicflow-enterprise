@@ -11,7 +11,8 @@ namespace PublicServiceCaseManagement.Api.Features.Audit;
 
 /// <summary>
 /// Read access to the audit trail. Platform administrators see the whole
-/// platform; organization administrators only see their own organization.
+/// platform; organization administrators see their organization, while staff
+/// see only events they performed.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AppRoles.StaffPolicy)]
@@ -56,13 +57,49 @@ public sealed class AuditController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (!await CanAdministerOrganizationAsync(organizationId, cancellationToken))
+        var platformRole = await organizationContext.GetPlatformRoleAsync(
+            cancellationToken);
+        if (platformRole == PlatformRole.SuperAdmin)
+        {
+            var platformPage = await auditQueryService.GetOrganizationEventsAsync(
+                organizationId,
+                query,
+                cancellationToken);
+            return Ok(platformPage);
+        }
+
+        var currentOrganizationId =
+            await organizationContext.GetOrganizationIdAsync(cancellationToken);
+        if (currentOrganizationId != organizationId)
+            return Forbid();
+
+        var organizationRole =
+            await organizationContext.GetOrganizationRoleAsync(cancellationToken);
+        if (organizationRole == OrganizationRole.OrganizationAdmin)
+        {
+            var organizationPage = await auditQueryService.GetOrganizationEventsAsync(
+                organizationId,
+                query,
+                cancellationToken);
+            return Ok(organizationPage);
+        }
+
+        if (organizationRole is not (
+                OrganizationRole.CaseWorker or OrganizationRole.Viewer))
+        {
+            return Forbid();
+        }
+
+        var userId = await organizationContext.GetApplicationUserIdAsync(
+            cancellationToken);
+        if (userId is null)
             return Forbid();
 
         var page = await auditQueryService.GetOrganizationEventsAsync(
             organizationId,
             query,
-            cancellationToken);
+            cancellationToken,
+            userId);
 
         return Ok(page);
     }
@@ -76,25 +113,4 @@ public sealed class AuditController(
         return role == PlatformRole.SuperAdmin;
     }
 
-    private async Task<bool> CanAdministerOrganizationAsync(
-        Guid organizationId,
-        CancellationToken cancellationToken)
-    {
-        var platformRole = await organizationContext.GetPlatformRoleAsync(
-            cancellationToken);
-
-        if (platformRole == PlatformRole.SuperAdmin)
-            return true;
-
-        var currentOrganizationId =
-            await organizationContext.GetOrganizationIdAsync(cancellationToken);
-
-        if (currentOrganizationId != organizationId)
-            return false;
-
-        var organizationRole =
-            await organizationContext.GetOrganizationRoleAsync(cancellationToken);
-
-        return organizationRole == OrganizationRole.OrganizationAdmin;
-    }
 }

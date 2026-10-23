@@ -84,6 +84,7 @@ The platform is built around three core principles:
 | Capability | Description |
 |---|---|
 | **Case lifecycle** | Create, list (paged, searchable, filterable), view detail, change status, and assign with organization and per-case role enforcement. Organization admins see their organization's cases; staff see only cases assigned to them. |
+| **Case editing and deletion** | Assigned CaseWorkers and organization administrators can update editable case details; organization administrators alone can permanently delete a case after an explicit confirmation. |
 | **Status state machine** | Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected. Enforced in domain logic; closed/rejected cases are not editable. |
 | **Assignment** | Organization administrators assign cases to active staff in the same organization as CaseWorker or Viewer; assignment and role changes are audited. Viewers have read-only case access. |
 | **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. |
@@ -106,7 +107,7 @@ The platform is built around three core principles:
 |---|---|
 | **Persisted audit trail** | Every authentication, account, invitation, membership, organization, staff, case, and access-token event is recorded in `audit_events` with actor (id + email), organization, entity, and detail. Asynchronous and fail-safe. |
 | **Platform-wide audit log** | `GET /api/platform/audit` (super administrators only), filterable by category, action, free text, and date range. |
-| **Organization-scoped activity log** | `GET /api/organizations/{orgId}/audit` (organization administrators only). |
+| **Organization-scoped activity log** | `GET /api/organizations/{orgId}/audit`: organization administrators see their organization's events; CaseWorkers and Viewers see only events they performed. |
 | **Dashboard & statistics** | Platform-wide and organization-scoped case statistics: total, per-status, per-priority, weekly/monthly trends. |
 | **Error tracking** | Unhandled exceptions persisted to `application_errors` with full context (stack trace, source, request path/method, user, org). Reviewable and mark-as-handled by super administrators. |
 
@@ -447,6 +448,8 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | GET | `/api/cases` | Active organization membership | Organization admins list all cases in their organization; staff list only cases assigned to themselves (paged) |
 | GET | `/api/cases/{id}` | Active organization membership | Organization admins read any case in their organization; staff read only cases assigned to them |
 | PATCH | `/api/cases/{id}/status` | OrganizationAdmin, or assigned CaseWorker | Change status only for a case the caller may edit; Viewer assignments are read-only |
+| PUT | `/api/cases/{id}` | OrganizationAdmin, or assigned CaseWorker | Update title and description of an editable case |
+| DELETE | `/api/cases/{id}` | OrganizationAdmin | Permanently delete a case only with `{ "confirmed": true }`; attached document metadata and files are removed |
 | GET | `/api/cases/{id}/history` | Active organization membership | Read history for an accessible case |
 | PATCH | `/api/cases/{id}/assignment` | OrganizationAdmin | Assign to active staff in the selected organization; specify case role `CaseWorker` or `Viewer` |
 | GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an accessible case |
@@ -454,7 +457,7 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an accessible case |
 | GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download documents for an accessible case |
 
-Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update cases; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization.
+Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, and documents; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
 
 ### Citizen Intake (`/api/citizens`)
 
@@ -535,7 +538,7 @@ The API obtains the citizen identity from the authenticated session, verifies th
 | GET | `/api/platform/staff` | SuperAdmin | All staff memberships |
 | GET | `/api/platform/audit` | SuperAdmin | Platform-wide audit trail |
 | GET | `/api/platform/audit/categories` | SuperAdmin | Audit category list |
-| GET | `/api/organizations/{orgId}/audit` | OrganizationAdmin of `{orgId}` or SuperAdmin | Organization audit trail |
+| GET | `/api/organizations/{orgId}/audit` | OrganizationAdmin of `{orgId}`, assigned staff of `{orgId}` (own events only), or SuperAdmin | Organization audit trail; staff results are actor-scoped on the server |
 | GET | `/api/dashboard/platform` | SuperAdmin | Platform case statistics |
 | GET | `/api/dashboard/organization?organizationId=...` | Active organization membership | Organization statistics; a supplied ID must match the authorized organization context |
 | GET | `/api/errors` | SuperAdmin | List application errors (paged) |

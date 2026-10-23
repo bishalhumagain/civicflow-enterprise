@@ -85,6 +85,104 @@ public sealed class CasesController(
         return Created($"/api/cases/{newCase.Id}", response);
     }
 
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<CreateCaseResponse>> Update(
+        Guid id,
+        [FromBody] UpdateCaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+        if (organizationId is null)
+            return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+        if (!await CanEditCaseAsync(existingCase, cancellationToken))
+            return Forbid();
+
+        var staffMemberId =
+            await IsOrganizationAdminAsync(cancellationToken)
+                ? null
+                : await GetCurrentStaffMemberIdAsync(
+                    organizationId.Value,
+                    cancellationToken);
+        var updated = await caseService.UpdateDetailsAsync(
+            organizationId.Value,
+            id,
+            request.Title,
+            request.Description,
+            cancellationToken,
+            staffMemberId);
+        if (updated is null)
+            return NotFound();
+
+        return Ok(new CreateCaseResponse(
+            updated.Id,
+            updated.ReferenceNumber,
+            updated.Title,
+            updated.Description,
+            updated.Status,
+            updated.Priority,
+            updated.CreatedAt,
+            updated.AssignedToStaffMemberId,
+            updated.AssignedRole));
+    }
+
+    /// <summary>
+    /// Permanently deletes a case after an explicit confirmation from an
+    /// organization administrator.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        [FromBody] ConfirmCaseDeletionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsOrganizationAdminAsync(cancellationToken))
+            return Forbid();
+
+        if (!request.Confirmed)
+            return BadRequest(new
+            {
+                error = "Organization administrator confirmation is required."
+            });
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+        if (organizationId is null)
+            return Forbid();
+
+        var storageKeys = await caseService.DeleteAsync(
+            organizationId.Value,
+            id,
+            cancellationToken);
+        if (storageKeys is null)
+            return NotFound();
+
+        // Metadata is removed first so a failed blob cleanup cannot leave
+        // downloadable documents attached to a deleted case.
+        foreach (var storageKey in storageKeys)
+        {
+            await fileStorage.DeleteAsync(storageKey, cancellationToken);
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<CreateCaseResponse>> GetById(
         Guid id,

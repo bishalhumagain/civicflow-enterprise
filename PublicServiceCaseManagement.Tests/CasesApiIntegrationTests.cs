@@ -448,9 +448,186 @@ public class CasesApiIntegrationTests
         var updateResponse = await client.PatchAsJsonAsync(
             $"/api/cases/{caseId}/status",
             new { newStatus = "UnderReview" });
+        var detailsUpdateResponse = await client.PutAsJsonAsync(
+            $"/api/cases/{caseId}",
+            new
+            {
+                title = "Viewer must not edit",
+                description = "This description must not be accepted."
+            });
 
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
+        Assert.True(
+            detailsUpdateResponse.StatusCode == HttpStatusCode.Forbidden,
+            await detailsUpdateResponse.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task AssignedCaseWorker_CanUpdateCaseDetails()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Case before edit",
+                description = "Initial case description for edit test."
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/cases/{caseId}",
+            new
+            {
+                title = "Updated case title",
+                description = "Updated case description for the assigned worker."
+            });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        using var updatedJson = JsonDocument.Parse(
+            await updateResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "Updated case title",
+            updatedJson.RootElement.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task OnlyOrganizationAdminCanDeleteCaseAfterConfirmation()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            enableBusinessEndpoints: true);
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Case pending deletion",
+                description = "This case is removed only after admin confirmation."
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var unconfirmedResponse = await client.SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/cases/{caseId}")
+            {
+                Content = JsonContent.Create(new { confirmed = false })
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, unconfirmedResponse.StatusCode);
+
+        var confirmedResponse = await client.SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/cases/{caseId}")
+            {
+                Content = JsonContent.Create(new { confirmed = true })
+            });
+        Assert.Equal(HttpStatusCode.NoContent, confirmedResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        Assert.False(await dbContext.Cases.AnyAsync(item => item.Id == caseId));
+        Assert.Contains(
+            await dbContext.AuditEvents
+                .Where(item => item.EntityId == caseId.ToString())
+                .Select(item => item.Action)
+                .ToListAsync(),
+            action => action == "case.deleted");
+    }
+
+    [Fact]
+    public async Task CaseWorker_CannotDeleteCaseEvenWithConfirmation()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker,
+            enableBusinessEndpoints: true);
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Case worker cannot delete",
+                description = "Only an organization administrator can delete this case."
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var response = await client.SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/cases/{caseId}")
+            {
+                Content = JsonContent.Create(new { confirmed = true })
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganizationAdmin_CannotDeleteCaseFromAnotherOrganization()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.OrganizationAdmin);
+        var otherOrganizationId =
+            await factory.SeedOrganizationWithoutMembershipAsync();
+        var otherCase = Case.Create(
+            otherOrganizationId,
+            $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+            "Other organization's case",
+            "This case belongs to a different organization.",
+            DateTimeOffset.UtcNow);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            dbContext.Cases.Add(otherCase);
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+        var response = await client.SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/cases/{otherCase.Id}")
+            {
+                Content = JsonContent.Create(new { confirmed = true })
+            });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        Assert.True(await verifyDb.Cases.AnyAsync(
+            item => item.Id == otherCase.Id &&
+                    item.OrganizationId == otherOrganizationId));
     }
 
 }

@@ -63,6 +63,90 @@ public sealed class CaseService(
                 cancellationToken);
     }
 
+    public async Task<Case?> UpdateDetailsAsync(
+        Guid organizationId,
+        Guid caseId,
+        string title,
+        string description,
+        CancellationToken cancellationToken,
+        Guid? authorizedStaffMemberId = null)
+    {
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(
+                item => item.Id == caseId &&
+                        item.OrganizationId == organizationId &&
+                        (authorizedStaffMemberId == null ||
+                         (item.AssignedToStaffMemberId == authorizedStaffMemberId &&
+                          item.AssignedRole == CaseAssignmentRole.CaseWorker)),
+                cancellationToken);
+        if (caseEntity is null)
+            return null;
+
+        caseEntity.UpdateDetails(title, description, DateTimeOffset.UtcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseUpdated,
+                OrganizationId = organizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details = $"{caseEntity.ReferenceNumber} {caseEntity.Title}"
+            },
+            cancellationToken);
+
+        return caseEntity;
+    }
+
+    public async Task<IReadOnlyList<string>?> DeleteAsync(
+        Guid organizationId,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(
+                item => item.Id == caseId &&
+                        item.OrganizationId == organizationId,
+                cancellationToken);
+        if (caseEntity is null)
+            return null;
+
+        var documents = await dbContext.CaseDocuments
+            .Where(document => document.CaseId == caseId &&
+                               document.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+        var statusHistory = await dbContext.CaseStatusHistories
+            .Where(history => history.CaseId == caseId &&
+                              history.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+        var assignmentHistory = await dbContext.CaseAssignmentHistories
+            .Where(history => history.CaseId == caseId &&
+                              history.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        dbContext.CaseDocuments.RemoveRange(documents);
+        dbContext.CaseStatusHistories.RemoveRange(statusHistory);
+        dbContext.CaseAssignmentHistories.RemoveRange(assignmentHistory);
+        dbContext.Cases.Remove(caseEntity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseDeleted,
+                OrganizationId = organizationId,
+                EntityType = "Case",
+                EntityId = caseId.ToString(),
+                Details = $"{caseEntity.ReferenceNumber} {caseEntity.Title}"
+            },
+            cancellationToken);
+
+        return documents.Select(document => document.StorageKey).ToArray();
+    }
+
     public async Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
         Guid organizationId,
         int page,

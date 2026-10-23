@@ -87,6 +87,46 @@ public sealed class AuditQueryServiceTests
     }
 
     [Fact]
+    public async Task GetOrganizationEventsAsync_RequiredActorCannotBeOverriddenByQuery()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        var organizationId = Guid.NewGuid();
+        var currentStaffUserId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        context.AuditEvents.AddRange(
+            CreateEvent(
+                AuditCategory.Case,
+                "case.updated",
+                organizationId,
+                Now,
+                actorUserId: currentStaffUserId),
+            CreateEvent(
+                AuditCategory.Case,
+                "case.updated",
+                organizationId,
+                Now.AddMinutes(1),
+                actorUserId: otherUserId));
+        await context.SaveChangesAsync();
+
+        var ownActivityPage = await service.GetOrganizationEventsAsync(
+            organizationId,
+            new AuditQuery(),
+            requiredActorUserId: currentStaffUserId);
+        Assert.Equal(1, ownActivityPage.TotalCount);
+        Assert.Equal(currentStaffUserId, ownActivityPage.Items[0].ActorUserId);
+
+        var filteredPage = await service.GetOrganizationEventsAsync(
+            organizationId,
+            new AuditQuery { ActorUserId = otherUserId },
+            requiredActorUserId: currentStaffUserId);
+
+        Assert.Empty(filteredPage.Items);
+        Assert.Equal(0, filteredPage.TotalCount);
+    }
+
+    [Fact]
     public async Task GetPlatformEventsAsync_FiltersByCategoryAndAction()
     {
         var (context, service) = CreateService();
@@ -176,12 +216,13 @@ public sealed class AuditQueryServiceTests
         string action,
         Guid organizationId,
         DateTimeOffset occurredAt,
-        string details = "Details") =>
+        string details = "Details",
+        Guid? actorUserId = null) =>
         AuditEvent.Create(
             category,
             action,
             organizationId,
-            Guid.NewGuid(),
+            actorUserId ?? Guid.NewGuid(),
             "admin@example.com",
             "Organization",
             organizationId.ToString(),

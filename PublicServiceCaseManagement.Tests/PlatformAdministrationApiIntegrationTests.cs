@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -17,6 +18,55 @@ namespace PublicServiceCaseManagement.Tests;
 /// </summary>
 public sealed class PlatformAdministrationApiIntegrationTests
 {
+    [Fact]
+    public async Task GetOrganizationAudit_AsStaff_ReturnsOnlyCurrentUsersEvents()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+        var otherUserId = Guid.NewGuid();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            dbContext.AuditEvents.AddRange(
+                CreateCaseAuditEvent(
+                    organizationId,
+                    TestAuthenticationHandler.DefaultUserId,
+                    "case.updated"),
+                CreateCaseAuditEvent(
+                    organizationId,
+                    otherUserId,
+                    "case.updated"));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+        var response = await client.GetAsync(
+            $"/api/organizations/{organizationId}/audit");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+        var item = Assert.Single(json.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(
+            TestAuthenticationHandler.DefaultUserId,
+            item.GetProperty("actorUserId").GetGuid());
+
+        var tamperedFilterResponse = await client.GetAsync(
+            $"/api/organizations/{organizationId}/audit?actorUserId={otherUserId}");
+        Assert.Equal(HttpStatusCode.OK, tamperedFilterResponse.StatusCode);
+        using var tamperedFilterJson = JsonDocument.Parse(
+            await tamperedFilterResponse.Content.ReadAsStringAsync());
+        Assert.Empty(
+            tamperedFilterJson.RootElement.GetProperty("items").EnumerateArray());
+    }
+
     [Fact]
     public async Task DeleteOrganization_AsSuperAdmin_RemovesOrganization()
     {
@@ -387,4 +437,19 @@ public sealed class PlatformAdministrationApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
     }
+
+    private static AuditEvent CreateCaseAuditEvent(
+        Guid organizationId,
+        Guid actorUserId,
+        string action) =>
+        AuditEvent.Create(
+            AuditCategory.Case,
+            action,
+            organizationId,
+            actorUserId,
+            "staff@example.com",
+            "Case",
+            Guid.NewGuid().ToString(),
+            "Test activity",
+            DateTimeOffset.UtcNow);
 }

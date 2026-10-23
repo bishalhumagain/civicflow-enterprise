@@ -161,7 +161,7 @@ The navigation only shows the views your account is entitled to. Entries are det
 |---|---|
 | **Cases** | Case management (default view) |
 | **Staff & team** | Staff directory, invitations (send, resend, revoke), staff phone numbers |
-| **Activity log** | Audit trail of your organization's events (organization administrators) |
+| **Activity log** | Organization administrators see the organization's audit trail; staff see only their own activity |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
 | **Profile** | Unified self-service profile (contact details for staff) |
 
@@ -304,7 +304,9 @@ The workspace resolves the active organization from the signed-in account's acti
 5. You'll receive a toast notification on success/failure
 6. The new case will appear in the list
 
-The organization is fixed to the authenticated staff workspace; staff do not select an organization in the case form. When assigning a case, choose an active staff member and a per-case role of **CaseWorker** or **Viewer**.
+The organization is fixed to the authenticated staff workspace; staff do not select an organization in the case form. Organization administrators can assign a case to an active staff member and choose the per-case role **CaseWorker** (can update details, status, and documents) or **Viewer** (read-only). Staff see only cases assigned to them.
+
+Organization administrators can edit case title and description and can permanently delete a case. Deletion opens an explicit confirmation dialog and removes the case, its history, and attached documents. CaseWorkers can edit title and description only for cases assigned to them with the CaseWorker role; Viewers cannot make changes. No staff member can delete a case.
 
 ### 5.3 Updating Case Status
 
@@ -371,12 +373,12 @@ The organization is fixed to the authenticated staff workspace; staff do not sel
 
 ### 5.9 Reviewing the Audit Log
 
-1. Platform administrators: open **Audit log** for the platform-wide trail. Organization administrators: open **Activity log** for their own organization.
+1. Platform administrators: open **Audit log** for the platform-wide trail. Organization administrators: open **Activity log** for their organization. CaseWorkers and Viewers: open **Activity log** to see only events they performed.
 2. Filter by category (authentication, account, organization, membership, staff, case, access token), by action, by free text, or by date range
 3. Page through the results with the pagination controls
 4. Each row shows when the event happened, who did it, what it touched, and a readable detail
 
-**Note:** The platform audit log is only available to platform super administrators, and an organization's activity log only to that organization's administrators. The audit trail is read-only.
+**Note:** The platform audit log is only available to platform super administrators. Organization administrators can see the full audit trail for their organization; staff can see only their own events. The audit trail is read-only, and the API enforces the actor and organization filters regardless of query parameters.
 
 ### 5.10 Reviewing the Dashboard
 

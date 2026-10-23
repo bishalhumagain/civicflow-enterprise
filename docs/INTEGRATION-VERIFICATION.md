@@ -75,6 +75,8 @@ Covered by automated integration tests:
 - Assignment role changes between CaseWorker and Viewer are recorded in assignment history
 - Staff case lists and identifier lookups are restricted to assigned cases; unassigned and another staff member's cases return no data
 - CaseWorker assignments can update cases, while Viewer assignments are read-only; only organization administrators can assign cases
+- Organization administrators can update case details and permanently delete cases only after confirmation; CaseWorkers cannot delete, and Viewer detail updates are forbidden
+- CaseWorkers and Viewers can read their own organization activity without seeing other actors' events, including when attempting to filter by another actor ID
 - `GET /api/organizations/me` returns only the caller's active memberships; non-member organization selection is forbidden
 - Organization dashboard statistics reject an organization ID outside the caller's resolved membership context
 
@@ -257,6 +259,7 @@ Email verification and password-reset messages are produced by `IEmailSender`. T
 - An optional staff phone number is validated, collected with the invitation, stored on a newly accepted account and staff record, never overwrites a number an existing account already had, and can be corrected by an organization administrator.
 - Active application user, membership, and organization are required.
 - Cross-organization case and document access is denied without data disclosure.
+- Case list/detail/update/delete operations remain organization scoped; delete confirmation and administrator authorization are independently asserted.
 - PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.
 - Runtime database role can read application tables but cannot create schema objects or bypass the tested role boundary.
 - Migration role is not used by the running API.

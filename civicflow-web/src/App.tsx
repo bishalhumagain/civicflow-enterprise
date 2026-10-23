@@ -1196,6 +1196,65 @@ function App() {
     }
   }
 
+  async function updateCaseDetails(title: string, description: string): Promise<boolean> {
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return false
+
+    const caseId = selectedCase.id
+    setActionLoading(true)
+    setError(null)
+
+    try {
+      const updated = await requestJson<CaseRecord>(`/api/cases/${caseId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title, description }),
+      })
+      setCases((current) => current.map((item) => (
+        item.id === caseId
+          ? { ...item, title: updated.title, description: updated.description }
+          : item
+      )))
+      setRetryVersion((version) => version + 1)
+      showToast('Case details saved.', 'success')
+      return true
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'Case details could not be saved.'
+      setError(message)
+      showToast(message, 'error')
+      return false
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function deleteCase() {
+    if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
+
+    const caseId = selectedCase.id
+    setActionLoading(true)
+    setError(null)
+
+    try {
+      await requestJson<void>(`/api/cases/${caseId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmed: true }),
+      })
+      setCases((current) => current.filter((item) => item.id !== caseId))
+      setSelectedCaseId(null)
+      setRetryVersion((version) => version + 1)
+      showToast('Case deleted.', 'success')
+    } catch (reason) {
+      const message = reason instanceof Error
+        ? reason.message
+        : 'Case could not be deleted.'
+      setError(message)
+      showToast(message, 'error')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function assignCase(
     staffMemberId: string,
     role: 'CaseWorker' | 'Viewer',
@@ -1853,8 +1912,16 @@ function App() {
                 />
             ) : activeView === 'activity' && organizationAccess ? (
                 <AuditLog
-                    title="Organization activity"
-                    description="Every audited change recorded for this organization, including sign-ins, staff changes and case workflow events."
+                    title={
+                      activeOrganization?.role === 'OrganizationAdmin'
+                        ? 'Organization activity'
+                        : 'My activity'
+                    }
+                    description={
+                      activeOrganization?.role === 'OrganizationAdmin'
+                        ? 'Audited staff, case and workflow events recorded across your organization.'
+                        : 'Your own audited actions recorded in this organization.'
+                    }
                     loading={auditLoading}
                     events={auditEvents}
                     filters={auditFilters}
@@ -1866,7 +1933,11 @@ function App() {
                       setAuditPage(1)
                     }}
                     onPageChange={setAuditPage}
-                    emptyMessage="No activity has been recorded for this organization yet."
+                    emptyMessage={
+                      activeOrganization?.role === 'OrganizationAdmin'
+                        ? 'No activity has been recorded for this organization yet.'
+                        : 'You have no recorded activity in this organization yet.'
+                    }
                 />
             ) : activeView === 'platform-dashboard' && platformAdminAccess ? (
                 <PlatformDashboard
@@ -2126,8 +2197,11 @@ function App() {
                               member.email.toLowerCase() === currentUser.email.toLowerCase(),
                             ))
                         }
+                        canDeleteCase={activeOrganization?.role === 'OrganizationAdmin'}
                         actionLoading={actionLoading}
                         onStatusChange={changeStatus}
+                        onUpdate={updateCaseDetails}
+                        onDelete={deleteCase}
                         onAssignmentChange={assignCase}
                         onUpload={uploadDocument}
                         onDownload={downloadDocument}

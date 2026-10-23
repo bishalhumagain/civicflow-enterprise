@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Assigned CaseWorkers can now edit case title and description; only organization administrators can permanently delete cases, after explicit confirmation. Case deletion removes its assignment/status history and document metadata, records an audit event, and deletes the associated stored files.
+- Organization staff can now use the activity screen without receiving a forbidden response: organization administrators retain organization-wide activity visibility, while CaseWorkers and Viewers are constrained server-side to events performed by their own authenticated account.
+- Regression tests cover staff audit actor isolation, CaseWorker detail edits, Viewer read-only behavior, and organization-admin-confirmed deletion.
 - Citizen intake now submits multipart case requests to an active organization selected from the authenticated citizen API, stores the submitting user, and supports an optional arbitrary file attachment (10 MB limit). Staff-created cases continue to use the authenticated organization context.
 - Case assignment now records a case-specific `CaseWorker` or `Viewer` role in the case and assignment history. Organization administrators alone can assign or reassign cases; staff list and detail APIs return only cases assigned to them, and Viewer assignments are read-only. Existing assignments are migrated as `CaseWorker`.
 - Authenticated organization selector: `GET /api/organizations/me` returns only the current active account's active organization memberships and their organization roles. The SPA no longer uses a build-time organization ID; it resolves memberships after session restoration and supports switching among authorized organizations.

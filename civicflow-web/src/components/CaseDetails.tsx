@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
 import {
   statusLabels,
@@ -21,6 +21,9 @@ export function CaseDetails({
   canEditCase,
   actionLoading,
   onStatusChange,
+  onUpdate,
+  canDeleteCase,
+  onDelete,
   onAssignmentChange,
   onUpload,
   onDownload,
@@ -34,6 +37,9 @@ export function CaseDetails({
   canEditCase: boolean
   actionLoading: boolean
   onStatusChange: (status: CaseStatus) => Promise<void>
+  onUpdate: (title: string, description: string) => Promise<boolean>
+  canDeleteCase: boolean
+  onDelete: () => Promise<void>
   onAssignmentChange: (
     staffMemberId: string,
     role: 'CaseWorker' | 'Viewer',
@@ -43,6 +49,13 @@ export function CaseDetails({
 }) {
   const [assignmentRole, setAssignmentRole] =
     useState<'CaseWorker' | 'Viewer'>('CaseWorker')
+  const [caseDraft, setCaseDraft] = useState<{
+    caseId: string
+    title: string
+    description: string
+  } | null>(null)
+  const [deleteConfirmationCaseId, setDeleteConfirmationCaseId] =
+    useState<string | null>(null)
 
   if (!caseRecord) {
     return (
@@ -52,6 +65,14 @@ export function CaseDetails({
     )
   }
 
+  const editTitle = caseDraft?.caseId === caseRecord.id
+    ? caseDraft.title
+    : caseRecord.title
+  const editDescription = caseDraft?.caseId === caseRecord.id
+    ? caseDraft.description
+    : caseRecord.description
+  const deleteConfirmationOpen = deleteConfirmationCaseId === caseRecord.id
+
   return (
     <aside className="detail-card">
       <div className="detail-header">
@@ -60,11 +81,72 @@ export function CaseDetails({
 
       <div className="detail-title">
         <span className="case-reference">{caseRecord.referenceNumber}</span>
-        <h2>{caseRecord.title}</h2>
         <StatusPill status={caseRecord.status} />
       </div>
 
-      <p className="case-description">{caseRecord.description}</p>
+      {canEditCase ? (
+        <form
+          className="case-edit-form"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault()
+            void onUpdate(editTitle.trim(), editDescription.trim()).then((saved) => {
+              if (saved) {
+                setCaseDraft({
+                  caseId: caseRecord.id,
+                  title: editTitle.trim(),
+                  description: editDescription.trim(),
+                })
+              }
+            })
+          }}
+        >
+          <label>
+            Case title
+            <input
+              maxLength={200}
+              minLength={3}
+              onChange={(event) => setCaseDraft({
+                caseId: caseRecord.id,
+                title: event.target.value,
+                description: editDescription,
+              })}
+              required
+              value={editTitle}
+            />
+          </label>
+          <label>
+            Description
+            <textarea
+              maxLength={5000}
+              minLength={10}
+              onChange={(event) => setCaseDraft({
+                caseId: caseRecord.id,
+                title: editTitle,
+                description: event.target.value,
+              })}
+              required
+              value={editDescription}
+            />
+          </label>
+          <button
+            className="secondary-button"
+            disabled={
+              actionLoading ||
+              caseRecord.id.startsWith('demo-') ||
+              (editTitle.trim() === caseRecord.title &&
+                editDescription.trim() === caseRecord.description)
+            }
+            type="submit"
+          >
+            Save case details
+          </button>
+        </form>
+      ) : (
+        <>
+          <h2 className="case-details-title">{caseRecord.title}</h2>
+          <p className="case-description">{caseRecord.description}</p>
+        </>
+      )}
 
       <div className="detail-section">
         <h3>Workflow</h3>
@@ -202,6 +284,62 @@ export function CaseDetails({
           ))
         )}
       </div>
+
+      {canDeleteCase && !caseRecord.id.startsWith('demo-') && (
+        <div className="case-danger-zone">
+          <div>
+            <strong>Delete case</strong>
+            <p>This permanently removes the case and its attached documents.</p>
+          </div>
+          <button
+            className="danger-button"
+            disabled={actionLoading}
+            onClick={() => setDeleteConfirmationCaseId(caseRecord.id)}
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {deleteConfirmationOpen && (
+        <div
+          aria-labelledby="delete-case-title"
+          aria-modal="true"
+          className="case-confirmation-backdrop"
+          role="dialog"
+        >
+          <div className="case-confirmation">
+            <span className="case-confirmation-icon" aria-hidden="true">!</span>
+            <h2 id="delete-case-title">Delete this case?</h2>
+            <p>
+              <strong>{caseRecord.referenceNumber}</strong> and its attached
+              documents will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="case-confirmation-actions">
+              <button
+                className="secondary-button"
+                disabled={actionLoading}
+                onClick={() => setDeleteConfirmationCaseId(null)}
+                type="button"
+              >
+                Keep case
+              </button>
+              <button
+                className="danger-button"
+                disabled={actionLoading}
+                onClick={() => {
+                  setDeleteConfirmationCaseId(null)
+                  void onDelete()
+                }}
+                type="button"
+              >
+                {actionLoading ? 'Deleting…' : 'Confirm deletion'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
