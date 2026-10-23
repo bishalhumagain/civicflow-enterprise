@@ -1196,7 +1196,10 @@ function App() {
     }
   }
 
-  async function assignCase(staffMemberId: string) {
+  async function assignCase(
+    staffMemberId: string,
+    role: 'CaseWorker' | 'Viewer',
+  ) {
     if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-') || !staffMemberId) return
 
     setActionLoading(true)
@@ -1205,7 +1208,7 @@ function App() {
     try {
       await requestJson(`/api/cases/${selectedCase.id}/assignment`, {
         method: 'PATCH',
-        body: JSON.stringify({ staffMemberId }),
+        body: JSON.stringify({ staffMemberId, role }),
       })
       setRetryVersion((version) => version + 1)
       showToast('Assignment updated.', 'success')
@@ -2112,6 +2115,17 @@ function App() {
                         assignmentHistory={assignmentHistory}
                         documents={documents}
                         staff={staff}
+                        canAssignCases={activeOrganization?.role === 'OrganizationAdmin'}
+                        canEditCase={
+                          activeOrganization?.role === 'OrganizationAdmin' ||
+                          (activeOrganization?.role === 'CaseWorker' &&
+                            !!selectedCase &&
+                            selectedCase.assignedRole === 'CaseWorker' &&
+                            staff.some((member) =>
+                              member.id === selectedCase.assignedToStaffMemberId &&
+                              member.email.toLowerCase() === currentUser.email.toLowerCase(),
+                            ))
+                        }
                         actionLoading={actionLoading}
                         onStatusChange={changeStatus}
                         onAssignmentChange={assignCase}

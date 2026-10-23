@@ -306,6 +306,13 @@ public sealed class OrganizationMembershipApiIntegrationTests
                 "Viewer read test",
                 "A viewer can read this case.",
                 DateTimeOffset.UtcNow);
+            var staffMember = await dbContext.StaffMembers
+                .SingleAsync(candidate =>
+                    candidate.OrganizationId == organizationId);
+            caseEntity.AssignTo(
+                staffMember.Id,
+                CaseAssignmentRole.Viewer,
+                DateTimeOffset.UtcNow);
 
             dbContext.Cases.Add(caseEntity);
             await dbContext.SaveChangesAsync();

@@ -43,6 +43,25 @@ public sealed class InvitationsController(
             return Forbid();
         }
 
+        var platformRole = await organizationContext.GetPlatformRoleAsync(
+            cancellationToken);
+        var organizationRole =
+            await organizationContext.GetOrganizationRoleAsync(
+                cancellationToken);
+
+        if (platformRole != PlatformRole.SuperAdmin &&
+            organizationRole == OrganizationRole.OrganizationAdmin &&
+            !string.Equals(
+                request.Role,
+                nameof(OrganizationRole.CaseWorker),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                error = "Organization administrators may invite staff members only."
+            });
+        }
+
         try
         {
             var invitation = await invitationService.CreateAsync(

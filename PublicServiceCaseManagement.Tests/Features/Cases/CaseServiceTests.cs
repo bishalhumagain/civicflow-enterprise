@@ -164,6 +164,7 @@ public sealed class CaseServiceTests
 
         Assert.NotNull(result);
         Assert.Equal(staffMember.Id, result.AssignedToStaffMemberId);
+        Assert.Equal(CaseAssignmentRole.CaseWorker, result.AssignedRole);
 
         var history = await dbContext.CaseAssignmentHistories
             .AsNoTracking()
@@ -173,6 +174,7 @@ public sealed class CaseServiceTests
         Assert.Equal(OrganizationId, history.OrganizationId);
         Assert.Null(history.PreviousStaffMemberId);
         Assert.Equal(staffMember.Id, history.NewStaffMemberId);
+        Assert.Equal(CaseAssignmentRole.CaseWorker, history.NewRole);
         Assert.Equal(actorUserId, history.AssignedByUserId);
     }
 
@@ -253,6 +255,42 @@ public sealed class CaseServiceTests
 
         Assert.Single(history);
         Assert.Equal(staffMember.Id, caseEntity.AssignedToStaffMemberId);
+    }
+
+    [Fact]
+    public async Task AssignAsync_WhenCaseRoleChangesForSameStaff_CreatesHistory()
+    {
+        await using var dbContext = CreateDbContext();
+        var caseEntity = CreateCase();
+        var staffMember = CreateStaffMember();
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(staffMember);
+        await dbContext.SaveChangesAsync();
+
+        var service = new CaseService(dbContext, new RecordingAuditLogger());
+        await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None);
+
+        var updated = await service.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            staffMember.Id,
+            CancellationToken.None,
+            role: CaseAssignmentRole.Viewer);
+
+        Assert.NotNull(updated);
+        Assert.Equal(CaseAssignmentRole.Viewer, updated.AssignedRole);
+
+        var history = await dbContext.CaseAssignmentHistories
+            .AsNoTracking()
+            .OrderBy(item => item.AssignedAt)
+            .ToListAsync();
+        Assert.Equal(2, history.Count);
+        Assert.Equal(CaseAssignmentRole.CaseWorker, history[1].PreviousRole);
+        Assert.Equal(CaseAssignmentRole.Viewer, history[1].NewRole);
     }
 
     [Fact]

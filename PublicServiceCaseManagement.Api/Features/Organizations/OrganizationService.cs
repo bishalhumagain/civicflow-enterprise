@@ -62,6 +62,22 @@ public sealed class OrganizationService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CitizenOrganizationOption>>
+        GetActiveOrganizationsForCitizensAsync(
+            CancellationToken cancellationToken)
+    {
+        return await dbContext.Organizations
+            .AsNoTracking()
+            .Where(organization => organization.IsActive)
+            .OrderBy(organization => organization.Name)
+            .ThenBy(organization => organization.Id)
+            .Select(organization => new CitizenOrganizationOption(
+                organization.Id,
+                organization.Name,
+                organization.Code))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<OrganizationWorkspaceOption>>
         GetMembershipsForUserAsync(
             Guid userId,

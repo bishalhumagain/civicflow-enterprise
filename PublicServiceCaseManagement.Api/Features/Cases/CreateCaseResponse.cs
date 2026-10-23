@@ -9,4 +9,6 @@ public sealed record CreateCaseResponse(
     string Description,
     CaseStatus Status,
     CasePriority Priority,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    Guid? AssignedToStaffMemberId = null,
+    Domain.Cases.CaseAssignmentRole? AssignedRole = null);

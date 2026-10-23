@@ -77,7 +77,7 @@ public sealed class CaseDocumentsApiIntegrationTests
     }
 
     [Fact]
-    public async Task CaseWorker_CannotUploadUnsupportedDocumentType()
+    public async Task CaseWorker_CanUploadArbitraryDocumentType()
     {
         await using var factory = new CivicFlowApiFactory(
             useAuthenticatedOrganizationContext: true);
@@ -110,7 +110,7 @@ public sealed class CaseDocumentsApiIntegrationTests
             $"/api/cases/{caseId}/documents",
             content);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]

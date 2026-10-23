@@ -21,13 +21,16 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 ### Complete and verified
 
 **Backend infrastructure:**
-- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 18 migrations
+- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 19 migrations
 - Case creation, organization-scoped listing/detail access, status history, assignment history, and audit attribution
 - Database-backed application identity, active organization membership, active organization checks, and explicit role rules
 - SuperAdmin cross-organization membership administration without automatic case access
 - Explicit `BusinessEndpoints:Enabled` gate; production business endpoints remain disabled by default
-- Case document metadata and local file-storage abstraction with filename/path, size, content-type, and hash validation
-- xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests (291 tests)
+- Case document metadata and local file-storage abstraction with filename/path, size, content-type, and hash validation; uploads accept any file type up to 10 MB
+- Citizen case intake with active organization selection, session-derived submitter attribution, and optional arbitrary file attachments
+- Per-case assignment roles (CaseWorker/Viewer) persisted in cases and assignment history
+- Organization administrators can invite staff but cannot grant OrganizationAdmin; platform administrators retain that provisioning privilege
+- xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests (299 tests)
 - Disposable Compose fixtures for PostgreSQL roles
 
 **Authentication & identity:**
@@ -63,7 +66,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 
 | Area | Limitation |
 |---|---|
-| **Frontend live data** | The frontend loads live cases and staff, pages/searches/filters cases, creates cases, changes status, reads status and assignment history, submits assignments, browses/administers the active staff directory, manages invitations, and integrates organization/membership administration when configured with a valid authenticated session. Demo data remains available without live configuration. |
+| **Frontend live data** | The frontend loads live cases and staff, pages/searches/filters cases, creates staff cases in the authenticated organization, changes status, reads status and assignment history, submits assignments with per-case roles, browses/administers the active staff directory, manages invitations, and submits citizen cases with optional attachments. Demo data remains available without live configuration. |
 | **File storage** | Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready. |
 | **Test infrastructure** | Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. Live PostgreSQL checks are currently disposable manual probes rather than CI integration tests. |
 | **PAT scopes** | Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented. |

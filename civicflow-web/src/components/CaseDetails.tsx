@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { StatusPill } from './StatusPill'
 import {
   statusLabels,
@@ -16,6 +17,8 @@ export function CaseDetails({
   assignmentHistory,
   documents,
   staff,
+  canAssignCases,
+  canEditCase,
   actionLoading,
   onStatusChange,
   onAssignmentChange,
@@ -27,12 +30,20 @@ export function CaseDetails({
   assignmentHistory: AssignmentEntry[]
   documents: CaseDocument[]
   staff: StaffMember[]
+  canAssignCases: boolean
+  canEditCase: boolean
   actionLoading: boolean
   onStatusChange: (status: CaseStatus) => Promise<void>
-  onAssignmentChange: (staffMemberId: string) => Promise<void>
+  onAssignmentChange: (
+    staffMemberId: string,
+    role: 'CaseWorker' | 'Viewer',
+  ) => Promise<void>
   onUpload: (file: File) => Promise<void>
   onDownload: (document: CaseDocument) => Promise<void>
 }) {
+  const [assignmentRole, setAssignmentRole] =
+    useState<'CaseWorker' | 'Viewer'>('CaseWorker')
+
   if (!caseRecord) {
     return (
       <aside className="detail-card">
@@ -60,7 +71,7 @@ export function CaseDetails({
         <label>
           Status
           <select
-            disabled={actionLoading || caseRecord.id.startsWith('demo-')}
+            disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
             value={caseRecord.status}
             onChange={(event) => void onStatusChange(event.target.value as CaseStatus)}
           >
@@ -70,19 +81,44 @@ export function CaseDetails({
           </select>
         </label>
 
-        <label>
-          Assign to
-          <select
-            disabled={actionLoading || caseRecord.id.startsWith('demo-')}
-            defaultValue=""
-            onChange={(event) => void onAssignmentChange(event.target.value)}
-          >
-            <option value="">Select staff member</option>
-            {staff.filter((member) => member.isActive).map((member) => (
-              <option key={member.id} value={member.id}>{member.fullName}</option>
-            ))}
-          </select>
-        </label>
+        {canAssignCases && (
+          <>
+            <label>
+              Assign to
+              <select
+                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
+                value={caseRecord.assignedToStaffMemberId ?? ''}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    void onAssignmentChange(event.target.value, assignmentRole)
+                  }
+                }}
+              >
+                <option value="">Select staff member</option>
+                {staff.filter((member) => member.isActive).map((member) => (
+                  <option key={member.id} value={member.id}>{member.fullName}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Case role
+              <select
+                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
+                value={caseRecord.assignedRole ?? assignmentRole}
+                onChange={(event) => {
+                  const role = event.target.value as 'CaseWorker' | 'Viewer'
+                  setAssignmentRole(role)
+                  if (caseRecord.assignedToStaffMemberId) {
+                    void onAssignmentChange(caseRecord.assignedToStaffMemberId, role)
+                  }
+                }}
+              >
+                <option value="CaseWorker">CaseWorker</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </label>
+          </>
+        )}
       </div>
 
       <div className="detail-section">
@@ -94,9 +130,8 @@ export function CaseDetails({
             <label className="upload-control">
               Attach supporting document
               <input
-                disabled={actionLoading}
+                disabled={actionLoading || !canEditCase}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   if (file) void onUpload(file)
@@ -154,7 +189,13 @@ export function CaseDetails({
             <p key={item.id}>
               <span className="timeline-dot" />
               <span>
-                <strong>{item.previousStaffMemberId ? 'Reassigned case' : 'Case assigned'}</strong>
+                <strong>
+                  {item.previousStaffMemberId ? 'Reassigned case' : 'Case assigned'}
+                  {' · '}{item.newRole}
+                  {item.previousRole && item.previousRole !== item.newRole
+                    ? ` (was ${item.previousRole})`
+                    : ''}
+                </strong>
                 <small>{new Date(item.assignedAt).toLocaleString()}</small>
               </span>
             </p>

@@ -99,6 +99,8 @@ The application-level organization predicates (in `AuthenticatedOrganizationReso
 
 `GET /api/organizations/me` returns only the caller's active memberships and is the frontend's source for organization selection. Organization dashboard statistics are derived from this validated context; a supplied organization ID is rejected when it does not match.
 
+Case queries add resource-level authorization after organization resolution: organization administrators can query every case in their active organization, while staff list/detail/history/document endpoints are filtered to cases assigned to the authenticated user's active staff record. Assignment management is restricted to organization administrators. A CaseWorker assignment may update status and upload documents; a Viewer assignment is read-only. These checks complement organization predicates and RLS, and identifier-based lookups use the same assigned-case filter to avoid leaking unassigned or co-worker cases.
+
 ---
 
 ## Database Roles

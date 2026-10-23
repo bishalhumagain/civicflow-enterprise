@@ -20,6 +20,7 @@ export function InvitationManager({
   onInvite,
   onResend,
   onRevoke,
+  roleOptions = invitationRoles,
 }: {
   invitations: AccountInvitation[]
   loading: boolean
@@ -32,6 +33,7 @@ export function InvitationManager({
   ) => Promise<boolean>
   onResend: (invitationId: string) => Promise<void>
   onRevoke: (invitationId: string) => Promise<void>
+  roleOptions?: string[]
 }) {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -88,7 +90,7 @@ export function InvitationManager({
           value={role}
           onChange={(event) => setRole(event.target.value)}
         >
-          {invitationRoles.map((option) => (
+          {roleOptions.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>

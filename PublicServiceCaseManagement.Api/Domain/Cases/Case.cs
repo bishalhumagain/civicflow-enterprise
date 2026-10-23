@@ -12,13 +12,15 @@ public sealed class Case
         string referenceNumber,
         string title,
         string description,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? submittedByUserId)
     {
         Id = Guid.NewGuid();
         OrganizationId = organizationId;
         ReferenceNumber = referenceNumber;
         Title = title;
         Description = description;
+        SubmittedByUserId = submittedByUserId;
         Status = CaseStatus.Submitted;
         Priority = CasePriority.Normal;
         CreatedAt = now;
@@ -40,6 +42,10 @@ public sealed class Case
     public CasePriority Priority { get; private set; }
     public Guid? AssignedToStaffMemberId { get; private set; }
 
+    public CaseAssignmentRole? AssignedRole { get; private set; }
+
+    public Guid? SubmittedByUserId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -49,7 +55,8 @@ public sealed class Case
         string referenceNumber,
         string title,
         string description,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? submittedByUserId = null)
     {
         if (organizationId == Guid.Empty)
         {
@@ -73,7 +80,8 @@ public sealed class Case
             referenceNumber.Trim(),
             title.Trim(),
             description.Trim(),
-            now);
+            now,
+            submittedByUserId);
     }
 
     public void UpdateDetails(
@@ -164,6 +172,7 @@ public sealed class Case
 
     public void AssignTo(
         Guid staffMemberId,
+        CaseAssignmentRole role,
         DateTimeOffset now)
     {
         EnsureCaseIsEditable();
@@ -175,12 +184,18 @@ public sealed class Case
                 nameof(staffMemberId));
         }
 
-        if (AssignedToStaffMemberId == staffMemberId)
+        if (!Enum.IsDefined(role))
+        {
+            throw new ArgumentOutOfRangeException(nameof(role));
+        }
+
+        if (AssignedToStaffMemberId == staffMemberId && AssignedRole == role)
         {
             return;
         }
 
         AssignedToStaffMemberId = staffMemberId;
+        AssignedRole = role;
         UpdatedAt = now;
     }
 

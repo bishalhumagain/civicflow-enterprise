@@ -8,7 +8,9 @@ public interface ICaseDocumentService
         Guid organizationId,
         Guid caseId,
         IFormFile file,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? uploadedByUserId = null,
+        Guid? authorizedStaffMemberId = null);
 
     Task<IReadOnlyList<CaseDocument>> GetAllAsync(
         Guid organizationId,

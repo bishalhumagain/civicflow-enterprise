@@ -211,6 +211,10 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AssignedRole")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid?>("AssignedToStaffMemberId")
                         .HasColumnType("uuid");
 
@@ -239,6 +243,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -277,11 +284,20 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.Property<Guid>("CaseId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("NewRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid>("NewStaffMemberId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PreviousRole")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid?>("PreviousStaffMemberId")
                         .HasColumnType("uuid");

@@ -363,4 +363,94 @@ public class CasesApiIntegrationTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task CaseWorker_CanOnlyReadCasesAssignedToThem()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+        Guid unassignedCaseId;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var unassignedCase = Case.Create(
+                organizationId,
+                $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+                "Unassigned case",
+                "This case belongs to the organization but has no assignee.",
+                DateTimeOffset.UtcNow);
+            dbContext.Cases.Add(unassignedCase);
+            await dbContext.SaveChangesAsync();
+            unassignedCaseId = unassignedCase.Id;
+        }
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var detailResponse = await client.GetAsync(
+            $"/api/cases/{unassignedCaseId}");
+        var listResponse = await client.GetAsync("/api/cases");
+
+        Assert.Equal(HttpStatusCode.NotFound, detailResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        using var listJson = JsonDocument.Parse(
+            await listResponse.Content.ReadAsStringAsync());
+        Assert.DoesNotContain(
+            listJson.RootElement.GetProperty("items").EnumerateArray(),
+            item => item.GetProperty("id").GetGuid() == unassignedCaseId);
+    }
+
+    [Fact]
+    public async Task ViewerAssignment_AllowsReadButDeniesCaseUpdates()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Viewer assignment case",
+                description = "The assigned viewer must not change this case."
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var caseEntity = await dbContext.Cases.SingleAsync(
+                candidate => candidate.Id == caseId);
+            caseEntity.AssignTo(
+                caseEntity.AssignedToStaffMemberId!.Value,
+                CaseAssignmentRole.Viewer,
+                DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var detailResponse = await client.GetAsync($"/api/cases/{caseId}");
+        var updateResponse = await client.PatchAsJsonAsync(
+            $"/api/cases/{caseId}/status",
+            new { newStatus = "UnderReview" });
+
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
+    }
+
 }

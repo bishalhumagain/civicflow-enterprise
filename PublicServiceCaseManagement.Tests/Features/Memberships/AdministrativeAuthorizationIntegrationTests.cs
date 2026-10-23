@@ -167,6 +167,42 @@ public sealed class AdministrativeAuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task OrganizationAdmin_CannotCreateAnotherOrganizationAdminMembership()
+    {
+        using var factory = new CivicFlowApiFactory(true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.OrganizationAdmin);
+        var userId = await SeedTargetUserAsync(factory);
+        using var client = CreateClient(factory, organizationId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/organizations/{organizationId}/memberships",
+            new { userId, role = nameof(OrganizationRole.OrganizationAdmin) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganizationAdmin_CannotPromoteMembershipToOrganizationAdmin()
+    {
+        using var factory = new CivicFlowApiFactory(true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.OrganizationAdmin);
+        var userId = await SeedTargetUserAsync(factory);
+        var membershipId = await CreateMembershipAsync(
+            factory,
+            organizationId,
+            userId);
+        using var client = CreateClient(factory, organizationId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/organizations/{organizationId}/memberships/{membershipId}/role",
+            new { role = nameof(OrganizationRole.OrganizationAdmin) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserWithoutPlatformRole_CannotListAllOrganizations()
     {
         using var factory = new CivicFlowApiFactory(true);

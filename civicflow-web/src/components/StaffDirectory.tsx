@@ -69,6 +69,7 @@ export function StaffDirectory({
         <InvitationManager
           invitations={invitations}
           loading={loading}
+          roleOptions={['CaseWorker']}
           onInvite={onInvite}
           onResend={onResend}
           onRevoke={onRevoke}
@@ -94,7 +95,6 @@ export function StaffDirectory({
                   >
                     <option value="Viewer">Viewer</option>
                     <option value="CaseWorker">CaseWorker</option>
-                    <option value="OrganizationAdmin">OrganizationAdmin</option>
                   </select>
                   <span>{membership.isActive ? 'Active' : 'Inactive'}</span>
                   <button

@@ -235,7 +235,7 @@ public sealed class InvitationApiIntegrationTests
     }
 
     [Fact]
-    public async Task AcceptedOrganizationAdmin_CanLoadOrganizationWorkspace()
+    public async Task AcceptedStaff_CanLoadOrganizationWorkspace()
     {
         await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
         {
@@ -251,13 +251,13 @@ public sealed class InvitationApiIntegrationTests
             "X-Organization-Id",
             organizationId.ToString());
 
-        var inviteeEmail = $"workspace-admin-{Guid.NewGuid():N}@example.com";
+        var inviteeEmail = $"workspace-staff-{Guid.NewGuid():N}@example.com";
         var token = await InviteAsync(
             factory,
             adminClient,
             organizationId,
             inviteeEmail,
-            nameof(OrganizationRole.OrganizationAdmin));
+            nameof(OrganizationRole.CaseWorker));
 
         using var inviteeClient = CreateCookieClient(factory);
         var acceptResponse = await inviteeClient.PostAsJsonAsync(
@@ -296,7 +296,7 @@ public sealed class InvitationApiIntegrationTests
                     candidate.UserId == user.Id);
 
             Assert.Equal(
-                OrganizationRole.OrganizationAdmin,
+                OrganizationRole.CaseWorker,
                 membership.Role);
         }
 
@@ -624,7 +624,39 @@ public sealed class InvitationApiIntegrationTests
             Dictionary<string, string>>();
 
         Assert.NotNull(body);
-        Assert.Contains("Viewer", body!["error"], StringComparison.Ordinal);
+        Assert.Contains("staff members only", body!["error"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OrganizationAdmin_CannotInviteAnotherOrganizationAdmin()
+    {
+        await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
+        {
+            UseTestAuthentication = false
+        };
+
+        var (adminEmail, organizationId) =
+            await CreateOrganizationAdminAsync(factory);
+        using var adminClient = CreateCookieClient(factory);
+        await SignInAsync(adminClient, adminEmail, StrongPassword);
+        adminClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var response = await adminClient.PostAsJsonAsync(
+            $"/api/organizations/{organizationId}/invitations",
+            new
+            {
+                fullName = "Additional Administrator",
+                email = $"additional-admin-{Guid.NewGuid():N}@example.com",
+                role = nameof(OrganizationRole.OrganizationAdmin)
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        Assert.Empty(await dbContext.AccountInvitations.ToListAsync());
     }
 
     [Fact]
@@ -703,7 +735,7 @@ public sealed class InvitationApiIntegrationTests
             adminClient,
             organizationId,
             existingEmail,
-            "Viewer");
+            nameof(OrganizationRole.CaseWorker));
 
         using var inviteeClient = CreateCookieClient(factory);
 
@@ -721,7 +753,7 @@ public sealed class InvitationApiIntegrationTests
             var membership = await dbContext.OrganizationMemberships
                 .SingleAsync(candidate =>
                     candidate.OrganizationId == organizationId &&
-                    candidate.Role == OrganizationRole.Viewer);
+                    candidate.Role == OrganizationRole.CaseWorker);
 
             Assert.True(membership.IsActive);
         }
@@ -787,7 +819,7 @@ public sealed class InvitationApiIntegrationTests
             adminClient,
             organizationId,
             inviteeEmail,
-            nameof(OrganizationRole.OrganizationAdmin));
+            nameof(OrganizationRole.CaseWorker));
 
         using var inviteeClient = CreateCookieClient(factory);
         var acceptResponse = await inviteeClient.PostAsJsonAsync(
@@ -806,7 +838,7 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.True(reactivatedMembership.IsActive);
         Assert.Equal(
-            OrganizationRole.OrganizationAdmin,
+            OrganizationRole.CaseWorker,
             reactivatedMembership.Role);
     }
 

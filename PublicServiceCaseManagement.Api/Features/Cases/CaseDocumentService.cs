@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Net.Http.Headers;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -11,28 +12,21 @@ public sealed class CaseDocumentService(
 {
     private const long MaximumFileSizeBytes = 10 * 1024 * 1024;
 
-    private static readonly IReadOnlyDictionary<string, string> AllowedContentTypes =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [".pdf"] = "application/pdf",
-            [".jpg"] = "image/jpeg",
-            [".jpeg"] = "image/jpeg",
-            [".png"] = "image/png",
-            [".doc"] = "application/msword",
-            [".docx"] =
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        };
-
     public async Task<CaseDocument> UploadAsync(
         Guid organizationId,
         Guid caseId,
         IFormFile file,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? uploadedByUserId = null,
+        Guid? authorizedStaffMemberId = null)
     {
         var caseExists = await dbContext.Cases
             .AnyAsync(
                 item => item.Id == caseId &&
-                        item.OrganizationId == organizationId,
+                        item.OrganizationId == organizationId &&
+                        (authorizedStaffMemberId == null ||
+                         (item.AssignedToStaffMemberId == authorizedStaffMemberId &&
+                          item.AssignedRole == CaseAssignmentRole.CaseWorker)),
                 cancellationToken);
 
         if (!caseExists)
@@ -53,10 +47,10 @@ public sealed class CaseDocumentService(
             organizationId,
             Path.GetFileName(file.FileName),
             storedFile.StorageKey,
-            file.ContentType,
+            NormalizeContentType(file.ContentType),
             storedFile.SizeBytes,
             storedFile.Sha256Hash,
-            uploadedByUserId: null,
+            uploadedByUserId,
             DateTimeOffset.UtcNow);
 
         dbContext.CaseDocuments.Add(document);
@@ -123,7 +117,7 @@ public sealed class CaseDocumentService(
                     document.OrganizationId == organizationId,
                 cancellationToken);
 
-    private static void Validate(IFormFile file)
+    public static void ValidateUpload(IFormFile file)
     {
         if (file is null || file.Length <= 0)
             throw new InvalidDataException("The file cannot be empty.");
@@ -141,13 +135,18 @@ public sealed class CaseDocumentService(
             throw new InvalidDataException("The file name is invalid.");
         }
 
-        var extension = Path.GetExtension(fileName);
-
-        if (!AllowedContentTypes.TryGetValue(extension, out var contentType) ||
-            !string.Equals(file.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+        if (fileName.Contains('\\') || fileName.Contains('\0'))
         {
-            throw new InvalidDataException(
-                "Only PDF, JPEG, PNG, DOC, and DOCX files are supported with matching content types.");
+            throw new InvalidDataException("The file metadata is invalid.");
         }
     }
+
+    private static void Validate(IFormFile file) => ValidateUpload(file);
+
+    private static string NormalizeContentType(string? contentType) =>
+        !string.IsNullOrWhiteSpace(contentType) &&
+        contentType.Length <= 100 &&
+        MediaTypeHeaderValue.TryParse(contentType, out _)
+            ? contentType
+            : "application/octet-stream";
 }

@@ -75,6 +75,12 @@ public sealed class CivicFlowDbContext(
 
             entity.Property(c => c.AssignedToStaffMemberId);
 
+            entity.Property(c => c.AssignedRole)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(c => c.SubmittedByUserId);
+
             entity.Property(c => c.CreatedAt)
                 .IsRequired();
 
@@ -257,6 +263,15 @@ public sealed class CivicFlowDbContext(
             entity.HasKey(h => h.Id);
 
             entity.Property(h => h.OrganizationId)
+                .IsRequired();
+
+            entity.Property(h => h.PreviousRole)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(h => h.NewRole)
+                .HasConversion<string>()
+                .HasMaxLength(20)
                 .IsRequired();
 
             entity.Property(h => h.AssignedAt)

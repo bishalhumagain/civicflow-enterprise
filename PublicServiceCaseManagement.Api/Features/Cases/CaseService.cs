@@ -15,7 +15,8 @@ public sealed class CaseService(
         Guid organizationId,
         string title,
         string description,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? submittedByUserId = null)
     {
         var now = DateTimeOffset.UtcNow;
         var referenceNumber = $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant();
@@ -25,7 +26,8 @@ public sealed class CaseService(
             referenceNumber,
             title,
             description,
-            now);
+            now,
+            submittedByUserId);
 
         dbContext.Cases.Add(newCase);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -48,12 +50,16 @@ public sealed class CaseService(
     public async Task<Case?> GetByIdAsync(
         Guid organizationId,
         Guid id,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? assignedToStaffMemberId = null)
     {
         return await dbContext.Cases
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                c => c.Id == id && c.OrganizationId == organizationId,
+                c => c.Id == id &&
+                     c.OrganizationId == organizationId &&
+                     (assignedToStaffMemberId == null ||
+                      c.AssignedToStaffMemberId == assignedToStaffMemberId),
                 cancellationToken);
     }
 
@@ -61,11 +67,14 @@ public sealed class CaseService(
         Guid organizationId,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? assignedToStaffMemberId = null)
     {
         var query = dbContext.Cases
             .AsNoTracking()
-            .Where(c => c.OrganizationId == organizationId);
+            .Where(c => c.OrganizationId == organizationId &&
+                        (assignedToStaffMemberId == null ||
+                         c.AssignedToStaffMemberId == assignedToStaffMemberId));
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -83,12 +92,16 @@ public sealed class CaseService(
         Guid caseId,
         Guid organizationId,
         CaseStatus newStatus,
-        Guid? changedByUserId = null)
+        Guid? changedByUserId = null,
+        Guid? authorizedStaffMemberId = null)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(c =>
                 c.Id == caseId &&
-                c.OrganizationId == organizationId);
+                c.OrganizationId == organizationId &&
+                (authorizedStaffMemberId == null ||
+                 (c.AssignedToStaffMemberId == authorizedStaffMemberId &&
+                  c.AssignedRole == CaseAssignmentRole.CaseWorker)));
 
         if (caseEntity is null)
         {
@@ -140,7 +153,9 @@ public sealed class CaseService(
         Guid organizationId,
         Guid staffMemberId,
         CancellationToken cancellationToken,
-        Guid? assignedByUserId = null)
+        Guid? assignedByUserId = null,
+        Domain.Cases.CaseAssignmentRole role =
+            Domain.Cases.CaseAssignmentRole.CaseWorker)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(
@@ -167,12 +182,14 @@ public sealed class CaseService(
         }
 
         var previousStaffMemberId = caseEntity.AssignedToStaffMemberId;
+        var previousRole = caseEntity.AssignedRole;
 
         var assignedAt = DateTimeOffset.UtcNow;
 
-        caseEntity.AssignTo(staffMember.Id, assignedAt);
+        caseEntity.AssignTo(staffMember.Id, role, assignedAt);
 
-        if (previousStaffMemberId == staffMember.Id)
+        if (previousStaffMemberId == staffMember.Id &&
+            previousRole == role)
         {
             return caseEntity;
         }
@@ -182,6 +199,8 @@ public sealed class CaseService(
             caseEntity.OrganizationId,
             previousStaffMemberId,
             staffMember.Id,
+            previousRole,
+            role,
             assignedAt,
             assignedByUserId);
 

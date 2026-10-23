@@ -8,24 +8,28 @@ public interface ICaseService
         Guid organizationId,
         string title,
         string description,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? submittedByUserId = null);
 
     Task<Case?> GetByIdAsync(
         Guid organizationId,
         Guid id,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? assignedToStaffMemberId = null);
 
     Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
         Guid organizationId,
         int page,
         int pageSize,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? assignedToStaffMemberId = null);
 
     Task<Case?> ChangeStatusAsync(
         Guid caseId,
         Guid organizationId,
         CaseStatus newStatus,
-        Guid? changedByUserId = null);
+        Guid? changedByUserId = null,
+        Guid? authorizedStaffMemberId = null);
 
     Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
         Guid caseId,
@@ -36,7 +40,9 @@ public interface ICaseService
         Guid organizationId,
         Guid staffMemberId,
         CancellationToken cancellationToken,
-        Guid? assignedByUserId = null);
+        Guid? assignedByUserId = null,
+        Domain.Cases.CaseAssignmentRole role =
+            Domain.Cases.CaseAssignmentRole.CaseWorker);
     Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
         Guid caseId,
         Guid organizationId,

@@ -7,6 +7,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
@@ -18,7 +20,8 @@ public sealed class CasesController(
     ICaseDocumentService caseDocumentService,
     IFileStorage fileStorage,
     IBusinessEndpointAccess businessEndpointAccess,
-    ICurrentOrganizationContext organizationContext) : ControllerBase
+    ICurrentOrganizationContext organizationContext,
+    CivicFlowDbContext dbContext) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<CreateCaseResponse>> Create(
@@ -37,11 +40,36 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var applicationUserId = await organizationContext
+            .GetApplicationUserIdAsync(cancellationToken);
+
+        if (applicationUserId is null)
+            return Forbid();
+
         var newCase = await caseService.CreateAsync(
             organizationId.Value,
             request.Title,
             request.Description,
-            cancellationToken);
+            cancellationToken,
+            applicationUserId.Value);
+
+        if (await organizationContext.GetOrganizationRoleAsync(cancellationToken)
+                == OrganizationRole.CaseWorker)
+        {
+            var staffMemberId = await GetCurrentStaffMemberIdAsync(
+                organizationId.Value,
+                cancellationToken);
+            if (staffMemberId is not null)
+            {
+                newCase = (await caseService.AssignAsync(
+                    newCase.Id,
+                    organizationId.Value,
+                    staffMemberId.Value,
+                    cancellationToken,
+                    applicationUserId.Value,
+                    CaseAssignmentRole.CaseWorker))!;
+            }
+        }
 
         var response = new CreateCaseResponse(
             newCase.Id,
@@ -50,7 +78,9 @@ public sealed class CasesController(
             newCase.Description,
             newCase.Status,
             newCase.Priority,
-            newCase.CreatedAt);
+            newCase.CreatedAt,
+            newCase.AssignedToStaffMemberId,
+            newCase.AssignedRole);
 
         return Created($"/api/cases/{newCase.Id}", response);
     }
@@ -69,10 +99,21 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var role = await organizationContext.GetOrganizationRoleAsync(
+            cancellationToken);
+        var staffMemberId = role == OrganizationRole.OrganizationAdmin
+            ? null
+            : await GetCurrentStaffMemberIdAsync(
+                organizationId.Value,
+                cancellationToken);
+        if (role != OrganizationRole.OrganizationAdmin && staffMemberId is null)
+            return NotFound();
+
         var existingCase = await caseService.GetByIdAsync(
             organizationId.Value,
             id,
-            cancellationToken);
+            cancellationToken,
+            staffMemberId);
 
         if (existingCase is null)
             return NotFound();
@@ -84,7 +125,9 @@ public sealed class CasesController(
             existingCase.Description,
             existingCase.Status,
             existingCase.Priority,
-            existingCase.CreatedAt));
+            existingCase.CreatedAt,
+            existingCase.AssignedToStaffMemberId,
+            existingCase.AssignedRole));
     }
 
     [HttpGet]
@@ -102,11 +145,29 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var role = await organizationContext.GetOrganizationRoleAsync(
+            cancellationToken);
+        var staffMemberId = role == OrganizationRole.OrganizationAdmin
+            ? null
+            : await GetCurrentStaffMemberIdAsync(
+                organizationId.Value,
+                cancellationToken);
+        if (role != OrganizationRole.OrganizationAdmin && staffMemberId is null)
+        {
+            return Ok(new PagedCasesResponse(
+                Array.Empty<CreateCaseResponse>(),
+                page,
+                pageSize,
+                0,
+                0));
+        }
+
         var result = await caseService.GetPageAsync(
             organizationId.Value,
             page,
             pageSize,
-            cancellationToken);
+            cancellationToken,
+            staffMemberId);
 
         var response = new PagedCasesResponse(
             result.Items.Select(c => new CreateCaseResponse(
@@ -116,7 +177,9 @@ public sealed class CasesController(
                 c.Description,
                 c.Status,
                 c.Priority,
-                c.CreatedAt)).ToList(),
+                c.CreatedAt,
+                c.AssignedToStaffMemberId,
+                c.AssignedRole)).ToList(),
             page,
             pageSize,
             result.TotalCount,
@@ -143,11 +206,27 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+        if (!await CanEditCaseAsync(existingCase, cancellationToken))
+            return Forbid();
+
         var applicationUserId = await organizationContext
             .GetApplicationUserIdAsync(cancellationToken);
 
         if (applicationUserId is null)
             return Forbid();
+
+        var authorizedStaffMemberId =
+            await IsOrganizationAdminAsync(cancellationToken)
+                ? null
+                : await GetCurrentStaffMemberIdAsync(
+                    organizationId.Value,
+                    cancellationToken);
 
         try
         {
@@ -155,7 +234,8 @@ public sealed class CasesController(
                 id,
                 organizationId.Value,
                 request.NewStatus,
-                applicationUserId.Value);
+                applicationUserId.Value,
+                authorizedStaffMemberId);
 
             if (caseEntity is null)
                 return NotFound();
@@ -190,9 +270,9 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
-        var existingCase = await caseService.GetByIdAsync(
-            organizationId.Value,
+        var existingCase = await GetAccessibleCaseAsync(
             id,
+            organizationId.Value,
             cancellationToken);
 
         if (existingCase is null)
@@ -222,7 +302,7 @@ public sealed class CasesController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (!await CanManageCasesAsync(cancellationToken))
+        if (!await IsOrganizationAdminAsync(cancellationToken))
             return Forbid();
 
         var organizationId = await organizationContext.GetOrganizationIdAsync(
@@ -244,7 +324,8 @@ public sealed class CasesController(
                 organizationId.Value,
                 request.StaffMemberId,
                 cancellationToken,
-                applicationUserId.Value);
+                applicationUserId.Value,
+                request.Role);
 
             if (caseEntity is null)
                 return NotFound();
@@ -254,6 +335,7 @@ public sealed class CasesController(
                 caseEntity.Id,
                 caseEntity.ReferenceNumber,
                 caseEntity.AssignedToStaffMemberId,
+                caseEntity.AssignedRole,
                 caseEntity.UpdatedAt
             });
         }
@@ -281,9 +363,9 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
-        var existingCase = await caseService.GetByIdAsync(
-            organizationId.Value,
+        var existingCase = await GetAccessibleCaseAsync(
             id,
+            organizationId.Value,
             cancellationToken);
 
         if (existingCase is null)
@@ -299,6 +381,8 @@ public sealed class CasesController(
             item.Id,
             item.PreviousStaffMemberId,
             item.NewStaffMemberId,
+            item.PreviousRole,
+            item.NewRole,
             item.AssignedAt,
             item.AssignedByUserId
         }));
@@ -306,7 +390,7 @@ public sealed class CasesController(
 
     [HttpPost("{id:guid}/documents")]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestSizeLimit(11 * 1024 * 1024)]
     public async Task<ActionResult<CaseDocumentResponse>> UploadDocument(
         Guid id,
         IFormFile file,
@@ -315,14 +399,33 @@ public sealed class CasesController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (!await CanManageCasesAsync(cancellationToken))
-            return Forbid();
-
         var organizationId = await organizationContext.GetOrganizationIdAsync(
             cancellationToken);
 
         if (organizationId is null)
             return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+        if (!await CanEditCaseAsync(existingCase, cancellationToken))
+            return Forbid();
+
+        var applicationUserId = await organizationContext
+            .GetApplicationUserIdAsync(cancellationToken);
+
+        if (applicationUserId is null)
+            return Forbid();
+
+        var authorizedStaffMemberId =
+            await IsOrganizationAdminAsync(cancellationToken)
+                ? null
+                : await GetCurrentStaffMemberIdAsync(
+                    organizationId.Value,
+                    cancellationToken);
 
         try
         {
@@ -330,7 +433,9 @@ public sealed class CasesController(
                 organizationId.Value,
                 id,
                 file,
-                cancellationToken);
+                cancellationToken,
+                applicationUserId.Value,
+                authorizedStaffMemberId);
 
             return CreatedAtAction(
                 nameof(GetDocument),
@@ -365,6 +470,13 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+
         try
         {
             var documents = await caseDocumentService.GetAllAsync(
@@ -394,6 +506,13 @@ public sealed class CasesController(
 
         if (organizationId is null)
             return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
 
         var document = await caseDocumentService.GetByIdAsync(
             organizationId.Value,
@@ -441,5 +560,79 @@ public sealed class CasesController(
 
         return role is OrganizationRole.CaseWorker
             or OrganizationRole.OrganizationAdmin;
+    }
+
+    private async Task<bool> IsOrganizationAdminAsync(
+        CancellationToken cancellationToken) =>
+        await organizationContext.GetOrganizationRoleAsync(cancellationToken)
+            == OrganizationRole.OrganizationAdmin;
+
+    private async Task<Guid?> GetCurrentStaffMemberIdAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var userId = await organizationContext.GetApplicationUserIdAsync(
+            cancellationToken);
+        if (userId is null)
+            return null;
+
+        var email = await dbContext.ApplicationUsers
+            .AsNoTracking()
+            .Where(user => user.Id == userId.Value && user.IsActive)
+            .Select(user => user.Email)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (email is null)
+            return null;
+
+        return await dbContext.StaffMembers
+            .AsNoTracking()
+            .Where(staff => staff.OrganizationId == organizationId &&
+                            staff.IsActive &&
+                            staff.Email.ToUpper() == email.ToUpper())
+            .Select(staff => (Guid?)staff.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<Domain.Cases.Case?> GetAccessibleCaseAsync(
+        Guid id,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var role = await organizationContext.GetOrganizationRoleAsync(
+            cancellationToken);
+        if (role == OrganizationRole.OrganizationAdmin)
+        {
+            return await caseService.GetByIdAsync(
+                organizationId,
+                id,
+                cancellationToken);
+        }
+
+        var staffMemberId = await GetCurrentStaffMemberIdAsync(
+            organizationId,
+            cancellationToken);
+        return staffMemberId is null
+            ? null
+            : await caseService.GetByIdAsync(
+                organizationId,
+                id,
+                cancellationToken,
+                staffMemberId);
+    }
+
+    private async Task<bool> CanEditCaseAsync(
+        Domain.Cases.Case caseEntity,
+        CancellationToken cancellationToken)
+    {
+        if (await IsOrganizationAdminAsync(cancellationToken))
+            return true;
+
+        var staffMemberId = await GetCurrentStaffMemberIdAsync(
+            caseEntity.OrganizationId,
+            cancellationToken);
+        return await organizationContext.GetOrganizationRoleAsync(
+                   cancellationToken) == OrganizationRole.CaseWorker &&
+               staffMemberId == caseEntity.AssignedToStaffMemberId &&
+               caseEntity.AssignedRole == CaseAssignmentRole.CaseWorker;
     }
 }

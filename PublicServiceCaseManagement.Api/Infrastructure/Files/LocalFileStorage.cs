@@ -8,18 +8,6 @@ public sealed class LocalFileStorage(
 {
     private const long MaximumFileSizeBytes = 10 * 1024 * 1024;
 
-    private static readonly IReadOnlyDictionary<string, string> AllowedExtensions =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [".pdf"] = "application/pdf",
-            [".jpg"] = "image/jpeg",
-            [".jpeg"] = "image/jpeg",
-            [".png"] = "image/png",
-            [".doc"] = "application/msword",
-            [".docx"] =
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        };
-
     public async Task<StoredFile> SaveAsync(
         Guid organizationId,
         Guid caseId,
@@ -44,10 +32,19 @@ public sealed class LocalFileStorage(
             throw new InvalidDataException("The file name is invalid.");
         }
 
-        var extension = Path.GetExtension(safeFileName);
+        if (safeFileName.Contains('\\') ||
+            safeFileName.Contains('\0') ||
+            safeFileName.Length > 255)
+            throw new InvalidDataException("The file name is invalid.");
 
-        if (!AllowedExtensions.ContainsKey(extension))
-            throw new InvalidDataException("This file type is not supported.");
+        var extension = Path.GetExtension(safeFileName);
+        if (extension.Length > 13 ||
+            extension.Length < 2 ||
+            extension[1..].Any(character =>
+                !char.IsAsciiLetterOrDigit(character)))
+        {
+            extension = ".bin";
+        }
 
         var temporaryDirectory = GetRootDirectory();
         Directory.CreateDirectory(temporaryDirectory);

@@ -8,8 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Citizen intake now submits multipart case requests to an active organization selected from the authenticated citizen API, stores the submitting user, and supports an optional arbitrary file attachment (10 MB limit). Staff-created cases continue to use the authenticated organization context.
+- Case assignment now records a case-specific `CaseWorker` or `Viewer` role in the case and assignment history. Organization administrators alone can assign or reassign cases; staff list and detail APIs return only cases assigned to them, and Viewer assignments are read-only. Existing assignments are migrated as `CaseWorker`.
 - Authenticated organization selector: `GET /api/organizations/me` returns only the current active account's active organization memberships and their organization roles. The SPA no longer uses a build-time organization ID; it resolves memberships after session restoration and supports switching among authorized organizations.
-- Organization administrator workspace membership controls for role changes and membership activation/deactivation, with role choices limited to Viewer, CaseWorker, and OrganizationAdmin. Non-admin staff see a read-only staff directory; phone numbers are omitted from non-admin staff-list responses.
+- Organization administrator workspace membership controls for role changes and membership activation/deactivation, without the ability to grant OrganizationAdmin. Non-admin staff see a read-only staff directory; phone numbers are omitted from non-admin staff-list responses.
 - Regression coverage for invitation acceptance followed by organization-admin staff/case workspace access, membership-derived organization selection, and organization dashboard cross-tenant selection denial.
 - Invitation-based staff onboarding: `AccountInvitation` entity + `AddAccountInvitations` migration, `InvitationService`, and `InvitationsController` (`POST/GET /api/organizations/{organizationId}/invitations`, `POST {id}/resend`, `DELETE {id}`). Invitations store only a SHA-256 token hash, expire after `Invitations:ExpiryHours` (default 72, clamped 1–720), are single-use, and can be resent or revoked. No temporary password is generated or emailed.
 - Anonymous invitation redemption endpoints: `POST /api/auth/invitations/lookup` and `POST /api/auth/invitations/accept`. Acceptance creates or links the Identity account, grants the `staff` role, creates/reactivates the membership and staff record, and requires a password chosen by the invitee (validated against the Identity password policy before anything is mutated).
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests: platform administration integration tests (organization deletion `204`/`404`/`409` and the forbidden case, platform directory and overview, platform and organization audit endpoints, staff phone update), plus audit persistence/querying, organization deletion, platform directory, and phone validation unit tests.
 
 ### Fixed
+- Organization administrators can invite staff with the Staff portal role and cannot invite, add, or promote another organization administrator. Platform administrators retain organization-admin provisioning.
 - Organization workspace `403` caused by the frontend sending a static `VITE_CIVICFLOW_ORGANIZATION_ID` that could differ from an invitee's organization. The server continues to validate `X-Organization-Id` against active membership; the frontend now resolves valid organizations from the authenticated session.
 - Organization dashboard statistics now use the server-resolved membership context and reject a supplied organization ID that does not match it.
 - When an invitation reactivates an inactive membership, the membership is assigned the role carried by the new invitation instead of silently retaining its former role.

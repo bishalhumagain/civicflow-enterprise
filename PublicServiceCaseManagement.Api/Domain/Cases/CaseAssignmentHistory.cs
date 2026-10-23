@@ -12,6 +12,8 @@ public sealed class CaseAssignmentHistory
         Guid organizationId,
         Guid? previousStaffMemberId,
         Guid newStaffMemberId,
+        CaseAssignmentRole? previousRole,
+        CaseAssignmentRole newRole,
         DateTimeOffset assignedAt,
         Guid? assignedByUserId)
     {
@@ -20,6 +22,8 @@ public sealed class CaseAssignmentHistory
         OrganizationId = organizationId;
         PreviousStaffMemberId = previousStaffMemberId;
         NewStaffMemberId = newStaffMemberId;
+        PreviousRole = previousRole;
+        NewRole = newRole;
         AssignedAt = assignedAt;
         AssignedByUserId = assignedByUserId;
     }
@@ -34,6 +38,10 @@ public sealed class CaseAssignmentHistory
 
     public Guid NewStaffMemberId { get; private set; }
 
+    public CaseAssignmentRole? PreviousRole { get; private set; }
+
+    public CaseAssignmentRole NewRole { get; private set; }
+
     public DateTimeOffset AssignedAt { get; private set; }
 
     public Guid? AssignedByUserId { get; private set; }
@@ -43,6 +51,8 @@ public sealed class CaseAssignmentHistory
         Guid organizationId,
         Guid? previousStaffMemberId,
         Guid newStaffMemberId,
+        CaseAssignmentRole? previousRole,
+        CaseAssignmentRole newRole,
         DateTimeOffset assignedAt,
         Guid? assignedByUserId = null)
     {
@@ -67,7 +77,13 @@ public sealed class CaseAssignmentHistory
                 nameof(newStaffMemberId));
         }
 
-        if (previousStaffMemberId == newStaffMemberId)
+        if (!Enum.IsDefined(newRole))
+        {
+            throw new ArgumentOutOfRangeException(nameof(newRole));
+        }
+
+        if (previousStaffMemberId == newStaffMemberId &&
+            previousRole == newRole)
         {
             throw new ArgumentException(
                 "The new assignee must differ from the previous assignee.",
@@ -79,6 +95,8 @@ public sealed class CaseAssignmentHistory
             organizationId,
             previousStaffMemberId,
             newStaffMemberId,
+            previousRole,
+            newRole,
             assignedAt,
             assignedByUserId);
     }

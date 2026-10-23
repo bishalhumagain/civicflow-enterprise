@@ -32,6 +32,12 @@ public sealed class OrganizationMembershipsController(
         if (!TryParseRole(request.Role, out var role))
             return BadRequest(new { error = "The organization role is invalid." });
 
+        if (!await CanGrantRoleAsync(role, cancellationToken))
+            return BadRequest(new
+            {
+                error = "Organization administrators cannot grant the OrganizationAdmin role."
+            });
+
         try
         {
             var membership = await membershipService.CreateAsync(
@@ -121,6 +127,12 @@ public sealed class OrganizationMembershipsController(
         if (!TryParseRole(request.Role, out var role))
             return BadRequest(new { error = "The organization role is invalid." });
 
+        if (!await CanGrantRoleAsync(role, cancellationToken))
+            return BadRequest(new
+            {
+                error = "Organization administrators cannot grant the OrganizationAdmin role."
+            });
+
         try
         {
             var membership = await membershipService.ChangeRoleAsync(
@@ -199,6 +211,17 @@ public sealed class OrganizationMembershipsController(
             await organizationContext.GetOrganizationRoleAsync(cancellationToken);
 
         return organizationRole == OrganizationRole.OrganizationAdmin;
+    }
+
+    private async Task<bool> CanGrantRoleAsync(
+        OrganizationRole role,
+        CancellationToken cancellationToken)
+    {
+        if (role != OrganizationRole.OrganizationAdmin)
+            return true;
+
+        return await organizationContext.GetPlatformRoleAsync(
+            cancellationToken) == PlatformRole.SuperAdmin;
     }
 
     private static bool TryParseRole(string? value, out OrganizationRole role)

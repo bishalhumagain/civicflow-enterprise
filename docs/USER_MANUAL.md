@@ -34,7 +34,7 @@ This manual describes how to use the currently implemented features of CivicFlow
 | Status | Features |
 |---|---|
 | **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, and optional staff/invitation phone numbers |
-| **Partially Implemented** | Public/citizen intake interface (submission/tracking depend on configuration) |
+| **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload; citizen case tracking is not yet available |
 | **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
 | **Limitations** | Some features require proper environment setup and role configuration; verification/reset emails require a configured email sender in production |
 
@@ -194,10 +194,12 @@ The navigation only shows the views your account is entitled to. Entries are det
 **Access requirements:** Authenticated staff account with the `staff` role; must have appropriate organization membership/role as enforced by the API.
 
 **Available actions:**
-- View the selected organization's cases, search, filter, and inspect details and history. Current Viewer, CaseWorker, and OrganizationAdmin rules permit organization-wide case reads; case actions are role-gated by the API.
-- CaseWorker and OrganizationAdmin users can create cases, change status, assign cases to active staff in the same organization, and manage case documents.
+- View case details and history. Organization administrators see all cases in the selected organization; staff see only cases assigned to them.
+- CaseWorker and OrganizationAdmin users can create cases. A CaseWorker-created case is assigned to its creator.
+- Organization administrators assign cases to active staff in the same organization with a per-case CaseWorker or Viewer role. CaseWorker assignees may change status and upload case documents; Viewer assignees have read-only access.
+- Organization administrators can manage cases throughout their organization; staff cannot access other staff members' or unassigned cases.
 - View the selected organization's staff directory and active staff assignment contacts.
-- Organization administrators can inspect and update organization memberships, invite staff with Viewer, CaseWorker, or OrganizationAdmin roles, deactivate/reactivate memberships and staff, and manage invitations.
+- Organization administrators can inspect and update staff memberships, invite staff (the invitee receives the Staff portal role and CaseWorker membership), deactivate/reactivate memberships and staff, and manage invitations. They cannot grant OrganizationAdmin; only platform administrators can.
 - Organization administrators can collect and update staff phone numbers and read the organization activity log.
 - View organization dashboard statistics
 - Manage personal access tokens
@@ -263,12 +265,14 @@ The Organizations view consists of two main sections: "Organizations" and "Membe
 
 ### Citizen User
 
-**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: a citizen dashboard, the public intake interface, their own profile, and access tokens for their own account. Case management, staff administration, and organization administration are never part of a citizen session. Public submission/tracking workflows still depend on configuration — check with your system administrator for current capabilities.
+**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, public case submission, their own profile, and access tokens. Case lists, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB; case tracking is not yet available.
 
 **Citizen Dashboard workflow:**
 1. Sign in through the **Citizen Portal**
 2. The dashboard opens and shows your account status, the portal you are signed in to, and the available actions
 3. Use the action cards to open **Public intake**, **My profile**, or **Access tokens**
+
+**Submit a case:** Open **Public intake**, select the responsible active organization, enter a title and description, and optionally attach a supporting file. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission. Staff-created cases instead derive their organization from the signed-in staff membership.
 
 **Citizen Profile workflow:**
 1. Sign in through the **Citizen Portal**
@@ -299,6 +303,8 @@ The workspace resolves the active organization from the signed-in account's acti
 4. Click **"Create case"**
 5. You'll receive a toast notification on success/failure
 6. The new case will appear in the list
+
+The organization is fixed to the authenticated staff workspace; staff do not select an organization in the case form. When assigning a case, choose an active staff member and a per-case role of **CaseWorker** or **Viewer**.
 
 ### 5.3 Updating Case Status
 
@@ -526,10 +532,10 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | Area | Limitation |
 |---|---|
 | **Email delivery** | Verification and password-reset emails require a configured email sender in production (local development logs them) |
-| **Citizen portal scope** | The citizen portal is self-service only (dashboard, public intake, own profile, access tokens); public submission/tracking workflows may be limited |
+| **Citizen portal scope** | Citizens may submit cases to active organizations and attach an optional arbitrary file up to 10 MB; citizen case tracking is not available yet |
 | **Environment dependent** | Many features require proper backend/frontend configuration |
 | **No offline support** | Requires network connectivity |
-| **File restrictions** | Document upload limited to .pdf, .jpg, .jpeg, .png, .doc, .docx, max 10MB |
+| **File restrictions** | Case attachments accept any file type up to 10 MB; malware scanning is not provided |
 | **Role enforcement** | UI may show options that API will reject if permissions insufficient |
 | **Audit trail** | Append-only and read-only; no retention, export, or alerting policies implemented |
 | **Error tracking** | No automated alerting on new errors; manual review required |

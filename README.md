@@ -83,11 +83,12 @@ The platform is built around three core principles:
 
 | Capability | Description |
 |---|---|
-| **Case lifecycle** | Create, list (paged, searchable, filterable), view detail, change status, assign. |
+| **Case lifecycle** | Create, list (paged, searchable, filterable), view detail, change status, and assign with organization and per-case role enforcement. Organization admins see their organization's cases; staff see only cases assigned to them. |
 | **Status state machine** | Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected. Enforced in domain logic; closed/rejected cases are not editable. |
-| **Assignment** | Assign cases to staff members with audit attribution. |
+| **Assignment** | Organization administrators assign cases to active staff in the same organization as CaseWorker or Viewer; assignment and role changes are audited. Viewers have read-only case access. |
+| **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. |
 | **Status & assignment history** | Full audit trail of every status change and assignment, with timestamps and actors. |
-| **Document upload/download** | Multipart upload (max 10MB), extension whitelist (.pdf, .jpg, .jpeg, .png, .doc, .docx), SHA-256 hash verification, path-traversal protection. |
+| **Document upload/download** | Multipart uploads of any file type up to 10MB, SHA-256 hash verification, path-traversal protection, and attachment-only downloads. |
 
 ### Organization Management
 
@@ -95,8 +96,8 @@ The platform is built around three core principles:
 |---|---|
 | **Multi-tenant scoping** | All case data is organization-scoped. Server-side resolution + PostgreSQL RLS prevents cross-organization access. |
 | **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. |
-| **Memberships** | Add members with roles (Viewer, CaseWorker, OrganizationAdmin), change roles, activate/deactivate. |
-| **Invitation-based onboarding** | No administrator handles passwords. Single-use, expiring invitation links (default 72h, configurable 1–720h). Only SHA-256 token hash stored. Invitee chooses own password. Resend invalidates old link. |
+| **Memberships** | Organization administrators manage staff roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. |
+| **Invitation-based onboarding** | Organization administrators invite staff; acceptance grants the Staff portal role and a CaseWorker organization membership. Single-use, expiring links (default 72h, configurable 1–720h); invitees choose their own password. |
 | **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators. |
 
 ### Audit & Compliance
@@ -182,7 +183,7 @@ The platform is built around three core principles:
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
 │   └── Migrations/                         # 18 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (291 tests)
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (299 tests)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── src/
 │   │   ├── App.tsx                         # Session, routing, workspace
@@ -333,10 +334,10 @@ A rejected attempt's session cookie is dropped — no usable session is left beh
 
 No administrator ever handles another person's password:
 
-1. Administrator sends `POST /api/organizations/{orgId}/invitations` with name, email, role (Viewer/CaseWorker/OrganizationAdmin), optional phone.
+1. Organization administrator sends `POST /api/organizations/{orgId}/invitations` with name, email, the staff role, and optional phone. Organization administrators cannot invite or promote another OrganizationAdmin; platform administrators can provision that role.
 2. API stores only a SHA-256 hash of a 256-bit random token; emails a single-use `/setup-password?token=...` link.
 3. Invitee looks up the link anonymously (`POST /api/auth/invitations/lookup`), sees the inviting org, their name, email, role, and expiry.
-4. Invitee chooses their own password (validated against policy); acceptance creates/links the Identity account, grants `staff` role, creates membership + staff record.
+4. Invitee chooses their own password (validated against policy); acceptance creates/links the Identity account, grants the `staff` portal role, creates a CaseWorker organization membership and staff record.
 5. Links are single-use, expiring (default 72h, configurable 1–720h), and can be resent (invalidates old link) or revoked. `superadmin` is never invitable.
 
 ### Database & Data Isolation
@@ -443,15 +444,26 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | Method | Path | Authorization | Description |
 |---|---|---|---|
 | POST | `/api/cases` | Active CaseWorker or OrganizationAdmin membership | Create a case in the selected organization |
-| GET | `/api/cases` | Active organization membership | List cases for the selected organization (paged; Viewer, CaseWorker, and OrganizationAdmin currently have organization-wide read visibility) |
-| GET | `/api/cases/{id}` | Active organization membership | Get details only when the case belongs to the selected organization |
-| PATCH | `/api/cases/{id}/status` | Active CaseWorker or OrganizationAdmin membership | Change status for a case in the selected organization |
-| GET | `/api/cases/{id}/history` | Active organization membership | Read status history for an owned case |
-| PATCH | `/api/cases/{id}/assignment` | Active CaseWorker or OrganizationAdmin membership | Assign to active staff in the selected organization |
-| GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an owned case |
-| POST | `/api/cases/{id}/documents` | Active CaseWorker or OrganizationAdmin membership | Upload document (multipart, 10MB) |
-| GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an owned case |
-| GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download document for an owned case |
+| GET | `/api/cases` | Active organization membership | Organization admins list all cases in their organization; staff list only cases assigned to themselves (paged) |
+| GET | `/api/cases/{id}` | Active organization membership | Organization admins read any case in their organization; staff read only cases assigned to them |
+| PATCH | `/api/cases/{id}/status` | OrganizationAdmin, or assigned CaseWorker | Change status only for a case the caller may edit; Viewer assignments are read-only |
+| GET | `/api/cases/{id}/history` | Active organization membership | Read history for an accessible case |
+| PATCH | `/api/cases/{id}/assignment` | OrganizationAdmin | Assign to active staff in the selected organization; specify case role `CaseWorker` or `Viewer` |
+| GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an accessible case |
+| POST | `/api/cases/{id}/documents` | OrganizationAdmin, or assigned CaseWorker | Upload a document (multipart, 10 MB); Viewer assignments are read-only |
+| GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an accessible case |
+| GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download documents for an accessible case |
+
+Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update cases; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization.
+
+### Citizen Intake (`/api/citizens`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/citizens/organizations` | CitizenClient | List active organizations available for case submission |
+| POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title`, `description`, and optional `additionalDocument` (any file type, max 10 MB) |
+
+The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, and persists an optional document as a case attachment. The client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided.
 
 ### Staff (`/api/staff`)
 
@@ -483,10 +495,10 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| POST | — | OrganizationAdmin of `{orgId}` or SuperAdmin | Add an organization-level membership |
+| POST | — | OrganizationAdmin of `{orgId}` or SuperAdmin | Add a Viewer or CaseWorker membership; only SuperAdmin can grant OrganizationAdmin |
 | GET | — | OrganizationAdmin of `{orgId}` or SuperAdmin | List memberships |
 | GET | `/{id}` | OrganizationAdmin of `{orgId}` or SuperAdmin | Get membership detail |
-| PUT | `/{id}/role` | OrganizationAdmin of `{orgId}` or SuperAdmin | Change among Viewer, CaseWorker, OrganizationAdmin |
+| PUT | `/{id}/role` | OrganizationAdmin of `{orgId}` or SuperAdmin | Change Viewer/CaseWorker role; only SuperAdmin can grant OrganizationAdmin |
 | PATCH | `/{id}/deactivate` | OrganizationAdmin of `{orgId}` or SuperAdmin | Deactivate membership |
 | PATCH | `/{id}/reactivate` | OrganizationAdmin of `{orgId}` or SuperAdmin | Reactivate membership |
 
@@ -649,7 +661,7 @@ Verification and password-reset emails are sent via `IEmailSender`. The default 
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**291 tests** covering:
+**299 tests** covering:
 
 | Category | What's tested |
 |---|---|
@@ -772,7 +784,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 272 automated tests (unit + integration)
+- 299 automated tests (unit + integration)
 - CI pipeline (GitHub Actions)
 
 ### Implemented but Limited
@@ -782,12 +794,11 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
 - Live PostgreSQL checks are manual probes, not CI integration tests
 - `LoggingEmailSender` for development — real SMTP/provider required for production
-- Citizen intake (case submission) depends on an unstarted citizen-to-organization policy
+- Citizen case intake supports active-organization selection and optional arbitrary-file attachments; citizen case tracking is not yet available
 
 ### Not Started
 
 - Repeatable PostgreSQL RLS/privilege integration tests
-- Public citizen case submission
 - Production-grade object storage and malware scanning
 - Production deployment, backups, observability, and operational recovery
 
@@ -814,4 +825,4 @@ No license file is currently published. The project owner (Bishal Humagain) reta
 
 ---
 
-*This README reflects the verified code state as of 2026-10-22. Items marked as limited or not started require runtime/config validation before production use.*
+*This README reflects the verified code state as of 2026-10-23. Items marked as limited or not started require runtime/config validation before production use.*

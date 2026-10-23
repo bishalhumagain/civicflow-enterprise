@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -248,9 +249,17 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             organization.Id,
             role,
             now);
+        var staffMember = StaffMember.Create(
+            organization.Id,
+            user.FullName,
+            user.Email!,
+            null,
+            now);
 
         dbContext.ApplicationUsers.Add(user);
         dbContext.OrganizationMemberships.Add(membership);
+        if (role is OrganizationRole.CaseWorker or OrganizationRole.Viewer)
+            dbContext.StaffMembers.Add(staffMember);
 
         await dbContext.SaveChangesAsync();
     }
@@ -293,9 +302,17 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
             organization.Id,
             role,
             now);
+        var staffMember = StaffMember.Create(
+            organization.Id,
+            user.FullName,
+            user.Email!,
+            null,
+            now);
 
         dbContext.Organizations.Add(organization);
         dbContext.OrganizationMemberships.Add(membership);
+        if (role is OrganizationRole.CaseWorker or OrganizationRole.Viewer)
+            dbContext.StaffMembers.Add(staffMember);
 
         await dbContext.SaveChangesAsync();
 

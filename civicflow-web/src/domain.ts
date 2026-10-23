@@ -22,11 +22,13 @@ export type CaseRecord = {
   status: CaseStatus
   priority: CasePriority
   createdAt: string
+  assignedToStaffMemberId?: string | null
+  assignedRole?: 'CaseWorker' | 'Viewer' | null
 }
 export type StaffMember = { id: string; fullName: string; email: string; phoneNumber: string | null; isActive: boolean }
 export type HistoryEntry = { id: string; previousStatus: CaseStatus; newStatus: CaseStatus; changedAt: string }
 export type CaseDocument = { id: string; originalFileName: string; contentType: string; sizeBytes: number; uploadedAt: string }
-export type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; assignedAt: string; assignedByUserId: string | null }
+export type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; previousRole: 'CaseWorker' | 'Viewer' | null; newRole: 'CaseWorker' | 'Viewer'; assignedAt: string; assignedByUserId: string | null }
 export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
 export type Organization = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string }
 export type OrganizationWorkspaceOption = { id: string; name: string; code: string; role: string }
