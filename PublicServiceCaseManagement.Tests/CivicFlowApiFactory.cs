@@ -36,6 +36,12 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     /// </summary>
     public bool UseTestAuthentication { get; set; } = true;
 
+    /// <summary>
+    /// Optional hook to replace or add services in the container after the
+    /// default test configuration has run. Applied last so overrides win.
+    /// </summary>
+    public Action<IServiceCollection>? ConfigureServices { get; set; }
+
     private static readonly Guid DevelopmentOrganizationId =
         Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -179,6 +185,8 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(databaseName)
                     .ConfigureWarnings(warnings =>
                         warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
+
+            ConfigureServices?.Invoke(services);
         });
     }
 

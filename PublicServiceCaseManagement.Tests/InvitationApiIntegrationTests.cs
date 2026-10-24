@@ -5,11 +5,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Auth;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
@@ -858,4 +860,167 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.Gone, response.StatusCode);
     }
+
+    /// <summary>
+    /// staff_members is a row-level-security tenant table. The accept path
+    /// must open a tenant transaction on the invitation's organization before
+    /// inserting a StaffMember, otherwise PostgreSQL rejects the insert with
+    /// 42501 and the endpoint returns 500. InMemory tests cannot exercise the
+    /// policy itself, so we assert that the service calls BeginAsync.
+    /// </summary>
+    [Fact]
+    public async Task InvitationAccept_OpensTenantTransactionForOrganization()
+    {
+        var spy = new SpyOrganizationTransactionContext();
+
+        await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
+        {
+            UseTestAuthentication = false,
+            ConfigureServices = services =>
+            {
+                services.RemoveAll<IOrganizationTransactionContext>();
+                services.AddScoped<IOrganizationTransactionContext>(_ => spy);
+            }
+        };
+
+        var (adminEmail, organizationId) =
+            await CreateOrganizationAdminAsync(factory);
+
+        using var adminClient = CreateCookieClient(factory);
+        await SignInAsync(adminClient, adminEmail, StrongPassword);
+        adminClient.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+
+        var inviteeEmail = $"spy-invitee-{Guid.NewGuid():N}@example.com";
+        var token = await InviteAsync(
+            factory,
+            adminClient,
+            organizationId,
+            inviteeEmail);
+
+        // Reset the spy so we only observe the accept request, not the
+        // admin's earlier invitation-create request (which does not need a
+        // tenant transaction).
+        spy.BeginOrganizationCalls.Clear();
+
+        using var inviteeClient = CreateCookieClient(factory);
+
+        var accept = await inviteeClient.PostAsJsonAsync(
+            "/api/auth/invitations/accept",
+            new { token, password = InviteePassword });
+
+        Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
+
+        // The accept path must have opened a tenant transaction on the
+        // invitation's organization before writing to staff_members.
+        Assert.Contains(organizationId, spy.BeginOrganizationCalls);
+        Assert.Empty(spy.BeginCitizenCalls);
+    }
+
+    /// <summary>
+    /// Password reset only touches Identity tables and audit_events, so it
+    /// must succeed WITHOUT opening a tenant transaction. If a regression
+    /// causes the reset flow to leak into the tenant-scoped path, this test
+    /// will catch it.
+    /// </summary>
+    [Fact]
+    public async Task PasswordReset_ForgotAndResetSucceedsStandalone()
+    {
+        await using var factory = new CivicFlowApiFactory(enableBusinessEndpoints: true)
+        {
+            UseTestAuthentication = false
+        };
+
+        await EnsureRolesAsync(factory);
+
+        var email = $"reset-target-{Guid.NewGuid():N}@example.com";
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+
+            var user = ApplicationUser.Create(
+                "Reset Target",
+                email,
+                DateTimeOffset.UtcNow);
+
+            user.EmailConfirmed = true;
+
+            var created = await userManager.CreateAsync(user, StrongPassword);
+            Assert.True(created.Succeeded, string.Join("; ", created.Errors.Select(e => e.Description)));
+            await userManager.AddToRoleAsync(user, AppRoles.Staff);
+        }
+
+        using var client = CreateCookieClient(factory);
+
+        var forgot = await client.PostAsJsonAsync(
+            "/api/auth/forgot-password",
+            new { email });
+
+        Assert.Equal(HttpStatusCode.OK, forgot.StatusCode);
+
+        var message = factory.EmailSender.LastFor(email);
+        Assert.NotNull(message);
+
+        var resetToken = factory.EmailSender.ExtractToken(
+            message!.Body,
+            "token");
+
+        Assert.False(string.IsNullOrWhiteSpace(resetToken));
+
+        var newPassword = "Rotated-Passphrase-99#";
+
+        var reset = await client.PostAsJsonAsync(
+            "/api/auth/reset-password",
+            new { email, token = resetToken, newPassword });
+
+        var resetBody = await reset.Content.ReadAsStringAsync();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            reset.StatusCode);
+
+        var signIn = await client.PostAsJsonAsync(
+            "/api/auth/login/organization",
+            new { email, password = newPassword });
+
+        Assert.Equal(HttpStatusCode.OK, signIn.StatusCode);
+    }
+}
+
+/// <summary>
+/// Test double that records the organization ids passed to BeginAsync and
+/// user ids passed to BeginCitizenAsync. CompleteAsync is a no-op because the
+/// in-memory provider ignores transactions anyway.
+/// </summary>
+internal sealed class SpyOrganizationTransactionContext
+    : IOrganizationTransactionContext
+{
+    public List<Guid> BeginOrganizationCalls { get; } = [];
+
+    public List<Guid> BeginCitizenCalls { get; } = [];
+
+    public bool IsActive => false;
+
+    public Task BeginAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        BeginOrganizationCalls.Add(organizationId);
+        return Task.CompletedTask;
+    }
+
+    public Task BeginCitizenAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        BeginCitizenCalls.Add(userId);
+        return Task.CompletedTask;
+    }
+
+    public Task CompleteAsync(
+        bool succeeded,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }

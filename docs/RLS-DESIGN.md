@@ -61,6 +61,8 @@ The following tables are **not** RLS-protected, by design:
 
 Organization and membership resolution intentionally occurs before the tenant transaction because those tables establish the trusted identity-to-organization relationship; they require separate review if they are later placed behind RLS.
 
+**Anonymous flows that write to tenant tables** — `account_invitations` is exempt from RLS so redemption can find the pending row, but redeeming an invitation also inserts a `staff_members` row, and `staff_members` IS tenant protected. `InvitationService.AcceptAsync` therefore opens the tenant transaction explicitly via `IOrganizationTransactionContext.BeginAsync(invitation.OrganizationId, ...)` before `EnsureOrganizationMembershipAsync` and `SaveChangesAsync`; without that call PostgreSQL rejects the insert with `42501` and the accept endpoint returns `500`. Any future anonymous write to a tenant table must follow the same pattern — resolve the target organization from the request payload, then wrap the writes in `BeginAsync`.
+
 ---
 
 ## Design Principles

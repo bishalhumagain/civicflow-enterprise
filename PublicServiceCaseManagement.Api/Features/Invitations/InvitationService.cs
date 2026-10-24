@@ -6,6 +6,7 @@ using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations;
@@ -21,7 +22,8 @@ public sealed class InvitationService(
     IEmailSender emailSender,
     IAuditLogger auditLogger,
     IConfiguration configuration,
-    TimeProvider timeProvider) : IInvitationService
+    TimeProvider timeProvider,
+    IOrganizationTransactionContext organizationTransactionContext) : IInvitationService
 {
     private const int DefaultExpiryHours = 72;
     private const int MinimumExpiryHours = 1;
@@ -301,6 +303,17 @@ public sealed class InvitationService(
         {
             return AcceptInvitationOutcome.Unavailable();
         }
+
+        // staff_members is a row-level-security tenant table (FORCE ROW LEVEL
+        // SECURITY with a WITH CHECK clause). Every write below has to run
+        // inside a transaction whose `civicflow.organization_id` setting
+        // matches the invitation's organization, or PostgreSQL rejects the
+        // insert and the accept endpoint returns 500. The surrounding
+        // OrganizationTransactionMiddleware commits the transaction once the
+        // request completes successfully.
+        await organizationTransactionContext.BeginAsync(
+            invitation.OrganizationId,
+            cancellationToken);
 
         var email = invitation.Email;
         var user = await userManager.FindByEmailAsync(email);
