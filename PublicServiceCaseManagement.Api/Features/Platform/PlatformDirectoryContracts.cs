@@ -21,6 +21,8 @@ public sealed record PlatformUserSummary(
     string? PhoneNumber,
     bool EmailConfirmed,
     bool IsActive,
+    bool IsCitizen,
+    bool IsStaff,
     string PlatformRole,
     IReadOnlyList<string> Roles,
     DateTimeOffset CreatedAt,
@@ -44,6 +46,15 @@ public sealed record PlatformStaffSummary(
     bool EmailConfirmed,
     bool AccountIsActive,
     DateTimeOffset MembershipCreatedAt);
+
+/// <summary>
+/// The account fields a platform administrator may maintain for a staff
+/// account. Organization roles and memberships are managed separately in the
+/// organization context.
+/// </summary>
+public sealed record UpdatePlatformStaffRequest(
+    string FullName,
+    string? PhoneNumber);
 
 /// <summary>
 /// A compact platform overview for the administration dashboard.

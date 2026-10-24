@@ -184,6 +184,85 @@ public sealed class PlatformAdministrationApiIntegrationTests
     }
 
     [Fact]
+    public async Task UpdateStaffAccount_AsSuperAdmin_PersistsAccountFields()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker,
+            PlatformRole.SuperAdmin);
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/platform/staff/{TestAuthenticationHandler.DefaultUserId}",
+            new
+            {
+                fullName = "Updated Staff Name",
+                phoneNumber = "9800011122"
+            });
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.OK,
+            $"status={response.StatusCode} body={body}");
+
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal(
+            "Updated Staff Name",
+            json.RootElement.GetProperty("fullName").GetString());
+        Assert.Equal(
+            "9800011122",
+            json.RootElement.GetProperty("phoneNumber").GetString());
+        Assert.True(json.RootElement.GetProperty("isStaff").GetBoolean());
+        Assert.False(json.RootElement.GetProperty("isCitizen").GetBoolean());
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var user = await dbContext.ApplicationUsers.SingleAsync(
+            candidate => candidate.Id == TestAuthenticationHandler.DefaultUserId);
+        Assert.Equal("Updated Staff Name", user.FullName);
+        Assert.Equal("9800011122", user.PhoneNumber);
+    }
+
+    [Fact]
+    public async Task UpdateStaffAccount_WithoutSuperAdmin_ReturnsForbidden()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin);
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/platform/staff/{TestAuthenticationHandler.DefaultUserId}",
+            new
+            {
+                fullName = "Forbidden Update",
+                phoneNumber = "9800011122"
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateStaffAccount_WhenUserHasNoMembership_ReturnsConflict()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var userId = await factory.SeedAuthenticatedPlatformUserAsync(
+            PlatformRole.SuperAdmin);
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/platform/staff/{userId}",
+            new
+            {
+                fullName = "Non Staff Account",
+                phoneNumber = "9800011122"
+            });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetPlatformDirectory_WithoutSuperAdmin_ReturnsForbidden()
     {
         await using var factory = new CivicFlowApiFactory(

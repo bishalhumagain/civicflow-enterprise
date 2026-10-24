@@ -97,6 +97,8 @@ export type PlatformUser = {
   phoneNumber: string | null
   emailConfirmed: boolean
   isActive: boolean
+  isCitizen: boolean
+  isStaff: boolean
   platformRole: string
   roles: string[]
   createdAt: string
@@ -145,6 +147,11 @@ export type PlatformCitizenUpdate = {
   gender?: string | null
   permanentAddress?: string | null
   temporaryAddress?: string | null
+}
+
+export type PlatformStaffUpdate = {
+  fullName: string
+  phoneNumber?: string | null
 }
 
 export type PlatformOverview = {

@@ -12,6 +12,10 @@ public interface IOrganizationService
     Task<IReadOnlyList<Organization>> GetAllAsync(
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Organization>> GetManagedOrganizationsForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CitizenOrganizationOption>> GetActiveOrganizationsForCitizensAsync(
         CancellationToken cancellationToken);
 

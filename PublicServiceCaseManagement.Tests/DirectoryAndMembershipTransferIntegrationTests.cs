@@ -52,6 +52,39 @@ public sealed class DirectoryAndMembershipTransferIntegrationTests
     }
 
     [Fact]
+    public async Task GetUsers_AsSuperAdmin_FlagsCitizensAndStaff()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker,
+            PlatformRole.SuperAdmin);
+        using var client = factory.CreateClient();
+        var citizen = await SeedCitizenAsync(factory);
+
+        var response = await client.GetAsync("/api/platform/users");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+        var users = json.RootElement.EnumerateArray().ToList();
+
+        var staffUser = Assert.Single(
+            users,
+            item =>
+                item.GetProperty("id").GetGuid() ==
+                TestAuthenticationHandler.DefaultUserId);
+        Assert.True(staffUser.GetProperty("isStaff").GetBoolean());
+        Assert.False(staffUser.GetProperty("isCitizen").GetBoolean());
+        Assert.NotEmpty(staffUser.GetProperty("organizations").EnumerateArray());
+
+        var citizenUser = Assert.Single(
+            users,
+            item => item.GetProperty("id").GetGuid() == citizen.UserId);
+        Assert.True(citizenUser.GetProperty("isCitizen").GetBoolean());
+        Assert.False(citizenUser.GetProperty("isStaff").GetBoolean());
+        Assert.Empty(citizenUser.GetProperty("organizations").EnumerateArray());
+    }
+
+    [Fact]
     public async Task UpdateCitizen_PersistsProfileAndAccountName()
     {
         await using var factory = new CivicFlowApiFactory(

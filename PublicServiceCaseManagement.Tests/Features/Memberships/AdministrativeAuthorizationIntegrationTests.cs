@@ -1,6 +1,7 @@
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -203,7 +204,7 @@ public sealed class AdministrativeAuthorizationIntegrationTests
     }
 
     [Fact]
-    public async Task UserWithoutPlatformRole_CannotListAllOrganizations()
+    public async Task OrganizationAdmin_ListsOnlyManagedOrganizations()
     {
         using var factory = new CivicFlowApiFactory(true);
         var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
@@ -213,7 +214,14 @@ public sealed class AdministrativeAuthorizationIntegrationTests
 
         var response = await client.GetAsync("/api/organizations");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+        var organization = Assert.Single(
+            json.RootElement.EnumerateArray());
+        Assert.Equal(
+            organizationId,
+            organization.GetProperty("id").GetGuid());
     }
 
     private static HttpClient CreateClient(

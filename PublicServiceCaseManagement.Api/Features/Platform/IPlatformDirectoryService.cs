@@ -17,6 +17,11 @@ public interface IPlatformDirectoryService
     Task<IReadOnlyList<PlatformCitizenSummary>> GetCitizensAsync(
         CancellationToken cancellationToken = default);
 
+    Task<PlatformUserSummary> UpdateStaffAccountAsync(
+        Guid userId,
+        UpdatePlatformStaffRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<PlatformCitizenSummary> UpdateCitizenAsync(
         Guid userId,
         UpdatePlatformCitizenRequest request,

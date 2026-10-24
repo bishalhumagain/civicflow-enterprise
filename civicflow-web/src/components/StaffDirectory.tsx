@@ -1,40 +1,25 @@
 import { useState } from 'react'
-import type { AccountInvitation, Membership, StaffMember } from '../domain'
-import { InvitationManager } from './InvitationManager'
+import type { StaffMember } from '../domain'
 
+/**
+ * The organization's team contact list. Membership roles, activation, and
+ * invitations are managed in the Organizations administration surface so
+ * there is a single workflow for each operation.
+ */
 export function StaffDirectory({
   staff,
-  invitations,
-  memberships,
   canManage,
   authenticated,
   loading,
-  onInvite,
-  onResend,
-  onRevoke,
   onToggle,
   onUpdatePhone,
-  onUpdateMembership,
-  onToggleMembership,
 }: {
   staff: StaffMember[]
-  invitations: AccountInvitation[]
-  memberships: Membership[]
   canManage: boolean
   authenticated: boolean
   loading: boolean
-  onInvite: (
-    fullName: string,
-    email: string,
-    phoneNumber: string,
-    role: string,
-  ) => Promise<boolean>
-  onResend: (invitationId: string) => Promise<void>
-  onRevoke: (invitationId: string) => Promise<void>
   onToggle: (member: StaffMember) => Promise<void>
   onUpdatePhone: (member: StaffMember, phoneNumber: string) => Promise<void>
-  onUpdateMembership: (membership: Membership, role: string) => Promise<void>
-  onToggleMembership: (membership: Membership) => Promise<void>
 }) {
   const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null)
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -55,62 +40,14 @@ export function StaffDirectory({
       <div className="page-heading">
         <div>
           <p className="eyebrow">ORGANIZATION DIRECTORY</p>
-          <h1>Staff &amp; team</h1>
+          <h1>Team contacts</h1>
           <p className="muted">
             {canManage
-              ? 'Invite staff to this organization and manage who can work on cases.'
+              ? 'Contact details for the people who work on this organization’s cases. Membership roles and invitations are managed from Organizations.'
               : 'View the staff directory and case assignment contacts.'}
-            {canManage ? ' Each invitee receives a single-use link and chooses their own password.' : ''}
           </p>
         </div>
       </div>
-
-      {authenticated && canManage ? (
-        <InvitationManager
-          invitations={invitations}
-          loading={loading}
-          roleOptions={['CaseWorker']}
-          onInvite={onInvite}
-          onResend={onResend}
-          onRevoke={onRevoke}
-        />
-      ) : null}
-
-      {canManage && (
-        <section className="case-card directory-card">
-          <h2>Organization memberships</h2>
-          {memberships.length === 0 ? (
-            <p className="muted empty-state">No memberships were returned.</p>
-          ) : (
-            <div className="membership-list">
-              {memberships.map((membership) => (
-                <article className="membership-row" key={membership.id}>
-                  <code title={membership.userId}>{membership.userId}</code>
-                  <select
-                    aria-label={`Role for ${membership.userId}`}
-                    disabled={loading}
-                    onChange={(event) =>
-                      void onUpdateMembership(membership, event.target.value)}
-                    value={membership.role}
-                  >
-                    <option value="Viewer">Viewer</option>
-                    <option value="CaseWorker">CaseWorker</option>
-                  </select>
-                  <span>{membership.isActive ? 'Active' : 'Inactive'}</span>
-                  <button
-                    className="secondary-button"
-                    disabled={loading}
-                    onClick={() => void onToggleMembership(membership)}
-                    type="button"
-                  >
-                    {membership.isActive ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       <section className="case-card directory-card">
         <h2>Active staff</h2>
@@ -159,15 +96,17 @@ export function StaffDirectory({
                       {canManage
                         ? member.phoneNumber ?? 'No phone number'
                         : 'Contact details restricted'}{' '}
-                      {canManage && <button
-                        className="link-button"
-                        disabled={loading}
-                        onClick={() => startEditing(member)}
-                        style={{ display: 'inline', padding: 0 }}
-                        type="button"
-                      >
-                        Edit
-                      </button>}
+                      {canManage && (
+                        <button
+                          className="link-button"
+                          disabled={loading}
+                          onClick={() => startEditing(member)}
+                          style={{ display: 'inline', padding: 0 }}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </span>
                   )}
                   <small>{member.isActive ? 'Active' : 'Inactive'}</small>

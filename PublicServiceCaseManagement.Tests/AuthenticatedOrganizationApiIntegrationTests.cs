@@ -118,7 +118,9 @@ public sealed class AuthenticatedOrganizationApiIntegrationTests
             "X-Organization-Id",
             organizationId.ToString());
 
-        var response = await client.GetAsync("/api/organizations");
+        var response = await client.PostAsJsonAsync(
+            "/api/organizations",
+            new { name = "Forbidden Organization", code = "FORBIDDEN" });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

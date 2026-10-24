@@ -55,13 +55,26 @@ public sealed class OrganizationsController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (!await IsPlatformSuperAdminAsync(cancellationToken))
-            return Forbid();
+        if (await IsPlatformSuperAdminAsync(cancellationToken))
+        {
+            var allOrganizations = await organizationService.GetAllAsync(
+                cancellationToken);
 
-        var organizations = await organizationService.GetAllAsync(
+            return Ok(allOrganizations.Select(ToResponse).ToList());
+        }
+
+        var userId = await organizationContext.GetApplicationUserIdAsync(
             cancellationToken);
 
-        return Ok(organizations.Select(ToResponse).ToList());
+        if (userId is null)
+            return Forbid();
+
+        var managedOrganizations =
+            await organizationService.GetManagedOrganizationsForUserAsync(
+                userId.Value,
+                cancellationToken);
+
+        return Ok(managedOrganizations.Select(ToResponse).ToList());
     }
 
     [HttpGet("me")]

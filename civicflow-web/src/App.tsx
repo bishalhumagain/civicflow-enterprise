@@ -35,7 +35,7 @@ import {
     type OrganizationWorkspaceOption,
     type PlatformOverview,
     type PlatformCitizen,
-    type PlatformStaff,
+    type PlatformUser,
     type StaffMember,
     type WorkspaceView,
 } from './domain'
@@ -180,7 +180,6 @@ function App() {
     const [workspaceOrganizations, setWorkspaceOrganizations] = useState<OrganizationWorkspaceOption[]>([])
     const [organizationId, setOrganizationId] = useState<string | null>(null)
     const [membershipsData, setMembershipsData] = useState<MembershipsData | null>(null)
-    const [workspaceMemberships, setWorkspaceMemberships] = useState<Membership[]>([])
     const [invitationsData, setInvitationsData] = useState<{
         organizationId: string
         items: AccountInvitation[]
@@ -208,7 +207,7 @@ function App() {
     const [loginErrorCode, setLoginErrorCode] = useState<string | null>(null)
 
     const [platformCitizens, setPlatformCitizens] = useState<PlatformCitizen[]>([])
-    const [platformStaff, setPlatformStaff] = useState<PlatformStaff[]>([])
+    const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([])
     const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null)
     const [directoryLoading, setDirectoryLoading] = useState(false)
 
@@ -237,6 +236,9 @@ function App() {
     const citizenAccess = canUsePortal(currentUser, 'citizen')
     const organizationAccess = canUsePortal(currentUser, 'organization')
     const platformAdminAccess = canUsePortal(currentUser, 'platform-admin')
+    const organizationAdminAccess = workspaceOrganizations.some(
+        (organization) => organization.role === 'OrganizationAdmin',
+    )
 
     const availableViews = useMemo<WorkspaceView[]>(() => {
         if (!currentUser) return []
@@ -249,6 +251,10 @@ function App() {
 
         if (organizationAccess) {
             views.push('cases', 'staff', 'activity')
+
+            if (!platformAdminAccess && organizationAdminAccess) {
+                views.push('organizations')
+            }
         }
 
         // Shared self-service profile for citizens and organization staff.
@@ -266,7 +272,7 @@ function App() {
         }
 
         return views
-    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
+    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess, organizationAdminAccess])
 
     // The view is derived from the roles the API reports, so a citizen can
     // never land on an organization-only surface, even if a stale selection
@@ -288,8 +294,12 @@ function App() {
         if (organizationAccess) {
             items.push({view: 'organization-dashboard', label: 'Dashboard', icon: 'dashboard'})
             items.push({view: 'cases', label: 'Cases', icon: 'cases'})
-            items.push({view: 'staff', label: 'Staff & team', icon: 'staff'})
+            items.push({view: 'staff', label: 'Team contacts', icon: 'staff'})
             items.push({view: 'activity', label: 'Activity log', icon: 'activity'})
+
+            if (!platformAdminAccess && organizationAdminAccess) {
+                items.push({view: 'organizations', label: 'Organizations', icon: 'building'})
+            }
         }
 
         if (citizenAccess || organizationAccess) {
@@ -306,7 +316,7 @@ function App() {
         }
 
         return items
-    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
+    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess, organizationAdminAccess])
 
     const history = caseHistoryData && caseHistoryData.caseId === selectedCase?.id
         ? caseHistoryData.items
@@ -325,10 +335,6 @@ function App() {
         : []
     const organizationInvitations =
         invitationsData && invitationsData.organizationId === selectedOrganizationId
-            ? invitationsData.items
-            : []
-    const staffInvitations =
-        invitationsData && invitationsData.organizationId === organizationId
             ? invitationsData.items
             : []
 
@@ -399,7 +405,6 @@ function App() {
         setOrganizationId(nextOrganizationId)
         setCases([])
         setStaff([])
-        setWorkspaceMemberships([])
         setSelectedCaseId(null)
         setCasePage(1)
         setInvitationsData(null)
@@ -522,7 +527,9 @@ function App() {
     }, [currentUser, organizationAccess, organizationId, selectedCase, retryVersion])
 
     useEffect(() => {
-        if (!currentUser || !platformAdminAccess || activeView !== 'organizations') return
+        if (!currentUser ||
+            (!platformAdminAccess && !organizationAdminAccess) ||
+            activeView !== 'organizations') return
 
         let mounted = true
 
@@ -535,10 +542,13 @@ function App() {
                 if (!mounted) return
 
                 setOrganizations(loaded)
-                setSelectedOrganizationId((current) => current || loaded[0]?.id || '')
+                setSelectedOrganizationId((current) =>
+                    loaded.some((organization) => organization.id === current)
+                        ? current
+                        : (loaded[0]?.id ?? ''))
             } catch (reason) {
                 if (mounted) {
-                    setError(reason instanceof Error ? reason.message : 'Organizations could not be loaded. Your role may not permit platform administration.')
+                    setError(reason instanceof Error ? reason.message : 'Organizations could not be loaded for your account.')
                 }
             } finally {
                 if (mounted) setAdminLoading(false)
@@ -550,16 +560,21 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, activeView, retryVersion])
+    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, retryVersion])
 
     useEffect(() => {
-        if (!currentUser || !platformAdminAccess || activeView !== 'organizations' || !selectedOrganizationId) return
+        if (!currentUser ||
+            (!platformAdminAccess && !organizationAdminAccess) ||
+            activeView !== 'organizations' ||
+            !selectedOrganizationId) return
 
         let mounted = true
         const currentOrganizationId = selectedOrganizationId
 
         void requestJson<Membership[]>(
             `/api/organizations/${currentOrganizationId}/memberships`,
+            undefined,
+            currentOrganizationId,
         )
             .then((loaded) => {
                 if (mounted) {
@@ -578,7 +593,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, activeView, selectedOrganizationId, retryVersion])
+    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, selectedOrganizationId, retryVersion])
 
     useEffect(() => {
         if (!currentUser || !platformAdminAccess || activeView !== 'platform-directory') return
@@ -589,19 +604,17 @@ function App() {
             setDirectoryLoading(true)
 
             try {
-                const [citizens, staff, overview, loadedOrganizations] = await Promise.all([
+                const [citizens, users, overview] = await Promise.all([
                     requestJson<PlatformCitizen[]>('/api/platform/citizens'),
-                    requestJson<PlatformStaff[]>('/api/platform/staff'),
+                    requestJson<PlatformUser[]>('/api/platform/users'),
                     requestJson<PlatformOverview>('/api/platform/overview'),
-                    requestJson<Organization[]>('/api/organizations'),
                 ])
 
                 if (!mounted) return
 
                 setPlatformCitizens(citizens)
-                setPlatformStaff(staff)
+                setPlatformUsers(users)
                 setPlatformOverview(overview)
-                setOrganizations(loadedOrganizations)
             } catch (reason) {
                 if (mounted) {
                     setError(
@@ -808,17 +821,10 @@ function App() {
     ])
 
     const invitationsOrganizationId =
-        activeView === 'organizations'
-            ? selectedOrganizationId
-            : activeView === 'staff' &&
-            activeOrganization?.role === 'OrganizationAdmin'
-                ? organizationId ?? ''
-                : ''
+        activeView === 'organizations' ? selectedOrganizationId : ''
 
     useEffect(() => {
         if (!currentUser || !invitationsOrganizationId) return
-        if (activeView === 'organizations' && !platformAdminAccess) return
-        if (activeView === 'staff' && !organizationAccess) return
 
         let mounted = true
         const targetOrganizationId = invitationsOrganizationId
@@ -852,88 +858,9 @@ function App() {
     }, [
         currentUser,
         activeView,
-        platformAdminAccess,
-        organizationAccess,
         invitationsOrganizationId,
         retryVersion,
     ])
-
-    useEffect(() => {
-        if (!currentUser ||
-            !organizationAccess ||
-            activeView !== 'staff' ||
-            !organizationId ||
-            activeOrganization?.role !== 'OrganizationAdmin') {
-            return
-        }
-
-        let mounted = true
-        const targetOrganizationId = organizationId
-
-        void requestJson<Membership[]>(
-            `/api/organizations/${targetOrganizationId}/memberships`,
-            undefined,
-            targetOrganizationId,
-        )
-            .then((loaded) => {
-                if (mounted) setWorkspaceMemberships(loaded)
-            })
-            .catch((reason: unknown) => {
-                if (mounted) {
-                    setError(reason instanceof Error
-                        ? reason.message
-                        : 'Organization memberships could not be loaded.')
-                }
-            })
-
-        return () => {
-            mounted = false
-        }
-    }, [
-        currentUser,
-        organizationAccess,
-        activeView,
-        organizationId,
-        activeOrganization?.role,
-        retryVersion,
-    ])
-
-    async function updateWorkspaceMembership(
-        membership: Membership,
-        role?: string,
-    ) {
-        if (!organizationId || activeOrganization?.role !== 'OrganizationAdmin') return
-
-        const path = role
-            ? `/api/organizations/${organizationId}/memberships/${membership.id}/role`
-            : `/api/organizations/${organizationId}/memberships/${membership.id}/${membership.isActive ? 'deactivate' : 'reactivate'}`
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const updated = await requestJson<Membership>(
-                path,
-                role
-                    ? {method: 'PUT', body: JSON.stringify({role})}
-                    : {method: 'PATCH'},
-                organizationId,
-            )
-
-            setWorkspaceMemberships((current) =>
-                current.map((item) => item.id === updated.id ? updated : item))
-            setRetryVersion((version) => version + 1)
-            showToast('Membership updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error
-                ? reason.message
-                : 'The membership could not be updated.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
 
     async function inviteStaff(
         organizationIdForRequest: string,
@@ -1128,7 +1055,6 @@ function App() {
         setCurrentUser(null)
         setOrganizationId(null)
         setWorkspaceOrganizations([])
-        setWorkspaceMemberships([])
         setCases([])
         setStaff([])
         setOrganizations([])
@@ -1423,7 +1349,7 @@ function App() {
             const result = await requestJson<Membership>(path, {
                 method: action === 'role' ? 'PUT' : 'PATCH',
                 ...(action === 'role' && role ? {body: JSON.stringify({role})} : {}),
-            })
+            }, currentOrganizationId)
 
             setMembershipsData((current: MembershipsData | null) => ({
                 organizationId: currentOrganizationId,
@@ -1799,23 +1725,11 @@ function App() {
                             ) : activeView === 'staff' && organizationAccess ? (
                                 <StaffDirectory
                                     staff={staff}
-                                    invitations={staffInvitations}
-                                    memberships={workspaceMemberships}
                                     canManage={activeOrganization?.role === 'OrganizationAdmin'}
                                     authenticated={Boolean(currentUser)}
                                     loading={adminLoading}
-                                    onInvite={(fullName, email, phoneNumber, role) =>
-                                        inviteStaff(organizationId ?? '', fullName, email, phoneNumber, role)}
-                                    onResend={(invitationId) =>
-                                        resendInvitation(organizationId ?? '', invitationId)}
-                                    onRevoke={(invitationId) =>
-                                        revokeInvitation(organizationId ?? '', invitationId)}
                                     onToggle={setStaffActive}
                                     onUpdatePhone={updateStaffPhone}
-                                    onUpdateMembership={(membership, role) =>
-                                        updateWorkspaceMembership(membership, role)}
-                                    onToggleMembership={(membership) =>
-                                        updateWorkspaceMembership(membership)}
                                 />
                             ) : activeView === 'activity' && organizationAccess ? (
                                 <AuditLog
@@ -1863,9 +1777,13 @@ function App() {
                                     loading={directoryLoading}
                                     overview={platformOverview}
                                     citizens={platformCitizens}
-                                    staff={platformStaff}
-                                    organizations={organizations}
+                                    users={platformUsers}
                                     refreshData={() => setRetryVersion((version) => version + 1)}
+                                    onOpenOrganization={(organizationId) => {
+                                        setSelectedOrganizationId(organizationId)
+                                        setViewSelection('organizations')
+                                        setError(null)
+                                    }}
                                 />
                             ) : activeView === 'platform-errors' && platformAdminAccess ? (
                                 <PlatformErrors
@@ -1900,7 +1818,8 @@ function App() {
                                     onPageChange={setAuditPage}
                                     emptyMessage="No audit events match the current filters."
                                 />
-                            ) : activeView === 'organizations' && platformAdminAccess ? (
+                            ) : activeView === 'organizations' &&
+                                (platformAdminAccess || organizationAdminAccess) ? (
                                 <OrganizationAdministration
                                     authenticated={Boolean(currentUser)}
                                     loading={adminLoading}
@@ -1908,6 +1827,7 @@ function App() {
                                     memberships={memberships}
                                     invitations={organizationInvitations}
                                     selectedOrganizationId={selectedOrganizationId}
+                                    canManageOrganizations={platformAdminAccess}
                                     onSelectOrganization={setSelectedOrganizationId}
                                     refreshData={() => setRetryVersion((version) => version + 1)}
                                     onUpdateMembership={updateMembership}

@@ -51,6 +51,41 @@ public sealed class PlatformDirectoryController(
         return Ok(staff);
     }
 
+    [HttpPut("api/platform/staff/{userId:guid}")]
+    public async Task<ActionResult<PlatformUserSummary>> UpdateStaffAccount(
+        Guid userId,
+        [FromBody] UpdatePlatformStaffRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        try
+        {
+            var user = await platformDirectoryService.UpdateStaffAccountAsync(
+                userId,
+                request,
+                cancellationToken);
+
+            return Ok(user);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { error = exception.Message });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+    }
+
     [HttpGet("api/platform/citizens")]
     public async Task<ActionResult<IReadOnlyList<PlatformCitizenSummary>>>
         GetCitizens(CancellationToken cancellationToken)

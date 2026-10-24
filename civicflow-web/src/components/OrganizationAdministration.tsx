@@ -10,6 +10,7 @@ export function OrganizationAdministration({
   memberships,
   invitations,
   selectedOrganizationId,
+  canManageOrganizations,
   onSelectOrganization,
   refreshData,
   onUpdateMembership,
@@ -23,6 +24,7 @@ export function OrganizationAdministration({
   memberships: Membership[]
   invitations: AccountInvitation[]
   selectedOrganizationId: string
+  canManageOrganizations: boolean
   onSelectOrganization: (id: string) => void
   refreshData: () => void
   onUpdateMembership: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void>
@@ -139,7 +141,11 @@ export function OrganizationAdministration({
         <div>
           <p className="eyebrow">ORGANIZATION ADMINISTRATION</p>
           <h1>Organizations</h1>
-          <p className="muted">Manage organizations and their members.</p>
+          <p className="muted">
+            {canManageOrganizations
+              ? 'Manage organizations and their members.'
+              : 'Manage members and invitations for the organizations you administer.'}
+          </p>
         </div>
       </div>
 
@@ -150,18 +156,20 @@ export function OrganizationAdministration({
       ) : (
         <>
           <section className="case-card admin-panel">
-            <div className="admin-row" style={{ marginBottom: 16 }}>
-              <button
-                className="primary-button"
-                disabled={loading || busy !== null}
-                onClick={() => setShowCreateForm(!showCreateForm)}
-                type="button"
-              >
-                {showCreateForm ? 'Cancel' : 'Create Organization'}
-              </button>
-            </div>
+            {canManageOrganizations && (
+              <div className="admin-row" style={{ marginBottom: 16 }}>
+                <button
+                  className="primary-button"
+                  disabled={loading || busy !== null}
+                  onClick={() => setShowCreateForm(!showCreateForm)}
+                  type="button"
+                >
+                  {showCreateForm ? 'Cancel' : 'Create Organization'}
+                </button>
+              </div>
+            )}
 
-            {showCreateForm && (
+            {canManageOrganizations && showCreateForm && (
               <form
                 className="inline-form"
                 onSubmit={handleCreateOrganization}
@@ -269,30 +277,34 @@ export function OrganizationAdministration({
                               >
                                 View Members
                               </button>
-                              <button
-                                className="secondary-button"
-                                disabled={busy !== null}
-                                onClick={() => startEditing(org)}
-                                type="button"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className="secondary-button"
-                                disabled={busy !== null}
-                                onClick={() => void handleToggleOrganization(org)}
-                                type="button"
-                              >
-                                {org.isActive ? 'Deactivate' : 'Activate'}
-                              </button>
-                              <button
-                                className="secondary-button danger"
-                                disabled={busy !== null}
-                                onClick={() => void handleDeleteOrganization(org)}
-                                type="button"
-                              >
-                                Delete
-                              </button>
+                              {canManageOrganizations && (
+                                <>
+                                  <button
+                                    className="secondary-button"
+                                    disabled={busy !== null}
+                                    onClick={() => startEditing(org)}
+                                    type="button"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="secondary-button"
+                                    disabled={busy !== null}
+                                    onClick={() => void handleToggleOrganization(org)}
+                                    type="button"
+                                  >
+                                    {org.isActive ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                  <button
+                                    className="secondary-button danger"
+                                    disabled={busy !== null}
+                                    onClick={() => void handleDeleteOrganization(org)}
+                                    type="button"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
                             </td>
                           </>
                         )}

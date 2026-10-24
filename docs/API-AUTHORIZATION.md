@@ -39,14 +39,14 @@ The request/response names below refer to the DTOs in
 |---|---|---|---|---|---|
 | Own account/profile and own PATs | Read/update own profile; own tokens | Own profile/tokens | Own profile/tokens | Own profile/tokens | Own tokens; platform profile is not provided |
 | Citizen case intake | Submit to an active organization; no case tracking endpoint | No | No | No | No |
-| Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers | Platform staff directory |
+| Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers; Organizations view for administered organizations | Platform directory and organization administration |
 | Case reads | No case read/track endpoint | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
 | Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign; delete with confirmation | No implicit case-wide bypass |
 | Notifications | Own notifications only | Own notifications only | Own notifications only | Own notifications only | Own notifications only |
 | Background jobs | No | No | No | No | Global job summaries/details and state-eligible retry/cancel |
-| Memberships/invitations | No | No | No | Selected organization; cannot grant `OrganizationAdmin`; invitations create `CaseWorker` memberships | Platform-authorized organization membership and invitation operations, including permitted admin provisioning |
+| Memberships/invitations | No | No | No | Selected organization they administer; cannot grant `OrganizationAdmin`; invitations create `CaseWorker` memberships | Platform-authorized organization membership and invitation operations, including permitted admin provisioning |
 | Audit | No | Own actor events in selected organization | Own actor events in selected organization | All events in selected organization | Platform-wide audit and explicitly authorized organization audit |
-| Platform directory, organizations, dashboard, errors | No | No | No | No | Explicit platform management and cross-organization reports |
+| Platform directory, organization CRUD, dashboard, errors | No | No | No | Organizations view lists only administered organizations; no organization CRUD | Explicit platform management and cross-organization reports |
 
 Additional boundaries:
 
@@ -120,7 +120,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | Method and path | Access / parameters | Success, failures, and effects |
 |---|---|---|
 | `POST /api/organizations` | SuperAdmin; `CreateOrganizationRequest` | `201 OrganizationResponse`; `400` invalid values, `409` duplicate conflict; creates organization. |
-| `GET /api/organizations` | SuperAdmin; none | `200 OrganizationResponse[]`; platform organization directory. |
+| `GET /api/organizations` | SuperAdmin or authenticated staff; none | `200 OrganizationResponse[]`; SuperAdmin sees all organizations, OrganizationAdmin sees active organizations they administer, other staff receive an empty list. |
 | `GET /api/organizations/me` | Authenticated staff with active account; none | `200 OrganizationWorkspaceOption[]`; only the caller's active memberships. |
 | `GET /api/organizations/{id:guid}` | SuperAdmin | `200 OrganizationResponse`; `404` unknown ID. |
 | `PUT /api/organizations/{id:guid}` | SuperAdmin; `UpdateOrganizationRequest` | `200 OrganizationResponse`; `400` invalid values, `404` missing, `409` conflict; updates organization details. |
@@ -206,6 +206,7 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `GET /api/organizations/{organizationId:guid}/audit` | SuperAdmin, or active same-organization member; same audit query filters | `200 AuditEventPageResponse`; OrganizationAdmin sees org events; Viewer/CaseWorker actor filter is mandatory and cannot be widened by query. |
 | `GET /api/platform/users` | SuperAdmin | `200 PlatformUserSummary[]`; platform-wide accounts and role/membership summaries. |
 | `GET /api/platform/staff` | SuperAdmin | `200 PlatformStaffSummary[]`; platform-wide staff memberships. |
+| `PUT /api/platform/staff/{userId:guid}` | SuperAdmin; `UpdatePlatformStaffRequest` | `200 PlatformUserSummary`; updates a staff account's full name and phone number. `400` invalid name/phone; `404` missing account; `409` account has no organization membership. |
 | `GET /api/platform/citizens` | SuperAdmin | `200 PlatformCitizenSummary[]`; citizen accounts joined to their citizen profile. |
 | `PUT /api/platform/citizens/{userId:guid}` | SuperAdmin; `UpdatePlatformCitizenRequest` | `200 PlatformCitizenSummary`; updates profile and account name/phone. `400` invalid name/age; `404` missing account/profile; `409` duplicate NID/citizenship number. |
 | `PATCH /api/platform/citizens/{userId:guid}/activate` | SuperAdmin | `204`; activates the citizen account. |

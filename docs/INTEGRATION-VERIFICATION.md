@@ -194,8 +194,10 @@ Sign-in failures confirmed to return the machine-readable codes `email_not_confi
 - Saw the matching `organization.created` event in the organization-scoped audit (`totalCount: 1`) and in the platform audit filtered by the `Organization` category
 - Deleted the organization (`204`), received `404` when repeating the delete
 - `GET /api/platform/overview` returned counters (`userCount`, `staffCount`, `organizationCount`, `invitationCount`, and active/pending variants)
-- `GET /api/platform/users` returned every account with roles, platform role, and memberships
+- `GET /api/platform/users` returned every account with roles, platform role, memberships, and citizen/staff flags
 - `GET /api/platform/staff` returned every staff membership with organization, role, and status
+- `PUT /api/platform/staff/{userId}` updated a staff account's full name and phone number and rejected an account with no organization membership with `409`
+- `GET /api/organizations` returned all organizations for a super administrator, only active administered organizations for an organization administrator, and an empty list for other staff
 - `GET /api/platform/citizens` returned citizen profiles; `PUT /api/platform/citizens/{userId}` updated the profile and account name, and duplicate NID values were rejected with `409`
 - `POST /api/organizations/{orgId}/memberships/{membershipId}/transfer` moved a membership to an active destination organization, deactivated the source membership, and recorded `membership.transferred`
 - A simulated email transport failure left the invitation valid with `deliveryFailed: true`; `Resend` cleared the failure state after delivery recovered

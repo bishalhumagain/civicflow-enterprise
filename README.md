@@ -98,9 +98,9 @@ The platform is built around three core principles:
 |---|---|
 | **Multi-tenant scoping** | All case data is organization-scoped. Server-side resolution + PostgreSQL RLS prevents cross-organization access. |
 | **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. Duplicate codes and invalid changes are reported inline. |
-| **Memberships** | Organization administrators manage staff roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. |
+| **Memberships** | Organization administrators open the Organizations view for the organizations they administer, then manage roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. |
 | **Invitation-based onboarding** | Organization administrators invite staff; acceptance grants the Staff portal role and a CaseWorker organization membership. Single-use, expiring links (default 72h, configurable 1–720h); invitees choose their own password. Failed email delivery is recorded on the invitation and can be retried without invalidating the link. |
-| **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators. |
+| **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators and platform administrators. |
 
 ### Audit & Compliance
 
@@ -116,7 +116,7 @@ The platform is built around three core principles:
 
 | Capability | Description |
 |---|---|
-| **Platform directory** | Overview counters (accounts, staff, organizations, invitations) plus two distinct grids: citizen accounts with editable profiles, and organization memberships with role changes, activation, invitation management, and superadmin-only transfer between organizations. |
+| **Platform directory** | Overview counters (accounts, staff, organizations, invitations) plus three focused sections: Citizens with editable profiles, Staff accounts with editable contact details, and All Users with platform-role controls and organization links. Membership and invitation management live in the Organizations view. |
 | **Organization management** | Full CRUD, including deletion with cleanup of memberships, staff records, and pending invitations. |
 | **Super-admin bootstrap** | Configurable seed with fail-fast validation on partial/policy-violating configuration. Explicit `ResetPassword` switch for one-time repair. |
 
@@ -285,8 +285,8 @@ The organization workspace obtains active memberships from `GET /api/organizatio
 
 **Workspaces** (role-specific, navigation derived from API-reported roles):
 - **Citizen**: Dashboard, public intake, profile, access tokens
-- **Staff**: Cases, staff directory, activity log, access tokens
-- **SuperAdmin**: Organizations, directory, audit log, error tracker, access tokens
+- **Staff**: Cases, team contacts, activity log, access tokens; OrganizationAdmin also sees Organizations for administered organizations
+- **SuperAdmin**: Organizations, three-section directory, audit log, error tracker, access tokens
 
 **Key components**: `OrganizationAdministration`, `InvitationManager`, `StaffDirectory`, `PlatformDirectory`, `PlatformErrors`, `AuditLog`, `CaseDetails`, `CitizenDashboard`, `ProfilePage`, `StatCard`, `StatusPill`, `Toast`.
 
@@ -514,7 +514,7 @@ The API obtains the citizen identity from the authenticated session, verifies th
 | Method | Path | Authorization | Description |
 |---|---|---|---|
 | GET | `/api/organizations/me` | StaffClient + active account | Return only the caller's active memberships and organization-level roles; no organization header required |
-| GET | `/api/organizations` | SuperAdmin | List organizations |
+| GET | `/api/organizations` | SuperAdmin: all organizations; OrganizationAdmin: active organizations they administer; other staff: empty list | List organizations |
 | POST | `/api/organizations` | SuperAdmin | Create organization |
 | GET | `/api/organizations/{id}` | SuperAdmin | Get organization detail |
 | PUT | `/api/organizations/{id}` | SuperAdmin | Rename/update organization |
@@ -564,6 +564,7 @@ The API obtains the citizen identity from the authenticated session, verifies th
 | GET | `/api/platform/overview` | SuperAdmin | Platform-wide counters |
 | GET | `/api/platform/users` | SuperAdmin | All accounts with roles/memberships |
 | GET | `/api/platform/staff` | SuperAdmin | All staff memberships |
+| PUT | `/api/platform/staff/{userId}` | SuperAdmin | Update a staff account's full name and phone number |
 | GET | `/api/platform/audit` | SuperAdmin | Platform-wide audit trail |
 | GET | `/api/platform/audit/categories` | SuperAdmin | Audit category list |
 | GET | `/api/organizations/{orgId}/audit` | OrganizationAdmin of `{orgId}`, assigned staff of `{orgId}` (own events only), or SuperAdmin | Organization audit trail; staff results are actor-scoped on the server |
@@ -704,7 +705,7 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 | **Invitation lifecycle** | Creation, token hashing at rest, lookup, password setup, reuse/expiry/revocation (`410`), duplicate/member conflicts (`409`), role escalation rejection, cross-org denial, existing-account linking |
 | **Super-admin seeding** | Fresh seed + login, weak/partial seed failure, skip when unconfigured, repair of damaged account, password-change preservation |
 | **Personal access tokens** | Creation, hashing, bearer auth, role propagation, least privilege, tampering, expiry, revocation |
-| **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, audit endpoints, staff phone update |
+| **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, scoped organization listing, audit endpoints, staff account and phone update |
 | **Cases** | CRUD, status changes, assignments, paging |
 | **Case documents** | Upload, download |
 | **Citizens** | Profile auth, create/update, duplicates, business-endpoint gating |
@@ -814,7 +815,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Citizens: self-registration, profile with duplicate detection
 - Unified self-service profile for citizens and staff
 - Audit trail (platform-wide and org-scoped, filterable, paged, fail-safe)
-- Platform directory (overview counters, all accounts, all staff memberships)
+- Platform directory (overview counters, Citizens, Staff, and All Users sections)
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications

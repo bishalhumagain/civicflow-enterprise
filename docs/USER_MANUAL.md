@@ -165,7 +165,8 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 | Navigation entry | Description |
 |---|---|
 | **Cases** | Case management (default view) |
-| **Staff & team** | Staff directory, invitations (send, resend, revoke), staff phone numbers |
+| **Team contacts** | Staff contact directory and staff phone numbers |
+| **Organizations** | Organization administrators manage memberships and invitations for organizations they administer; organization CRUD remains SuperAdmin-only |
 | **Activity log** | Organization administrators see the organization's audit trail; staff see only their own activity |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
 | **Profile** | Unified self-service profile (contact details for staff) |
@@ -174,8 +175,8 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 
 | Navigation entry | Description |
 |---|---|
-| **Organizations** | Organization, membership, and invitation administration across all organizations (default view) |
-| **Directory** | Platform overview counters, all accounts, and all staff memberships |
+| **Organizations** | Organization CRUD, memberships, and invitations across all organizations (default view) |
+| **Directory** | Platform overview counters plus Citizens, Staff, and All Users sections; account edits, platform-role changes, and links to organization membership management |
 | **Audit log** | Platform-wide audit trail |
 | **Errors** | Application error list with filter (all/unhandled/handled) and mark-as-handled |
 | **Dashboard** | Platform account and organization totals plus case statistics, status, priority, and weekly/monthly activity charts |
@@ -209,7 +210,7 @@ The Notifications button in the workspace header shows your unread count and a p
 - Organization administrators assign cases to active staff in the same organization with a per-case CaseWorker or Viewer role. CaseWorker assignees may change status and upload case documents; Viewer assignees have read-only access.
 - Organization administrators can manage cases throughout their organization; staff cannot access other staff members' or unassigned cases.
 - View the selected organization's staff directory and active staff assignment contacts.
-- Organization administrators can inspect and update staff memberships, invite staff (the invitee receives the Staff portal role and CaseWorker membership), deactivate/reactivate memberships and staff, and manage invitations. They cannot grant OrganizationAdmin; only platform administrators can.
+- Organization administrators open **Organizations** to inspect and update memberships for the organizations they administer, invite staff (the invitee receives the Staff portal role and CaseWorker membership), deactivate/reactivate memberships, and manage invitations. They cannot grant OrganizationAdmin, create organizations, or edit/delete organization records; only platform administrators can.
 - Organization administrators can collect and update staff phone numbers and read the organization activity log.
 - View organization dashboard statistics
 - Manage personal access tokens
@@ -227,7 +228,7 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 - Create, rename, deactivate, reactivate, and delete organizations
 - Manage memberships and roles within any organization (add members with Viewer, CaseWorker, or OrganizationAdmin roles; update roles; activate/deactivate memberships)
 - Invite staff to any organization and manage those invitations (send, resend, revoke)
-- Browse the platform directory: citizen accounts with editable profiles, and organization memberships with role changes, activation, invitations, and transfer between organizations
+- Browse the platform directory in three sections: Citizens with editable profiles, Staff with editable account contact details, and All Users with platform-role controls and links to organization membership management
 - Read the platform-wide audit log
 - View platform dashboard statistics (total cases, per-status, per-priority, weekly/monthly trends)
 - Track and manage application errors (list, filter, view detail, mark as handled)
@@ -237,17 +238,17 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 
 **Organization Administration UI Details**
 
-The Organizations view consists of two main sections: "Organizations" and "Memberships".
+The Organizations view contains an organization list plus membership and invitation sections for the selected organization. Platform administrators see organization CRUD controls; organization administrators see only the organizations they administer and no organization CRUD controls.
 
 - **Organizations section**:
   - Dropdown to select an organization (displays name and code)
-  - Action buttons for the selected organization: Rename, Deactivate/Reactivate, Delete
+  - Platform-administrator actions: Rename, Deactivate/Reactivate, Delete
   - Inline form for renaming: requires organization name (max 200 characters) and code (max 50 characters)
-  - Form for creating new organizations: requires name and code
+  - Platform-administrator form for creating new organizations: requires name and code
+  - **View Members** opens the selected organization's membership and invitation administration
 
 - **Memberships section**:
-  - Form to add memberships: requires application user ID and role selection
-  - Membership list showing user ID, role, active status, and activation toggle
+  - Membership list showing user ID, role, active status, and activation toggle; organization administrators can change roles and activation for administered organizations
   - Role options: Viewer, CaseWorker, OrganizationAdmin
 
 - **InvitationManager section** (integrated component):
@@ -356,17 +357,17 @@ Organization administrators can edit case title and description and can permanen
 
 ### 5.6 Managing Staff
 
-1. Navigate to **Staff & team**
-2. Organization administrators invite staff with a permitted organization role and optional phone number; invitees receive a single-use link and choose their own password
-3. Review and manage invitations, organization memberships, membership roles, and active status
+1. Navigate to **Team contacts** to view staff contact details
+2. Organization administrators manage memberships and invitations from **Organizations** for organizations they administer
+3. Invitees receive a single-use link and choose their own password
 4. Organization administrators can toggle staff active/inactive status and correct phone numbers inline
-5. Other staff can view the current organization's directory but do not receive membership-management or staff-administration controls
+5. Other staff can view the current organization's contact directory but do not receive membership-management or staff-administration controls
 
 **Note on phone numbers:** A phone number is optional and must be 6–30 characters with at least 6 digits. When an invitation carries a number, it is stored on the new account and staff record; for an account that already exists the number is only filled in when the account has none of its own, so a number someone entered themselves is never overwritten.
 
 ### 5.7 Managing Organizations
 
-1. Navigate to **Organizations** (available to platform administrators in the platform workspace)
+1. Navigate to **Organizations** (platform administrators see all organizations; organization administrators see only organizations they administer)
 2. Use the create button to add an organization by name and code; duplicate names or codes and invalid values are reported inline
 3. **Rename an organization**: Click **Edit** on the organization row, update the name and code, then save
 4. **Activate/Deactivate an organization**: Use the **Activate** or **Deactivate** button on the row

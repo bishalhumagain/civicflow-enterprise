@@ -1,42 +1,35 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type {
-  AccountInvitation,
-  Organization,
   PlatformCitizen,
   PlatformCitizenUpdate,
   PlatformOverview,
-  PlatformStaff,
+  PlatformStaffUpdate,
+  PlatformUser,
+  PlatformUserOrganization,
 } from '../domain'
 import { Icon } from './Icon'
-import { InvitationManager } from './InvitationManager'
-import { invitationRoles } from './invitation-utils'
 import {
   toggleCitizenAccountActive,
   updateCitizenProfile,
 } from '../api/citizens-admin'
 import {
-  createInvitation,
-  getInvitations,
-  resendInvitation,
-  revokeInvitation,
-  setMembershipActive,
-  transferMembership,
-  updateMembershipRole,
-} from '../api/organizations'
+  activatePlatformUser,
+  changePlatformRole,
+  deactivatePlatformUser,
+  updatePlatformStaff,
+} from '../api/platform'
 
 const PAGE_SIZE = 10
-const CITIZEN_ROLES: Array<'Viewer' | 'CaseWorker' | 'OrganizationAdmin'> = [
-  'Viewer',
-  'CaseWorker',
-  'OrganizationAdmin',
-]
+const PLATFORM_ROLES = ['None', 'SuperAdmin'] as const
 
-type CitizenSortField = 'fullName' | 'email' | 'createdAt'
-type MemberSortField =
+type DirectoryTab = 'citizens' | 'staff' | 'users'
+type SortField =
   | 'fullName'
   | 'email'
-  | 'organizationName'
-  | 'membershipCreatedAt'
+  | 'createdAt'
+  | 'accountType'
+  | 'organization'
+type AccountFilter = 'all' | 'citizens' | 'staff'
 
 function Pagination({
   page,
@@ -189,45 +182,119 @@ function CitizenEditor({
   )
 }
 
+function StaffEditor({
+  user,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  user: PlatformUser
+  busy: boolean
+  onCancel: () => void
+  onSave: (request: PlatformStaffUpdate) => Promise<void>
+}) {
+  const [fullName, setFullName] = useState(user.fullName)
+  const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber ?? '')
+
+  return (
+    <tr>
+      <td colSpan={8}>
+        <form
+          className="inline-form"
+          style={{ flexWrap: 'wrap', gap: 8 }}
+          onSubmit={(event) => {
+            event.preventDefault()
+            void onSave({
+              fullName: fullName.trim(),
+              phoneNumber: phoneNumber.trim() || null,
+            })
+          }}
+        >
+          <input
+            aria-label="Full name"
+            required
+            maxLength={150}
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+          />
+          <input
+            aria-label="Phone number"
+            maxLength={30}
+            placeholder="Phone number"
+            value={phoneNumber}
+            onChange={(event) => setPhoneNumber(event.target.value)}
+          />
+          <button className="primary-button" disabled={busy} type="submit">
+            Save
+          </button>
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+        </form>
+      </td>
+    </tr>
+  )
+}
+
+function accountType(user: PlatformUser): string {
+  if (user.isCitizen && user.isStaff) return 'Citizen + Staff'
+  if (user.isCitizen) return 'Citizen'
+  if (user.isStaff) return 'Staff'
+  return 'Account'
+}
+
+function organizationSummary(organizations: PlatformUserOrganization[]): string {
+  if (organizations.length === 0) return 'No memberships'
+
+  return organizations
+    .map((organization) =>
+      organization.isActive
+        ? `${organization.organizationName} (${organization.role})`
+        : `${organization.organizationName} (${organization.role}, inactive)`,
+    )
+    .join(', ')
+}
+
 /**
- * Platform-wide directory for platform administrators. Citizens and
- * organization members are deliberately kept as separate grids: a person can
- * be a citizen, a member of one or more organizations, or both, and the
- * account identity is never duplicated into a membership record.
+ * Platform-wide user directory for platform administrators. Citizen accounts,
+ * staff accounts, and the consolidated account view are three views of the
+ * same identity data: a user appears once per grid regardless of how many
+ * organization memberships they hold.
  */
 export function PlatformDirectory({
   loading,
   overview,
   citizens,
-  staff,
-  organizations,
+  users,
   refreshData,
+  onOpenOrganization,
 }: {
   loading: boolean
   overview: PlatformOverview | null
   citizens: PlatformCitizen[]
-  staff: PlatformStaff[]
-  organizations: Organization[]
+  users: PlatformUser[]
   refreshData: () => void
+  onOpenOrganization: (organizationId: string) => void
 }) {
-  const [tab, setTab] = useState<'citizens' | 'members'>('citizens')
+  const [tab, setTab] = useState<DirectoryTab>('citizens')
   const [searchQuery, setSearchQuery] = useState('')
-  const [citizenSort, setCitizenSort] = useState<CitizenSortField>('fullName')
-  const [memberSort, setMemberSort] = useState<MemberSortField>('fullName')
+  const [accountFilter, setAccountFilter] = useState<AccountFilter>('all')
+  const [sortField, setSortField] = useState<SortField>('fullName')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [citizenPage, setCitizenPage] = useState(1)
-  const [memberPage, setMemberPage] = useState(1)
+  const [page, setPage] = useState(1)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [editingCitizenId, setEditingCitizenId] = useState<string | null>(null)
-  const [invitationOrganizationId, setInvitationOrganizationId] = useState('')
-  const [invitations, setInvitations] = useState<AccountInvitation[]>([])
-  const [invitationsLoading, setInvitationsLoading] = useState(false)
-
-  const invitationRequest = useRef(0)
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
 
   const query = searchQuery.trim().toLowerCase()
+  const staffAccounts = useMemo(() => users.filter((user) => user.isStaff), [users])
 
   const filteredCitizens = useMemo(() => {
     const multiplier = sortOrder === 'asc' ? 1 : -1
@@ -240,79 +307,134 @@ export function PlatformDirectory({
           (citizen.phoneNumber ?? '').toLowerCase().includes(query),
       )
       .sort((a, b) => {
-        if (citizenSort === 'fullName') {
-          return a.fullName.localeCompare(b.fullName) * multiplier
-        }
-        if (citizenSort === 'email') {
+        if (sortField === 'email') {
           return a.email.localeCompare(b.email) * multiplier
         }
-        return (
-          (new Date(a.createdAt).getTime() -
-            new Date(b.createdAt).getTime()) *
-          multiplier
-        )
+        if (sortField === 'createdAt') {
+          return (
+            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
+            multiplier
+          )
+        }
+        return a.fullName.localeCompare(b.fullName) * multiplier
       })
-  }, [citizens, query, citizenSort, sortOrder])
+  }, [citizens, query, sortField, sortOrder])
 
   const filteredStaff = useMemo(() => {
     const multiplier = sortOrder === 'asc' ? 1 : -1
-    return staff
+    return staffAccounts
       .filter(
-        (member) =>
+        (user) =>
           !query ||
-          member.fullName.toLowerCase().includes(query) ||
-          member.email.toLowerCase().includes(query) ||
-          member.organizationName.toLowerCase().includes(query) ||
-          member.role.toLowerCase().includes(query),
+          user.fullName.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query) ||
+          (user.phoneNumber ?? '').toLowerCase().includes(query) ||
+          user.organizations.some(
+            (organization) =>
+              organization.organizationName.toLowerCase().includes(query) ||
+              organization.role.toLowerCase().includes(query),
+          ),
       )
       .sort((a, b) => {
-        if (memberSort === 'fullName') {
-          return a.fullName.localeCompare(b.fullName) * multiplier
-        }
-        if (memberSort === 'email') {
+        if (sortField === 'email') {
           return a.email.localeCompare(b.email) * multiplier
         }
-        if (memberSort === 'organizationName') {
+        if (sortField === 'createdAt') {
           return (
-            a.organizationName.localeCompare(b.organizationName) * multiplier
+            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
+            multiplier
           )
         }
+        if (sortField === 'organization') {
+          return (
+            organizationSummary(a.organizations).localeCompare(
+              organizationSummary(b.organizations),
+            ) * multiplier
+          )
+        }
+        return a.fullName.localeCompare(b.fullName) * multiplier
+      })
+  }, [staffAccounts, query, sortField, sortOrder])
+
+  const filteredUsers = useMemo(() => {
+    const multiplier = sortOrder === 'asc' ? 1 : -1
+    return users
+      .filter((user) => {
+        if (accountFilter === 'citizens' && !user.isCitizen) return false
+        if (accountFilter === 'staff' && !user.isStaff) return false
+        if (!query) return true
+
         return (
-          (new Date(a.membershipCreatedAt).getTime() -
-            new Date(b.membershipCreatedAt).getTime()) *
-          multiplier
+          user.fullName.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query) ||
+          (user.phoneNumber ?? '').toLowerCase().includes(query) ||
+          accountType(user).toLowerCase().includes(query) ||
+          user.organizations.some(
+            (organization) =>
+              organization.organizationName.toLowerCase().includes(query) ||
+              organization.role.toLowerCase().includes(query),
+          )
         )
       })
-  }, [staff, query, memberSort, sortOrder])
+      .sort((a, b) => {
+        if (sortField === 'email') {
+          return a.email.localeCompare(b.email) * multiplier
+        }
+        if (sortField === 'createdAt') {
+          return (
+            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
+            multiplier
+          )
+        }
+        if (sortField === 'accountType') {
+          return accountType(a).localeCompare(accountType(b)) * multiplier
+        }
+        if (sortField === 'organization') {
+          return (
+            organizationSummary(a.organizations).localeCompare(
+              organizationSummary(b.organizations),
+            ) * multiplier
+          )
+        }
+        return a.fullName.localeCompare(b.fullName) * multiplier
+      })
+  }, [users, accountFilter, query, sortField, sortOrder])
 
-  const citizenPageCount = Math.max(
-    1,
-    Math.ceil(filteredCitizens.length / PAGE_SIZE),
-  )
-  const memberPageCount = Math.max(
-    1,
-    Math.ceil(filteredStaff.length / PAGE_SIZE),
-  )
-  const safeCitizenPage = Math.min(citizenPage, citizenPageCount)
-  const safeMemberPage = Math.min(memberPage, memberPageCount)
+  const currentRows =
+    tab === 'citizens'
+      ? filteredCitizens
+      : tab === 'staff'
+        ? filteredStaff
+        : filteredUsers
+  const pageCount = Math.max(1, Math.ceil(currentRows.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount)
   const visibleCitizens = filteredCitizens.slice(
-    (safeCitizenPage - 1) * PAGE_SIZE,
-    safeCitizenPage * PAGE_SIZE,
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
   )
   const visibleStaff = filteredStaff.slice(
-    (safeMemberPage - 1) * PAGE_SIZE,
-    safeMemberPage * PAGE_SIZE,
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  )
+  const visibleUsers = filteredUsers.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
   )
 
-  function resetPaging() {
-    setCitizenPage(1)
-    setMemberPage(1)
+  function switchTab(nextTab: DirectoryTab) {
+    setTab(nextTab)
+    setPage(1)
+    setEditingCitizenId(null)
+    setEditingStaffId(null)
+    if (nextTab === 'citizens') setSortField('fullName')
+    else if (nextTab === 'staff') setSortField('organization')
+    else setSortField('fullName')
   }
 
   async function run(
     key: string,
     action: () => Promise<void>,
-    successMessage?: string,
+    successMessage: string,
   ) {
     setBusy(key)
     setError(null)
@@ -320,7 +442,7 @@ export function PlatformDirectory({
 
     try {
       await action()
-      if (successMessage) setNotice(successMessage)
+      setNotice(successMessage)
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -347,6 +469,21 @@ export function PlatformDirectory({
     )
   }
 
+  async function handleSaveStaff(
+    user: PlatformUser,
+    request: PlatformStaffUpdate,
+  ) {
+    await run(
+      `staff-${user.id}`,
+      async () => {
+        await updatePlatformStaff(user.id, request)
+        setEditingStaffId(null)
+        refreshData()
+      },
+      'Staff account updated.',
+    )
+  }
+
   async function handleToggleCitizen(citizen: PlatformCitizen) {
     await run(
       `citizen-${citizen.userId}`,
@@ -354,172 +491,71 @@ export function PlatformDirectory({
         await toggleCitizenAccountActive(citizen.userId, !citizen.isActive)
         refreshData()
       },
-      citizen.isActive ? 'Citizen account deactivated.' : 'Citizen account activated.',
+      citizen.isActive
+        ? 'Citizen account deactivated.'
+        : 'Citizen account activated.',
     )
   }
 
-  async function handleChangeRole(member: PlatformStaff, role: string) {
+  async function handleToggleUser(user: PlatformUser) {
     await run(
-      `member-${member.membershipId}`,
+      `user-${user.id}`,
       async () => {
-        await updateMembershipRole(member.organizationId, member.membershipId, role)
+        if (user.isActive) {
+          await deactivatePlatformUser(user.id)
+        } else {
+          await activatePlatformUser(user.id)
+        }
         refreshData()
       },
-      'Membership role updated.',
+      user.isActive ? 'Account deactivated.' : 'Account activated.',
     )
   }
 
-  async function handleToggleMembership(member: PlatformStaff) {
+  async function handleChangePlatformRole(user: PlatformUser, role: string) {
     await run(
-      `member-${member.membershipId}`,
+      `role-${user.id}`,
       async () => {
-        await setMembershipActive(
-          member.organizationId,
-          member.membershipId,
-          !member.isActive,
-        )
+        await changePlatformRole(user.id, role)
         refreshData()
       },
-      member.isActive ? 'Membership deactivated.' : 'Membership activated.',
+      'Platform role updated.',
     )
   }
 
-  async function handleTransfer(member: PlatformStaff, destinationId: string) {
-    if (!destinationId) return
-
-    const destination = organizations.find((item) => item.id === destinationId)
-    if (!destination) return
-
-    const confirmed = window.confirm(
-      `Move ${member.fullName} from ${member.organizationName} to ${destination.name}? The current membership will be deactivated and a new membership will be created in the destination organization.`,
+  const sortOptions =
+    tab === 'citizens' ? (
+      <>
+        <option value="fullName">Name</option>
+        <option value="email">Email</option>
+        <option value="createdAt">Created</option>
+      </>
+    ) : tab === 'staff' ? (
+      <>
+        <option value="fullName">Name</option>
+        <option value="email">Email</option>
+        <option value="organization">Organization</option>
+        <option value="createdAt">Created</option>
+      </>
+    ) : (
+      <>
+        <option value="fullName">Name</option>
+        <option value="email">Email</option>
+        <option value="accountType">Account type</option>
+        <option value="organization">Organization</option>
+        <option value="createdAt">Created</option>
+      </>
     )
-    if (!confirmed) return
-
-    await run(
-      `transfer-${member.membershipId}`,
-      async () => {
-        await transferMembership(
-          member.organizationId,
-          member.membershipId,
-          destinationId,
-          member.role,
-        )
-        refreshData()
-      },
-      `${member.fullName} moved to ${destination.name}.`,
-    )
-  }
-
-  async function handleInvite(
-    fullName: string,
-    email: string,
-    phoneNumber: string,
-    role: string,
-  ): Promise<boolean> {
-    if (!invitationOrganizationId) return false
-
-    setBusy('invite')
-    setError(null)
-    setNotice(null)
-
-    try {
-      const created = await createInvitation(invitationOrganizationId, {
-        fullName,
-        email,
-        phoneNumber: phoneNumber || null,
-        role,
-      })
-      setInvitations((current) => [created, ...current])
-      refreshData()
-      setNotice(
-        created.deliveryFailed
-          ? 'Invitation created, but email delivery failed. Use Resend to retry.'
-          : 'Invitation created and sent.',
-      )
-      return true
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The invitation could not be created.',
-      )
-      return false
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function handleResend(invitationId: string) {
-    await run(
-      `invitation-${invitationId}`,
-      async () => {
-        const updated = await resendInvitation(
-          invitationOrganizationId,
-          invitationId,
-        )
-        setInvitations((current) =>
-          current.map((item) => (item.id === updated.id ? updated : item)),
-        )
-        refreshData()
-      },
-      'Invitation resent.',
-    )
-  }
-
-  async function handleRevoke(invitationId: string) {
-    await run(
-      `invitation-${invitationId}`,
-      async () => {
-        await revokeInvitation(invitationOrganizationId, invitationId)
-        setInvitations((current) =>
-          current.filter((item) => item.id !== invitationId),
-        )
-        refreshData()
-      },
-      'Invitation revoked.',
-    )
-  }
-
-  async function manageInvitations(organizationId: string) {
-    const requestId = invitationRequest.current + 1
-    invitationRequest.current = requestId
-    setInvitationOrganizationId(organizationId)
-    setInvitations([])
-    setNotice(null)
-    setError(null)
-
-    if (!organizationId) {
-      setInvitationsLoading(false)
-      return
-    }
-
-    setInvitationsLoading(true)
-
-    try {
-      const loaded = await getInvitations(organizationId)
-      if (requestId === invitationRequest.current) setInvitations(loaded)
-    } catch (reason) {
-      if (requestId === invitationRequest.current) {
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : 'Invitations could not be loaded.',
-        )
-      }
-    } finally {
-      if (requestId === invitationRequest.current) setInvitationsLoading(false)
-    }
-  }
 
   return (
     <>
       <div className="page-heading">
         <div>
           <p className="eyebrow">PLATFORM DIRECTORY</p>
-          <h1>People across the platform</h1>
+          <h1>User accounts</h1>
           <p className="muted">
-            Citizen accounts and organization memberships, kept distinct and
-            managed from one place.
+            Citizen and staff accounts, plus a consolidated identity view.
+            Organization memberships are managed from the Organizations tab.
           </p>
         </div>
       </div>
@@ -565,17 +601,24 @@ export function PlatformDirectory({
         <div className="admin-row" style={{ marginBottom: 16 }}>
           <button
             className={tab === 'citizens' ? 'primary-button' : 'secondary-button'}
-            onClick={() => { setTab('citizens'); resetPaging() }}
+            onClick={() => switchTab('citizens')}
             type="button"
           >
             Citizens ({citizens.length})
           </button>
           <button
-            className={tab === 'members' ? 'primary-button' : 'secondary-button'}
-            onClick={() => { setTab('members'); resetPaging() }}
+            className={tab === 'staff' ? 'primary-button' : 'secondary-button'}
+            onClick={() => switchTab('staff')}
             type="button"
           >
-            Organization Members ({staff.length})
+            Staff ({staffAccounts.length})
+          </button>
+          <button
+            className={tab === 'users' ? 'primary-button' : 'secondary-button'}
+            onClick={() => switchTab('users')}
+            type="button"
+          >
+            All Users ({users.length})
           </button>
         </div>
 
@@ -583,36 +626,37 @@ export function PlatformDirectory({
           <input
             aria-label="Search directory"
             type="search"
-            placeholder="Search by name, email, phone, organization or role…"
+            placeholder="Search by name, email, phone, type, organization or role…"
             value={searchQuery}
             onChange={(event) => {
               setSearchQuery(event.target.value)
-              resetPaging()
+              setPage(1)
             }}
             style={{ flex: 1, minWidth: 240 }}
           />
+          {tab === 'users' && (
+            <select
+              aria-label="Filter account type"
+              value={accountFilter}
+              onChange={(event) => {
+                setAccountFilter(event.target.value as AccountFilter)
+                setPage(1)
+              }}
+            >
+              <option value="all">All accounts</option>
+              <option value="citizens">Citizens only</option>
+              <option value="staff">Staff only</option>
+            </select>
+          )}
           <select
             aria-label="Sort by"
-            value={tab === 'citizens' ? citizenSort : memberSort}
+            value={sortField}
             onChange={(event) => {
-              if (tab === 'citizens') {
-                setCitizenSort(event.target.value as CitizenSortField)
-              } else {
-                setMemberSort(event.target.value as MemberSortField)
-              }
-              resetPaging()
+              setSortField(event.target.value as SortField)
+              setPage(1)
             }}
           >
-            <option value="fullName">Name</option>
-            <option value="email">Email</option>
-            {tab === 'citizens' ? (
-              <option value="createdAt">Created</option>
-            ) : (
-              <>
-                <option value="organizationName">Organization</option>
-                <option value="membershipCreatedAt">Member since</option>
-              </>
-            )}
+            {sortOptions}
           </select>
           <button
             className="secondary-button"
@@ -628,250 +672,288 @@ export function PlatformDirectory({
 
         {loading ? (
           <p className="muted empty-state">Loading the platform directory…</p>
-        ) : tab === 'citizens' ? (
-          filteredCitizens.length === 0 ? (
-            <p className="muted empty-state">
-              {query
-                ? 'No citizens match your search.'
-                : 'No citizen accounts were returned.'}
-            </p>
-          ) : (
-            <>
-              <div aria-label="Platform citizens" className="table-wrap" role="region" tabIndex={0}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>NAME</th>
-                      <th>CONTACT</th>
-                      <th>ACCOUNT</th>
-                      <th>EMAIL</th>
-                      <th>NID</th>
-                      <th>GENDER</th>
-                      <th>AGE</th>
-                      <th>CREATED</th>
-                      <th>PROFILE UPDATED</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleCitizens.map((citizen) => (
-                      <Fragment key={citizen.userId}>
-                        <tr>
-                          <td><strong>{citizen.fullName}</strong></td>
-                          <td>
-                            {citizen.email}
-                            <span style={{ display: 'block' }}>
-                              {citizen.phoneNumber ?? '—'}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={citizen.isActive ? 'status-green' : 'status-amber'}>
-                              {citizen.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={citizen.emailConfirmed ? 'status-green' : 'status-amber'}>
-                              {citizen.emailConfirmed ? 'Confirmed' : 'Unconfirmed'}
-                            </span>
-                          </td>
-                          <td>{citizen.nidNumber ?? '—'}</td>
-                          <td>{citizen.gender ?? '—'}</td>
-                          <td>{citizen.age ?? '—'}</td>
-                          <td>{new Date(citizen.createdAt).toLocaleDateString()}</td>
-                          <td>{new Date(citizen.updatedAt).toLocaleDateString()}</td>
-                          <td>
-                            <button
-                              className="secondary-button"
-                              disabled={busy !== null}
-                              onClick={() =>
-                                setEditingCitizenId(
-                                  editingCitizenId === citizen.userId
-                                    ? null
-                                    : citizen.userId,
-                                )
-                              }
-                              type="button"
-                            >
-                              {editingCitizenId === citizen.userId ? 'Close' : 'Edit'}
-                            </button>
-                            <button
-                              className="secondary-button"
-                              disabled={busy !== null}
-                              onClick={() => void handleToggleCitizen(citizen)}
-                              type="button"
-                            >
-                              {citizen.isActive ? 'Deactivate' : 'Activate'}
-                            </button>
-                          </td>
-                        </tr>
-                        {editingCitizenId === citizen.userId && (
-                          <CitizenEditor
-                            key={`${citizen.userId}-editor`}
-                            citizen={citizen}
-                            busy={busy !== null}
-                            onCancel={() => setEditingCitizenId(null)}
-                            onSave={(request) => handleSaveCitizen(citizen, request)}
-                          />
-                        )}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination
-                page={safeCitizenPage}
-                pageCount={citizenPageCount}
-                onPageChange={setCitizenPage}
-              />
-            </>
-          )
-        ) : filteredStaff.length === 0 ? (
+        ) : currentRows.length === 0 ? (
           <p className="muted empty-state">
-            {query
-              ? 'No organization members match your search.'
-              : 'No organization memberships were returned.'}
+            {query || (tab === 'users' && accountFilter !== 'all')
+              ? 'No accounts match the current filters.'
+              : tab === 'citizens'
+                ? 'No citizen accounts were returned.'
+                : tab === 'staff'
+                  ? 'No staff accounts were returned.'
+                  : 'No user accounts were returned.'}
           </p>
-        ) : (
+        ) : tab === 'citizens' ? (
           <>
-            <div aria-label="Platform organization members" className="table-wrap" role="region" tabIndex={0}>
+            <div aria-label="Platform citizens" className="table-wrap" role="region" tabIndex={0}>
               <table>
                 <thead>
                   <tr>
                     <th>NAME</th>
                     <th>CONTACT</th>
-                    <th>ORGANIZATION</th>
-                    <th>ROLE</th>
-                    <th>MEMBERSHIP</th>
                     <th>ACCOUNT</th>
-                    <th>MEMBER SINCE</th>
+                    <th>EMAIL</th>
+                    <th>NID</th>
+                    <th>GENDER</th>
+                    <th>AGE</th>
+                    <th>CREATED</th>
+                    <th>PROFILE UPDATED</th>
                     <th>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleStaff.map((member) => (
-                    <tr key={member.membershipId}>
-                      <td><strong>{member.fullName}</strong></td>
+                  {visibleCitizens.map((citizen) => (
+                    <Fragment key={citizen.userId}>
+                      <tr>
+                        <td><strong>{citizen.fullName}</strong></td>
+                        <td>
+                          {citizen.email}
+                          <span style={{ display: 'block' }}>
+                            {citizen.phoneNumber ?? '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={citizen.isActive ? 'status-green' : 'status-amber'}>
+                            {citizen.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={citizen.emailConfirmed ? 'status-green' : 'status-amber'}>
+                            {citizen.emailConfirmed ? 'Confirmed' : 'Unconfirmed'}
+                          </span>
+                        </td>
+                        <td>{citizen.nidNumber ?? '—'}</td>
+                        <td>{citizen.gender ?? '—'}</td>
+                        <td>{citizen.age ?? '—'}</td>
+                        <td>{new Date(citizen.createdAt).toLocaleDateString()}</td>
+                        <td>{new Date(citizen.updatedAt).toLocaleDateString()}</td>
+                        <td>
+                          <button
+                            className="secondary-button"
+                            disabled={busy !== null}
+                            onClick={() =>
+                              setEditingCitizenId(
+                                editingCitizenId === citizen.userId
+                                  ? null
+                                  : citizen.userId,
+                              )
+                            }
+                            type="button"
+                          >
+                            {editingCitizenId === citizen.userId ? 'Close' : 'Edit'}
+                          </button>
+                          <button
+                            className="secondary-button"
+                            disabled={busy !== null}
+                            onClick={() => void handleToggleCitizen(citizen)}
+                            type="button"
+                          >
+                            {citizen.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                      {editingCitizenId === citizen.userId && (
+                        <CitizenEditor
+                          key={`${citizen.userId}-editor`}
+                          citizen={citizen}
+                          busy={busy !== null}
+                          onCancel={() => setEditingCitizenId(null)}
+                          onSave={(request) => handleSaveCitizen(citizen, request)}
+                        />
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : tab === 'staff' ? (
+          <div aria-label="Platform staff accounts" className="table-wrap" role="region" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th>NAME</th>
+                  <th>CONTACT</th>
+                  <th>ORGANIZATIONS &amp; ROLES</th>
+                  <th>ACCOUNT</th>
+                  <th>EMAIL</th>
+                  <th>PLATFORM ROLE</th>
+                  <th>CREATED</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleStaff.map((user) => (
+                  <Fragment key={user.id}>
+                    <tr>
+                      <td><strong>{user.fullName}</strong></td>
                       <td>
-                        {member.email}
+                        {user.email}
                         <span style={{ display: 'block' }}>
-                          {member.phoneNumber ?? '—'}
+                          {user.phoneNumber ?? '—'}
                         </span>
                       </td>
                       <td>
-                        <strong>{member.organizationName}</strong>
-                        <span style={{ display: 'block' }}>{member.organizationCode}</span>
+                        {user.organizations.length === 0 ? (
+                          <span className="muted">No memberships</span>
+                        ) : (
+                          user.organizations.map((organization) => (
+                            <button
+                              className="link-button"
+                              key={organization.membershipId}
+                              onClick={() => onOpenOrganization(organization.organizationId)}
+                              style={{ display: 'block', padding: 0 }}
+                              type="button"
+                            >
+                              {organization.organizationName} · {organization.role}
+                              {organization.isActive ? '' : ' (inactive)'}
+                            </button>
+                          ))
+                        )}
+                      </td>
+                      <td>
+                        <span className={user.isActive ? 'status-green' : 'status-amber'}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={user.emailConfirmed ? 'status-green' : 'status-amber'}>
+                          {user.emailConfirmed ? 'Confirmed' : 'Unconfirmed'}
+                        </span>
+                      </td>
+                      <td>{user.platformRole}</td>
+                      <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        <button
+                          className="secondary-button"
+                          disabled={busy !== null}
+                          onClick={() =>
+                            setEditingStaffId(
+                              editingStaffId === user.id ? null : user.id,
+                            )
+                          }
+                          type="button"
+                        >
+                          {editingStaffId === user.id ? 'Close' : 'Edit'}
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={busy !== null}
+                          onClick={() => void handleToggleUser(user)}
+                          type="button"
+                        >
+                          {user.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </td>
+                    </tr>
+                    {editingStaffId === user.id && (
+                      <StaffEditor
+                        key={`${user.id}-editor`}
+                        user={user}
+                        busy={busy !== null}
+                        onCancel={() => setEditingStaffId(null)}
+                        onSave={(request) => handleSaveStaff(user, request)}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div aria-label="All platform users" className="table-wrap" role="region" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th>NAME</th>
+                  <th>CONTACT</th>
+                  <th>TYPE</th>
+                  <th>ACCOUNT</th>
+                  <th>EMAIL</th>
+                  <th>PLATFORM ROLE</th>
+                  <th>MEMBERSHIPS</th>
+                  <th>CREATED</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleUsers.map((user) => (
+                  <Fragment key={user.id}>
+                    <tr>
+                      <td><strong>{user.fullName}</strong></td>
+                      <td>
+                        {user.email}
+                        <span style={{ display: 'block' }}>
+                          {user.phoneNumber ?? '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="status-chip">{accountType(user)}</span>
+                      </td>
+                      <td>
+                        <span className={user.isActive ? 'status-green' : 'status-amber'}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={user.emailConfirmed ? 'status-green' : 'status-amber'}>
+                          {user.emailConfirmed ? 'Confirmed' : 'Unconfirmed'}
+                        </span>
                       </td>
                       <td>
                         <select
-                          aria-label={`Role for ${member.fullName}`}
-                          value={member.role}
+                          aria-label={`Platform role for ${user.fullName}`}
+                          value={user.platformRole}
                           disabled={busy !== null}
                           onChange={(event) =>
-                            void handleChangeRole(member, event.target.value)}
+                            void handleChangePlatformRole(user, event.target.value)}
                         >
-                          {CITIZEN_ROLES.map((role) => (
+                          {PLATFORM_ROLES.map((role) => (
                             <option key={role} value={role}>{role}</option>
                           ))}
                         </select>
                       </td>
                       <td>
-                        <span className={member.isActive ? 'status-green' : 'status-amber'}>
-                          {member.isActive ? 'Active' : 'Inactive'}
-                        </span>
+                        {user.organizations.length === 0 ? (
+                          <span className="muted">None</span>
+                        ) : (
+                          user.organizations.map((organization) => (
+                            <button
+                              className="link-button"
+                              key={organization.membershipId}
+                              onClick={() => onOpenOrganization(organization.organizationId)}
+                              style={{ display: 'block', padding: 0 }}
+                              type="button"
+                            >
+                              {organization.organizationName} · {organization.role}
+                              {organization.isActive ? '' : ' (inactive)'}
+                            </button>
+                          ))
+                        )}
                       </td>
-                      <td>
-                        <span className={member.accountIsActive ? 'status-green' : 'status-amber'}>
-                          {member.accountIsActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td>{new Date(member.membershipCreatedAt).toLocaleDateString()}</td>
+                      <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                       <td>
                         <button
                           className="secondary-button"
                           disabled={busy !== null}
-                          onClick={() => void handleToggleMembership(member)}
+                          onClick={() => void handleToggleUser(user)}
                           type="button"
                         >
-                          {member.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <select
-                          aria-label={`Move ${member.fullName} to another organization`}
-                          value=""
-                          disabled={busy !== null || organizations.length < 2}
-                          onChange={(event) =>
-                            void handleTransfer(member, event.target.value)}
-                        >
-                          <option value="">Move to…</option>
-                          {organizations
-                            .filter(
-                              (organization) =>
-                                organization.id !== member.organizationId &&
-                                organization.isActive,
-                            )
-                            .map((organization) => (
-                              <option key={organization.id} value={organization.id}>
-                                {organization.name}
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          className="secondary-button"
-                          disabled={busy !== null}
-                          onClick={() => void manageInvitations(member.organizationId)}
-                          type="button"
-                        >
-                          Invitations
+                          {user.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              page={safeMemberPage}
-              pageCount={memberPageCount}
-              onPageChange={setMemberPage}
-            />
-          </>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </section>
 
-      <section className="case-card admin-panel">
-        <h2>Member invitations</h2>
-        <p className="muted">
-          Invitations are scoped to one organization. Inviting a person creates
-          a single-use link; access is granted only after the invitation is
-          accepted and the membership becomes active.
-        </p>
-        <div className="admin-row" style={{ marginBottom: 16 }}>
-          <select
-            aria-label="Invitation organization"
-            value={invitationOrganizationId}
-            onChange={(event) => void manageInvitations(event.target.value)}
-          >
-            <option value="">Select an organization…</option>
-            {organizations.map((organization) => (
-              <option key={organization.id} value={organization.id}>
-                {organization.name} ({organization.code})
-                {organization.isActive ? '' : ' · inactive'}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {invitationOrganizationId ? (
-          <InvitationManager
-            invitations={invitations}
-            loading={busy !== null || invitationsLoading}
-            onInvite={handleInvite}
-            onResend={handleResend}
-            onRevoke={handleRevoke}
-            roleOptions={invitationRoles}
-          />
-        ) : (
-          <p className="muted empty-state">
-            Select an organization to view or send invitations.
+        <Pagination page={safePage} pageCount={pageCount} onPageChange={setPage} />
+        {tab === 'users' && (
+          <p className="muted" style={{ marginTop: 8 }}>
+            Each identity appears once. Organizations shows every membership
+            without creating duplicate account rows.
           </p>
         )}
       </section>

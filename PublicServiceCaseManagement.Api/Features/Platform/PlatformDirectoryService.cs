@@ -52,6 +52,14 @@ public sealed class PlatformDirectoryService(
 
         var roleNames = await LoadRoleNamesAsync(userIds, cancellationToken);
 
+        var citizenUserIds = await dbContext.CitizenProfiles
+            .AsNoTracking()
+            .Where(profile => userIds.Contains(profile.ApplicationUserId))
+            .Select(profile => profile.ApplicationUserId)
+            .ToListAsync(cancellationToken);
+
+        var citizenSet = citizenUserIds.ToHashSet();
+
         return users
             .Select(user => new PlatformUserSummary(
                 user.Id,
@@ -62,6 +70,10 @@ public sealed class PlatformDirectoryService(
                     : user.PhoneNumber,
                 user.EmailConfirmed,
                 user.IsActive,
+                citizenSet.Contains(user.Id),
+                memberships.Any(membership => membership.UserId == user.Id) ||
+                    (roleNames.TryGetValue(user.Id, out var userRoles) &&
+                     userRoles.Contains(AppRoles.Staff, StringComparer.OrdinalIgnoreCase)),
                 user.PlatformRole.ToString(),
                 roleNames.TryGetValue(user.Id, out var names)
                     ? names
@@ -229,6 +241,65 @@ public sealed class PlatformDirectoryService(
         return rows
             .Select(row => ToCitizenSummary(row.User, row.Profile))
             .ToList();
+    }
+
+    public async Task<PlatformUserSummary> UpdateStaffAccountAsync(
+        Guid userId,
+        UpdatePlatformStaffRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException("The staff account does not exist.");
+        }
+
+        var isStaff = await dbContext.OrganizationMemberships
+            .AnyAsync(membership => membership.UserId == userId, cancellationToken);
+
+        if (!isStaff)
+        {
+            throw new InvalidOperationException(
+                "The account is not associated with any organization membership.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FullName) ||
+            request.FullName.Trim().Length > 150)
+        {
+            throw new ArgumentException(
+                "Full name is required and must not exceed 150 characters.",
+                nameof(request.FullName));
+        }
+
+        var phoneNumber = Domain.PhoneNumbers.Normalize(
+            request.PhoneNumber,
+            nameof(request.PhoneNumber));
+
+        var now = timeProvider.GetUtcNow();
+
+        user.FullName = request.FullName.Trim();
+        user.PhoneNumber = phoneNumber;
+        user.UpdatedAt = now;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = AuditActions.AccountProfileUpdated,
+                EntityType = "ApplicationUser",
+                EntityId = user.Id.ToString(),
+                Details = $"Staff account {user.Email} updated by a platform administrator."
+            },
+            cancellationToken);
+
+        var summary = (await GetUsersAsync(cancellationToken))
+            .Single(item => item.Id == user.Id);
+
+        return summary;
     }
 
     public async Task<PlatformCitizenSummary> UpdateCitizenAsync(

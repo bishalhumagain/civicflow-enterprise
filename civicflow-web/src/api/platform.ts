@@ -1,5 +1,5 @@
 import { authFetch } from "../auth";
-import type { PlatformOverview, PlatformUser, PlatformStaff } from "../domain";
+import type { PlatformOverview, PlatformStaff, PlatformStaffUpdate, PlatformUser } from "../domain";
 
 async function readErrorMessage(
   response: Response,
@@ -72,6 +72,34 @@ export async function getPlatformStaff(): Promise<PlatformStaff[]> {
   }
 
   return (await response.json()) as PlatformStaff[];
+}
+
+export async function updatePlatformStaff(
+  userId: string,
+  request: PlatformStaffUpdate,
+): Promise<PlatformUser> {
+  const response = await authFetch(
+    `/api/platform/staff/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw new PlatformApiError(
+      await readErrorMessage(
+        response,
+        `Failed to update staff account: ${response.status}`,
+      ),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as PlatformUser;
 }
 
 export async function activatePlatformUser(userId: string): Promise<void> {

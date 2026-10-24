@@ -2,6 +2,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests;
@@ -106,6 +108,59 @@ public sealed class OrganizationApiIntegrationTests
             json.RootElement.EnumerateArray(),
             organization =>
                 organization.GetProperty("code").GetString() == "POKHARA");
+    }
+
+    [Fact]
+    public async Task GetOrganizations_AsOrganizationAdmin_ReturnsOnlyActiveManagedOrganizations()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
+        using var client = factory.CreateClient();
+
+        _ = await factory.SeedAdditionalOrganizationForAuthenticatedUserAsync(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
+        var inactiveManagedOrganizationId =
+            await factory.SeedAdditionalOrganizationForAuthenticatedUserAsync(
+                PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.OrganizationAdmin);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<
+                    PublicServiceCaseManagement.Api.Infrastructure.Persistence.CivicFlowDbContext>();
+            var membership = await dbContext.OrganizationMemberships.SingleAsync(
+                candidate =>
+                    candidate.OrganizationId == inactiveManagedOrganizationId &&
+                    candidate.UserId == TestAuthenticationHandler.DefaultUserId);
+            membership.Deactivate(DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var response = await client.GetAsync("/api/organizations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+        var organization = Assert.Single(
+            json.RootElement.EnumerateArray());
+        Assert.Equal(
+            "CIVICFLOW-DEV",
+            organization.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task GetOrganizations_AsCaseWorker_ReturnsEmpty()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/organizations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+        Assert.Empty(json.RootElement.EnumerateArray());
     }
 
     [Fact]
