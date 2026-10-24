@@ -408,6 +408,12 @@ public sealed class AuthService(
 
         await userManager.UpdateSecurityStampAsync(user);
 
+        // The stamp rotation invalidates every existing session. Because this
+        // is a self-service change made from an already-authenticated browser,
+        // refresh the sign-in so the current session keeps working while all
+        // other sessions (still carrying the old stamp) are revoked.
+        await signInManager.RefreshSignInAsync(user);
+
         await auditLogger.AccountLifecycleAsync(
             user.Email ?? string.Empty,
             user.Id,

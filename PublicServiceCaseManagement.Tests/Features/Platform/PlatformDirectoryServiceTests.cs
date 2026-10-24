@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Platform;
@@ -22,7 +24,36 @@ public sealed class PlatformDirectoryServiceTests
 
         var context = new CivicFlowDbContext(options);
 
-        return (context, new PlatformDirectoryService(context, TimeProvider.System, new RecordingAuditLogger()));
+        var userManager = CreateUserManager(context);
+
+        return (context, new PlatformDirectoryService(
+            context,
+            userManager,
+            TimeProvider.System,
+            new RecordingAuditLogger()));
+    }
+
+    /// <summary>
+    /// Builds a functional <see cref="UserManager{TUser}"/> over the supplied
+    /// in-memory context so security-stamp rotation exercised by the service
+    /// writes to the same store the test reads back.
+    /// </summary>
+    private static UserManager<ApplicationUser> CreateUserManager(
+        CivicFlowDbContext context)
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddSingleton(context);
+        services.AddIdentityCore<ApplicationUser>()
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<CivicFlowDbContext>();
+
+        return services
+            .BuildServiceProvider()
+            .CreateScope()
+            .ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
     }
 
     [Fact]

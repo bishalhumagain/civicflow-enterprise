@@ -1,4 +1,5 @@
 
+using System.Net;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
@@ -175,6 +176,15 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
+// Revalidate the Identity security stamp on every request so an issued session
+// stops working the moment the stamp changes — password change/reset, account
+// deactivation, or a platform-role change — instead of lingering for the
+// default 30-minute validation window.
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.Zero;
+});
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AppRoles.StaffPolicy, policy =>
@@ -327,20 +337,60 @@ var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
 
+// Development-only trust rule for the Vite dev server. Vite hops to the next
+// free port (5173, 5174, 5175, ...) whenever the preferred one is busy, so a
+// fixed origin allowlist breaks login the moment the port changes. Cookies are
+// scoped to localhost (shared across every port), which is exactly why the
+// port must not be pinned here. Only first-party loopback http origins are
+// accepted — never a public host, a wildcard, or arbitrary origins with
+// credentials. This predicate is never consulted outside Development.
+static bool IsTrustedLoopbackOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+        uri.Scheme != Uri.UriSchemeHttp)
+    {
+        return false;
+    }
+
+    if (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return IPAddress.TryParse(uri.Host, out var address) &&
+           IPAddress.IsLoopback(address);
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (allowedOrigins.Length == 0)
+        if (isDevelopment)
         {
-            return;
+            policy
+                .SetIsOriginAllowed(origin =>
+                    IsTrustedLoopbackOrigin(origin) ||
+                    Array.Exists(
+                        allowedOrigins,
+                        allowed => string.Equals(
+                            allowed,
+                            origin,
+                            StringComparison.OrdinalIgnoreCase)))
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
         }
-
-        policy
-            .WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+        else if (allowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
+        // Non-development with no configured origins: no policy is registered,
+        // so cross-origin requests are refused. The SPA is served same-origin
+        // behind a reverse proxy in production, which needs no CORS.
     });
 });
 
@@ -354,6 +404,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
@@ -362,6 +417,7 @@ app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<SessionLifetimeMiddleware>();
 app.UseMiddleware<AntiforgeryMiddleware>();
 app.UseMiddleware<OrganizationTransactionMiddleware>();
 

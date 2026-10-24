@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -19,6 +20,7 @@ namespace PublicServiceCaseManagement.Api.Features.Platform;
 /// </remarks>
 public sealed class PlatformDirectoryService(
     CivicFlowDbContext dbContext,
+    UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider,
     IAuditLogger auditLogger) : IPlatformDirectoryService
 {
@@ -410,6 +412,11 @@ public sealed class PlatformDirectoryService(
         user.UpdatedAt = timeProvider.GetUtcNow();
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Rotating the security stamp invalidates any session cookie the
+        // account is still holding, so deactivating an account takes effect
+        // immediately rather than only blocking new sign-ins.
+        await userManager.UpdateSecurityStampAsync(user);
     }
 
     public async Task ChangePlatformRoleAsync(
@@ -433,6 +440,10 @@ public sealed class PlatformDirectoryService(
         user.UpdatedAt = timeProvider.GetUtcNow();
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // A privilege change must not leave a stale session in place: rotating
+        // the stamp forces the account's cookie to be re-evaluated now.
+        await userManager.UpdateSecurityStampAsync(user);
     }
 
     private static PlatformCitizenSummary ToCitizenSummary(
