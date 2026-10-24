@@ -202,8 +202,27 @@ export async function authFetch(
 async function looksLikeCsrfFailure(response: Response): Promise<boolean> {
   try {
     const body = await response.clone().json()
+
+    // Preferred: the server emits a stable, machine-readable code so wording
+    // changes in the human-readable message can never break recovery.
+    if (
+      body &&
+      typeof body === 'object' &&
+      'code' in body &&
+      (body as { code?: unknown }).code === 'antiforgery_invalid'
+    ) {
+      return true
+    }
+
+    // Fallback for older responses that only carried the message text. Match
+    // both the hyphenated and non-hyphenated spellings so a stale token is
+    // always refreshed instead of surfacing as a hard error.
     const text = JSON.stringify(body).toLowerCase()
-    return text.includes('antiforgery') || text.includes('csrf')
+    return (
+      text.includes('antiforgery') ||
+      text.includes('anti-forgery') ||
+      text.includes('csrf')
+    )
   } catch {
     return false
   }
@@ -237,6 +256,10 @@ export async function login(
   password: string,
   portal: SignInPortal = 'citizen',
 ): Promise<AuthUser> {
+  // Drop any token cached from a previous user's session before signing in, so
+  // the new session never builds requests on a stale anti-forgery pair.
+  clearCsrfToken()
+
   const response = await authFetch(loginEndpoint(portal), {
     method: 'POST',
     body: JSON.stringify({ email, password }),

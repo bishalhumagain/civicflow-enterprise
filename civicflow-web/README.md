@@ -27,7 +27,7 @@ Authentication is first-party and handled by the CivicFlow API using HttpOnly se
 
 - The browser session is an HttpOnly, SameSite cookie — the frontend never stores tokens or secrets in JavaScript-accessible storage.
 - API requests are made with `credentials: 'include'`.
-- State-changing requests (`POST`/`PUT`/`PATCH`/`DELETE`) attach an anti-forgery token in the `X-CSRF-TOKEN` header. The token is fetched from `GET /api/auth/csrf` and cached in memory by `authFetch` in `src/auth.ts`; on a CSRF failure the token is refreshed once and the request retried.
+- State-changing requests (`POST`/`PUT`/`PATCH`/`DELETE`) attach an anti-forgery token in the `X-CSRF-TOKEN` header. The token is fetched from `GET /api/auth/csrf` and cached in memory by `authFetch` in `src/auth.ts`; `login` clears any cached token before signing in so a token from a previous user is never reused. On a CSRF failure the server returns the stable code `antiforgery_invalid`, and the token is refreshed once and the request retried.
 - `src/api.ts` and `src/api-client.ts` build on `authFetch` and set the `X-Organization-Id` header for organization-scoped endpoints.
 
 There is no OIDC/bearer-token handling in the frontend.

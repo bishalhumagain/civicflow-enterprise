@@ -45,8 +45,12 @@ public sealed class AntiforgeryMiddleware(RequestDelegate next)
             httpContext.Response.StatusCode =
                 StatusCodes.Status400BadRequest;
 
+            // The `code` is a stable, machine-readable identifier that clients
+            // key off of to refresh the anti-forgery token and retry. The
+            // `error` string is human-facing only and must not be parsed.
             await httpContext.Response.WriteAsJsonAsync(new
             {
+                code = AntiforgeryErrorCodes.InvalidToken,
                 error = "The anti-forgery token is missing or invalid."
             });
 

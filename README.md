@@ -262,7 +262,7 @@ HTTP request
 
 | File | Role |
 |---|---|
-| `auth.ts` | `authFetch` wraps `fetch` with `credentials: 'include'`, CSRF header on unsafe methods, automatic CSRF retry. Login re-validates portal and logs out on mismatch. |
+| `auth.ts` | `authFetch` wraps `fetch` with `credentials: 'include'`, CSRF header on unsafe methods, and automatic CSRF retry keyed on the server's stable `antiforgery_invalid` code. `login` clears any token cached by a previous user before signing in, re-validates portal, and logs out on mismatch. |
 | `api.ts` | `apiRequest` wraps `authFetch` with `X-Organization-Id` header. |
 | `api-client.ts` | `requestJson<T>` wraps `apiRequest` with JSON parsing and `ApiError` class (status + code). |
 | `api/citizens.ts` | Citizen profile API client. |
@@ -727,7 +727,7 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 |---|---|
 | **Auth lifecycle** | Registration, email confirmation, login, logout, password recovery, change password — using real Identity cookie flow with cookie container and capturing email sender |
 | **Portal-scoped sign-in** | Citizen/staff/superadmin acceptance on matching portal, wrong-portal rejection with codes, session cleanup after rejected attempt, role-gated endpoint access |
-| **Anti-forgery** | CSRF rejection of unsafe requests without valid token, acceptance with valid token |
+| **Anti-forgery** | CSRF rejection of unsafe requests without valid token (returns stable `antiforgery_invalid` code), acceptance with valid token, and refresh-token-then-retry recovery after a session switch |
 | **Invitation lifecycle** | Creation, token hashing at rest, lookup, password setup, reuse/expiry/revocation (`410`), duplicate/member conflicts (`409`), role escalation rejection, cross-org denial, existing-account linking |
 | **Super-admin seeding** | Fresh seed + login, weak/partial seed failure, skip when unconfigured, repair of damaged account, password-change preservation |
 | **Personal access tokens** | Creation, hashing, bearer auth, role propagation, least privilege, tampering, expiry, revocation |
