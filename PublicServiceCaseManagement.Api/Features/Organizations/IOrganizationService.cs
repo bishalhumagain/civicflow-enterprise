@@ -7,7 +7,8 @@ public interface IOrganizationService
     Task<Organization> CreateAsync(
         string name,
         string code,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? organizationTypeId = null);
 
     Task<IReadOnlyList<Organization>> GetAllAsync(
         CancellationToken cancellationToken);
@@ -31,7 +32,8 @@ public interface IOrganizationService
         Guid organizationId,
         string name,
         string code,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? organizationTypeId = null);
 
     Task<Organization?> SetActiveStatusAsync(
         Guid organizationId,

@@ -12,6 +12,7 @@ namespace PublicServiceCaseManagement.Api.Features.Organizations;
 [Route("api/organizations")]
 public sealed class OrganizationsController(
     IOrganizationService organizationService,
+    IOrganizationTypeService organizationTypeService,
     IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext,
     IOrganizationTransactionContext organizationTransactionContext) : ControllerBase
@@ -32,11 +33,12 @@ public sealed class OrganizationsController(
             var organization = await organizationService.CreateAsync(
                 request.Name,
                 request.Code,
-                cancellationToken);
+                cancellationToken,
+                request.OrganizationTypeId);
 
             return Created(
                 $"/api/organizations/{organization.Id}",
-                ToResponse(organization));
+                await ToResponseAsync(organization, cancellationToken));
         }
         catch (ArgumentException exception)
         {
@@ -60,7 +62,9 @@ public sealed class OrganizationsController(
             var allOrganizations = await organizationService.GetAllAsync(
                 cancellationToken);
 
-            return Ok(allOrganizations.Select(ToResponse).ToList());
+            return Ok(await ToResponsesAsync(
+                allOrganizations,
+                cancellationToken));
         }
 
         var userId = await organizationContext.GetApplicationUserIdAsync(
@@ -74,7 +78,9 @@ public sealed class OrganizationsController(
                 userId.Value,
                 cancellationToken);
 
-        return Ok(managedOrganizations.Select(ToResponse).ToList());
+        return Ok(await ToResponsesAsync(
+            managedOrganizations,
+            cancellationToken));
     }
 
     [HttpGet("me")]
@@ -115,7 +121,7 @@ public sealed class OrganizationsController(
         if (organization is null)
             return NotFound();
 
-        return Ok(ToResponse(organization));
+        return Ok(await ToResponseAsync(organization, cancellationToken));
     }
 
     [HttpPut("{id:guid}")]
@@ -136,12 +142,13 @@ public sealed class OrganizationsController(
                 id,
                 request.Name,
                 request.Code,
-                cancellationToken);
+                cancellationToken,
+                request.OrganizationTypeId);
 
             if (organization is null)
                 return NotFound();
 
-            return Ok(ToResponse(organization));
+            return Ok(await ToResponseAsync(organization, cancellationToken));
         }
         catch (ArgumentException exception)
         {
@@ -216,7 +223,7 @@ public sealed class OrganizationsController(
         if (organization is null)
             return NotFound();
 
-        return Ok(ToResponse(organization));
+        return Ok(await ToResponseAsync(organization, cancellationToken));
     }
 
     private async Task<bool> IsPlatformSuperAdminAsync(
@@ -228,13 +235,47 @@ public sealed class OrganizationsController(
         return role == PlatformRole.SuperAdmin;
     }
 
-    private static OrganizationResponse ToResponse(
-        Domain.Organizations.Organization organization) =>
-        new(
+    private async Task<OrganizationResponse> ToResponseAsync(
+        Domain.Organizations.Organization organization,
+        CancellationToken cancellationToken)
+    {
+        var names = await organizationTypeService.GetNamesByIdsAsync(
+            new[] { organization.OrganizationTypeId },
+            cancellationToken);
+
+        return new OrganizationResponse(
             organization.Id,
             organization.Name,
             organization.Code,
+            organization.OrganizationTypeId,
+            names.GetValueOrDefault(organization.OrganizationTypeId),
             organization.IsActive,
             organization.CreatedAt,
             organization.UpdatedAt);
+    }
+
+    private async Task<IReadOnlyList<OrganizationResponse>> ToResponsesAsync(
+        IReadOnlyList<Domain.Organizations.Organization> organizations,
+        CancellationToken cancellationToken)
+    {
+        if (organizations.Count == 0)
+            return Array.Empty<OrganizationResponse>();
+
+        var names = await organizationTypeService.GetNamesByIdsAsync(
+            organizations.Select(organization =>
+                organization.OrganizationTypeId),
+            cancellationToken);
+
+        return organizations
+            .Select(organization => new OrganizationResponse(
+                organization.Id,
+                organization.Name,
+                organization.Code,
+                organization.OrganizationTypeId,
+                names.GetValueOrDefault(organization.OrganizationTypeId),
+                organization.IsActive,
+                organization.CreatedAt,
+                organization.UpdatedAt))
+            .ToList();
+    }
 }

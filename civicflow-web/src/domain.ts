@@ -8,6 +8,7 @@ export type WorkspaceView =
   | 'staff'
   | 'activity'
   | 'organizations'
+  | 'organization-types'
   | 'platform-directory'
   | 'platform-audit'
   | 'platform-dashboard'
@@ -31,7 +32,8 @@ export type HistoryEntry = { id: string; previousStatus: CaseStatus; newStatus: 
 export type CaseDocument = { id: string; originalFileName: string; contentType: string; sizeBytes: number; uploadedAt: string }
 export type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; previousRole: 'CaseWorker' | 'Viewer' | null; newRole: 'CaseWorker' | 'Viewer'; assignedAt: string; assignedByUserId: string | null }
 export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
-export type Organization = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string }
+export type Organization = { id: string; name: string; code: string; organizationTypeId: string; organizationTypeName: string | null; isActive: boolean; createdAt: string; updatedAt: string }
+export type OrganizationType = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string; organizationCount: number }
 export type OrganizationWorkspaceOption = { id: string; name: string; code: string; role: string }
 export type Membership = { id: string; userId: string; organizationId: string; role: string; isActive: boolean; createdAt: string; updatedAt: string }
 export type AccountInvitation = {

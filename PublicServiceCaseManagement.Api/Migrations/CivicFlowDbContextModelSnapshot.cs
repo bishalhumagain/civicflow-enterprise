@@ -782,6 +782,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("OrganizationTypeId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -789,6 +792,8 @@ namespace PublicServiceCaseManagement.Api.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("OrganizationTypeId");
 
                     b.ToTable("organizations", (string)null);
 
@@ -800,6 +805,7 @@ namespace PublicServiceCaseManagement.Api.Migrations
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             Name = "CivicFlow Development Organization",
+                            OrganizationTypeId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
                 });
@@ -838,6 +844,50 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasIndex("OrganizationId", "IsActive", "Role");
 
                     b.ToTable("organization_memberships", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("organization_types", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Code = "UNCATEGORIZED",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Name = "Uncategorized",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Staff.StaffMember", b =>
@@ -1218,6 +1268,15 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.OrganizationType", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

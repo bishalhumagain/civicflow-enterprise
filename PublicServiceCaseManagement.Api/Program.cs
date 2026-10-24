@@ -291,6 +291,7 @@ builder.Services.AddScoped<
     AuthenticatedCurrentOrganizationContext>();
 
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<IOrganizationTypeService, OrganizationTypeService>();
 builder.Services.AddScoped<IOrganizationMembershipService, OrganizationMembershipService>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 builder.Services.AddScoped<ICitizenProfileService, CitizenProfileService>();

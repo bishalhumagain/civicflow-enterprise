@@ -9,11 +9,13 @@ public sealed class Organization
     private Organization(
         string name,
         string code,
+        Guid organizationTypeId,
         DateTimeOffset now)
     {
         Id = Guid.NewGuid();
         Name = name;
         Code = code;
+        OrganizationTypeId = organizationTypeId;
         IsActive = true;
         CreatedAt = now;
         UpdatedAt = now;
@@ -25,6 +27,8 @@ public sealed class Organization
 
     public string Code { get; private set; } = string.Empty;
 
+    public Guid OrganizationTypeId { get; private set; }
+
     public bool IsActive { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -34,7 +38,8 @@ public sealed class Organization
     public static Organization Create(
         string name,
         string code,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid organizationTypeId = default)
     {
         if (string.IsNullOrWhiteSpace(name) ||
             name.Trim().Length > 200)
@@ -55,6 +60,7 @@ public sealed class Organization
         return new Organization(
             name.Trim(),
             code.Trim().ToUpperInvariant(),
+            ResolveTypeId(organizationTypeId),
             now);
     }
 
@@ -83,7 +89,8 @@ public sealed class Organization
     public void UpdateDetails(
         string name,
         string code,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid organizationTypeId = default)
     {
         if (string.IsNullOrWhiteSpace(name) ||
             name.Trim().Length > 200)
@@ -103,7 +110,12 @@ public sealed class Organization
 
         Name = name.Trim();
         Code = code.Trim().ToUpperInvariant();
+        OrganizationTypeId = ResolveTypeId(organizationTypeId);
         UpdatedAt = now;
     }
 
+    private static Guid ResolveTypeId(Guid organizationTypeId) =>
+        organizationTypeId == Guid.Empty
+            ? WellKnownOrganizationTypes.Uncategorized
+            : organizationTypeId;
 }

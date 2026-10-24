@@ -28,6 +28,12 @@ public static class AuditActions
     public const string OrganizationDeactivated = "organization.deactivated";
     public const string OrganizationDeleted = "organization.deleted";
 
+    public const string OrganizationTypeCreated = "organization_type.created";
+    public const string OrganizationTypeUpdated = "organization_type.updated";
+    public const string OrganizationTypeActivated = "organization_type.activated";
+    public const string OrganizationTypeDeactivated = "organization_type.deactivated";
+    public const string OrganizationTypeDeleted = "organization_type.deleted";
+
     public const string MembershipCreated = "membership.created";
     public const string MembershipRoleChanged = "membership.role_changed";
     public const string MembershipActivated = "membership.activated";

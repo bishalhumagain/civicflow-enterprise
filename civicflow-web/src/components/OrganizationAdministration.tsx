@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import type { AccountInvitation, Membership, Organization } from '../domain'
+import { useEffect, useState } from 'react'
+import type { AccountInvitation, Membership, Organization, OrganizationType } from '../domain'
 import { InvitationManager } from './InvitationManager'
 import { Icon } from './Icon'
 import { createOrganization, updateOrganization, activateOrganization, deactivateOrganization, deleteOrganization } from '../api/organizations'
+import { getOrganizationTypes } from '../api/organization-types'
 
 export function OrganizationAdministration({
   authenticated,
@@ -41,12 +42,35 @@ export function OrganizationAdministration({
   const [editingOrg, setEditingOrg] = useState<string | null>(null)
   const [editedName, setEditedName] = useState('')
   const [editedCode, setEditedCode] = useState('')
+  const [editedTypeId, setEditedTypeId] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
   const [newOrgCode, setNewOrgCode] = useState('')
+  const [newOrgTypeId, setNewOrgTypeId] = useState('')
+  const [organizationTypes, setOrganizationTypes] = useState<OrganizationType[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!canManageOrganizations) return
+
+    let cancelled = false
+
+    getOrganizationTypes()
+      .then((items) => {
+        if (cancelled) return
+        setOrganizationTypes(items)
+        setNewOrgTypeId((current) => current || items[0]?.id || '')
+      })
+      .catch(() => {
+        if (!cancelled) setOrganizationTypes([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [canManageOrganizations])
 
   const selected = organizations.find((item) => item.id === selectedOrganizationId)
 
@@ -78,7 +102,11 @@ export function OrganizationAdministration({
     await run(
       'create',
       async () => {
-        await createOrganization(newOrgName.trim(), newOrgCode.trim())
+        await createOrganization(
+          newOrgName.trim(),
+          newOrgCode.trim(),
+          newOrgTypeId || undefined,
+        )
         setNewOrgName('')
         setNewOrgCode('')
         setShowCreateForm(false)
@@ -92,7 +120,12 @@ export function OrganizationAdministration({
     await run(
       `update-${org.id}`,
       async () => {
-        await updateOrganization(org.id, editedName.trim(), editedCode.trim())
+        await updateOrganization(
+          org.id,
+          editedName.trim(),
+          editedCode.trim(),
+          editedTypeId || undefined,
+        )
         setEditingOrg(null)
         refreshData()
       },
@@ -134,6 +167,7 @@ export function OrganizationAdministration({
     setEditingOrg(org.id)
     setEditedName(org.name)
     setEditedCode(org.code)
+    setEditedTypeId(org.organizationTypeId)
   }
 
   return (
@@ -192,6 +226,19 @@ export function OrganizationAdministration({
                   value={newOrgCode}
                   onChange={(e) => setNewOrgCode(e.target.value)}
                 />
+                {organizationTypes.length > 0 && (
+                  <select
+                    aria-label="Organization type"
+                    value={newOrgTypeId}
+                    onChange={(e) => setNewOrgTypeId(e.target.value)}
+                  >
+                    {organizationTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button className="primary-button" disabled={loading || busy !== null} type="submit">
                   <Icon className="button-icon" name="plus" />
                   <span>Create</span>
@@ -211,6 +258,7 @@ export function OrganizationAdministration({
                     <tr>
                       <th>NAME</th>
                       <th>CODE</th>
+                      <th>TYPE</th>
                       <th>STATUS</th>
                       <th>CREATED</th>
                       <th>ACTIONS</th>
@@ -236,6 +284,25 @@ export function OrganizationAdministration({
                                 value={editedCode}
                                 onChange={(e) => setEditedCode(e.target.value)}
                               />
+                            </td>
+                            <td>
+                              {organizationTypes.length > 0 ? (
+                                <select
+                                  aria-label="Organization type"
+                                  value={editedTypeId}
+                                  onChange={(e) => setEditedTypeId(e.target.value)}
+                                >
+                                  {organizationTypes.map((type) => (
+                                    <option key={type.id} value={type.id}>
+                                      {type.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="muted">
+                                  {org.organizationTypeName ?? '—'}
+                                </span>
+                              )}
                             </td>
                             <td>{org.isActive ? 'Active' : 'Inactive'}</td>
                             <td>{new Date(org.createdAt).toLocaleDateString()}</td>
@@ -266,6 +333,9 @@ export function OrganizationAdministration({
                             </td>
                             <td>
                               <code>{org.code}</code>
+                            </td>
+                            <td>
+                              {org.organizationTypeName ?? <span className="muted">—</span>}
                             </td>
                             <td>
                               <span className={org.isActive ? 'status-green' : 'status-amber'}>

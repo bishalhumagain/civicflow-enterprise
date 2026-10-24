@@ -42,13 +42,21 @@ export async function getOrganizations(): Promise<Organization[]> {
   return (await response.json()) as Organization[];
 }
 
-export async function createOrganization(name: string, code: string): Promise<Organization> {
+export async function createOrganization(
+  name: string,
+  code: string,
+  organizationTypeId?: string,
+): Promise<Organization> {
   const response = await authFetch("/api/organizations", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ name, code }),
+    body: JSON.stringify({
+      name,
+      code,
+      organizationTypeId: organizationTypeId ?? null,
+    }),
   });
 
   if (!response.ok) {
@@ -64,13 +72,22 @@ export async function createOrganization(name: string, code: string): Promise<Or
   return (await response.json()) as Organization;
 }
 
-export async function updateOrganization(id: string, name: string, code: string): Promise<Organization> {
+export async function updateOrganization(
+  id: string,
+  name: string,
+  code: string,
+  organizationTypeId?: string,
+): Promise<Organization> {
   const response = await authFetch(`/api/organizations/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ name, code }),
+    body: JSON.stringify({
+      name,
+      code,
+      organizationTypeId: organizationTypeId ?? null,
+    }),
   });
 
   if (!response.ok) {

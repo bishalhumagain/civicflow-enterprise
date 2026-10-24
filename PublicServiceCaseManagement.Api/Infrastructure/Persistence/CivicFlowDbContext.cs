@@ -27,6 +27,7 @@ public sealed class CivicFlowDbContext(
     public DbSet<CaseAssignmentHistory> CaseAssignmentHistories =>
         Set<CaseAssignmentHistory>();
     public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<OrganizationType> OrganizationTypes => Set<OrganizationType>();
     public DbSet<ApplicationUser> ApplicationUsers =>
         Set<ApplicationUser>();
     public DbSet<CitizenProfile> CitizenProfiles =>
@@ -494,12 +495,19 @@ public sealed class CivicFlowDbContext(
             entity.HasIndex(o => o.Code)
                 .IsUnique();
 
+            entity.HasOne<OrganizationType>()
+                .WithMany()
+                .HasForeignKey(o => o.OrganizationTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasData(new
             {
                 Id = Guid.Parse(
                     "11111111-1111-1111-1111-111111111111"),
                 Name = "CivicFlow Development Organization",
                 Code = "CIVICFLOW-DEV",
+                OrganizationTypeId =
+                    WellKnownOrganizationTypes.Uncategorized,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.Parse(
                     "2026-01-01T00:00:00+00:00"),
@@ -507,6 +515,45 @@ public sealed class CivicFlowDbContext(
                     "2026-01-01T00:00:00+00:00")
             });
         });
+        modelBuilder.Entity<OrganizationType>(entity =>
+        {
+            entity.ToTable("organization_types");
+
+            entity.HasKey(t => t.Id);
+
+            entity.Property(t => t.Name)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(t => t.Code)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(t => t.IsActive)
+                .IsRequired();
+
+            entity.Property(t => t.CreatedAt)
+                .IsRequired();
+
+            entity.Property(t => t.UpdatedAt)
+                .IsRequired();
+
+            entity.HasIndex(t => t.Code)
+                .IsUnique();
+
+            entity.HasData(new
+            {
+                Id = WellKnownOrganizationTypes.Uncategorized,
+                Name = "Uncategorized",
+                Code = "UNCATEGORIZED",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.Parse(
+                    "2026-01-01T00:00:00+00:00"),
+                UpdatedAt = DateTimeOffset.Parse(
+                    "2026-01-01T00:00:00+00:00")
+            });
+        });
+
         modelBuilder.Entity<CitizenProfile>(entity =>
         {
             entity.ToTable("citizen_profiles");

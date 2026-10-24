@@ -8,4 +8,5 @@ public sealed record CreateOrganizationRequest(
     string Name,
     [Required]
     [StringLength(50, MinimumLength = 1)]
-    string Code);
+    string Code,
+    Guid? OrganizationTypeId = null);

@@ -14,7 +14,8 @@ public sealed class OrganizationService(
     public async Task<Organization> CreateAsync(
         string name,
         string code,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? organizationTypeId = null)
     {
         var normalizedCode = NormalizeCode(code);
 
@@ -29,10 +30,15 @@ public sealed class OrganizationService(
                 "An organization with this code already exists.");
         }
 
+        var resolvedTypeId = await ResolveOrganizationTypeIdAsync(
+            organizationTypeId,
+            cancellationToken);
+
         var organization = Organization.Create(
             name,
             normalizedCode,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            resolvedTypeId);
 
         dbContext.Organizations.Add(organization);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -140,7 +146,8 @@ public sealed class OrganizationService(
         Guid organizationId,
         string name,
         string code,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? organizationTypeId = null)
     {
         var organization = await dbContext.Organizations
             .SingleOrDefaultAsync(
@@ -164,12 +171,19 @@ public sealed class OrganizationService(
                 "An organization with this code already exists.");
         }
 
+        var resolvedTypeId = organizationTypeId is null
+            ? organization.OrganizationTypeId
+            : await ResolveOrganizationTypeIdAsync(
+                organizationTypeId,
+                cancellationToken);
+
         var previousName = organization.Name;
 
         organization.UpdateDetails(
             name,
             normalizedCode,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            resolvedTypeId);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -296,6 +310,39 @@ public sealed class OrganizationService(
             cancellationToken);
 
         return true;
+    }
+
+    private async Task<Guid> ResolveOrganizationTypeIdAsync(
+        Guid? organizationTypeId,
+        CancellationToken cancellationToken)
+    {
+        if (organizationTypeId is null ||
+            organizationTypeId == WellKnownOrganizationTypes.Uncategorized)
+        {
+            return WellKnownOrganizationTypes.Uncategorized;
+        }
+
+        var type = await dbContext.OrganizationTypes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.Id == organizationTypeId.Value,
+                cancellationToken);
+
+        if (type is null)
+        {
+            throw new ArgumentException(
+                "The selected organization type does not exist.",
+                nameof(organizationTypeId));
+        }
+
+        if (!type.IsActive)
+        {
+            throw new ArgumentException(
+                "The selected organization type is inactive.",
+                nameof(organizationTypeId));
+        }
+
+        return type.Id;
     }
 
     private static string NormalizeCode(string code)
