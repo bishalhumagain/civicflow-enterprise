@@ -815,6 +815,16 @@ td .secondary-button + .primary-button {
   color: var(--color-danger);
 }
 
+.error-banner {
+  border: 1px solid color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11px;
+  margin-bottom: 16px;
+}
+
 .form-success {
   border: 1px solid color-mix(in srgb, var(--color-success) 32%, var(--color-border));
   background: var(--color-success-soft);
