@@ -10,7 +10,7 @@ namespace PublicServiceCaseManagement.Tests.Features.Platform;
 public sealed class PlatformDirectoryServiceTests
 {
     private static readonly DateTimeOffset Now =
-        new(2026, 10, 22, 0, 0, 0, TimeSpan.Zero);
+        DateTimeOffset.UtcNow;
 
     private static (CivicFlowDbContext Context, PlatformDirectoryService Service)
         CreateService()

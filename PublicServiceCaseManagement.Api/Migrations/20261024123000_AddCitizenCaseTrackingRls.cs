@@ -14,30 +14,36 @@ public sealed class AddCitizenCaseTrackingRls : Migration
     {
         migrationBuilder.Sql(
             """
-            create policy cases_citizen_read
+            alter policy cases_organization_isolation
             on "cases"
-            for select
             using (
-                current_setting('civicflow.user_id', true) =
-                "SubmittedByUserId"::text
+                current_setting('civicflow.organization_id', true) = "OrganizationId"::text
+                or (
+                    current_setting('civicflow.user_id', true) is not null
+                    and current_setting('civicflow.user_id', true) = "SubmittedByUserId"::text
+                )
+            )
+            with check (
+                current_setting('civicflow.organization_id', true) = "OrganizationId"::text
+                or (
+                    current_setting('civicflow.user_id', true) is not null
+                    and current_setting('civicflow.user_id', true) = "SubmittedByUserId"::text
+                )
             );
             """);
 
         migrationBuilder.Sql(
             """
-            create policy case_status_history_citizen_read
+            alter policy case_status_history_organization_isolation
             on "case_status_history"
-            for select
             using (
-                exists (
+                current_setting('civicflow.organization_id', true) = "OrganizationId"::text
+                or exists (
                     select 1
                     from "cases" citizen_case
-                    where citizen_case."Id" =
-                          "case_status_history"."CaseId"
-                      and citizen_case."OrganizationId" =
-                          "case_status_history"."OrganizationId"
-                      and citizen_case."SubmittedByUserId"::text =
-                          current_setting('civicflow.user_id', true)
+                    where citizen_case."Id" = "case_status_history"."CaseId"
+                      and citizen_case."OrganizationId" = "case_status_history"."OrganizationId"
+                      and citizen_case."SubmittedByUserId"::text = current_setting('civicflow.user_id', true)
                 )
             );
             """);
@@ -46,8 +52,18 @@ public sealed class AddCitizenCaseTrackingRls : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql(
-            "drop policy if exists case_status_history_citizen_read on \"case_status_history\";");
+            """
+            alter policy cases_organization_isolation
+            on "cases"
+            using (current_setting('civicflow.organization_id', true) = "OrganizationId"::text)
+            with check (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
+            """);
+
         migrationBuilder.Sql(
-            "drop policy if exists cases_citizen_read on \"cases\";");
+            """
+            alter policy case_status_history_organization_isolation
+            on "case_status_history"
+            using (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
+            """);
     }
 }
