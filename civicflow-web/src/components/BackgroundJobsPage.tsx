@@ -71,82 +71,107 @@ export function BackgroundJobsPage() {
   }
 
   return (
-    <section aria-busy={loading} className="panel background-jobs-page">
-      <div className="section-heading">
+    <>
+      <div className="page-heading">
         <div>
           <p className="eyebrow">PLATFORM OPERATIONS</p>
           <h1>Background jobs</h1>
           <p className="muted">Delivery status and sanitized execution failures.</p>
         </div>
-        <label>
-          Status
-          <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value) }}>
-            <option value="">All statuses</option>
-            {['Queued', 'Running', 'Succeeded', 'RetryScheduled', 'Failed', 'Cancelled'].map((value) => (
-              <option key={value} value={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {error && <div className="auth-error" role="alert">{error}<button className="document-link" onClick={() => void load()} type="button">Retry</button></div>}
-      {loading ? <p className="muted empty-state">Loading jobs…</p> : !result?.items.length ? (
-        <p className="muted empty-state">No jobs found.</p>
-      ) : (
-        <div aria-label="Background jobs" className="table-wrap" role="region" tabIndex={0}>
-          <table>
-            <thead><tr><th>TYPE / ENTITY</th><th>STATUS</th><th>ATTEMPTS</th><th>CREATED / UPDATED</th><th>DETAILS</th><th>ACTIONS</th></tr></thead>
-            <tbody>
-              {result.items.map((job) => (
-                <tr key={job.id}>
-                  <td><strong>{job.type}</strong><span>{job.entityType ?? '—'} {job.entityId ?? ''}</span></td>
-                  <td>
-                    <span
-                      aria-label={`Job status: ${job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}`}
-                      className={`job-status job-status-${job.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-                    >
-                      {job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}
-                    </span>
-                  </td>
-                  <td>{job.attemptCount} / {job.maxAttempts}</td>
-                  <td><span>{new Date(job.createdAt).toLocaleString()}</span><small>{job.lastAttemptAt ? new Date(job.lastAttemptAt).toLocaleString() : 'Not attempted'}</small></td>
-                  <td>{job.errorCode && <><strong>{job.errorCode}</strong><span>{job.errorDetails}</span></>}</td>
-                  <td>
-                    {job.status === 'Failed' && (
-                      <button
-                        className="secondary-button"
-                        disabled={changingJobId !== null}
-                        onClick={() => void changeJob(job, 'retry')}
-                        type="button"
-                      >
-                        <Icon className="button-icon" name="refresh" />
-                        <span>{changingJobId === job.id ? 'Retrying…' : 'Retry'}</span>
-                      </button>
-                    )}
-                    {['Queued', 'RetryScheduled'].includes(job.status) && (
-                      <button
-                        className="secondary-button"
-                        disabled={changingJobId !== null}
-                        onClick={() => void changeJob(job, 'cancel')}
-                        type="button"
-                      >
-                        <Icon className="button-icon" name="x" />
-                        <span>{changingJobId === job.id ? 'Cancelling…' : 'Cancel'}</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
+        <div className="page-actions">
+          <label className="page-filter">
+            Status
+            <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value) }}>
+              <option value="">All statuses</option>
+              {['Queued', 'Running', 'Succeeded', 'RetryScheduled', 'Failed', 'Cancelled'].map((value) => (
+                <option key={value} value={value}>{value}</option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </label>
+          <button className="secondary-button" disabled={loading} onClick={() => void load()} type="button">
+            <Icon className="button-icon" name="refresh" />
+            <span>Refresh</span>
+          </button>
         </div>
-      )}
-      <div className="pagination">
-        <span>Page {page} · {result?.totalCount ?? 0} total</span>
-        <span>
-          <button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} type="button">Previous</button>
-          <button disabled={!result || page * result.pageSize >= result.totalCount || loading} onClick={() => setPage((value) => value + 1)} type="button">Next</button>
-        </span>
       </div>
-    </section>
+
+      <section aria-busy={loading} className="case-card jobs-table-card">
+        <div className="section-heading list-toolbar">
+          <div>
+            <h2>Job queue</h2>
+            <p className="muted">{result?.totalCount ?? 0} total jobs · page {page}</p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="auth-error" role="alert">
+            {error}
+            <button className="document-link" onClick={() => void load()} type="button">Retry</button>
+          </div>
+        )}
+
+        {loading ? (
+          <p className="muted empty-state">Loading jobs…</p>
+        ) : !result?.items.length ? (
+          <p className="muted empty-state">No jobs found.</p>
+        ) : (
+          <div aria-label="Background jobs" className="table-wrap jobs-table" role="region" tabIndex={0}>
+            <table>
+              <thead><tr><th>TYPE / ENTITY</th><th>STATUS</th><th>ATTEMPTS</th><th>CREATED / UPDATED</th><th>DETAILS</th><th>ACTIONS</th></tr></thead>
+              <tbody>
+                {result.items.map((job) => (
+                  <tr key={job.id}>
+                    <td><strong>{job.type}</strong><span>{job.entityType ?? '—'} {job.entityId ?? ''}</span></td>
+                    <td>
+                      <span
+                        aria-label={`Job status: ${job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}`}
+                        className={`job-status job-status-${job.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                      >
+                        {job.status === 'Running' ? 'Processing' : job.status === 'RetryScheduled' ? 'Retrying' : job.status}
+                      </span>
+                    </td>
+                    <td>{job.attemptCount} / {job.maxAttempts}</td>
+                    <td><span>{new Date(job.createdAt).toLocaleString()}</span><small>{job.lastAttemptAt ? new Date(job.lastAttemptAt).toLocaleString() : 'Not attempted'}</small></td>
+                    <td>{job.errorCode && <><strong>{job.errorCode}</strong><span>{job.errorDetails}</span></>}</td>
+                    <td>
+                      {job.status === 'Failed' && (
+                        <button
+                          className="secondary-button"
+                          disabled={changingJobId !== null}
+                          onClick={() => void changeJob(job, 'retry')}
+                          type="button"
+                        >
+                          <Icon className="button-icon" name="refresh" />
+                          <span>{changingJobId === job.id ? 'Retrying…' : 'Retry'}</span>
+                        </button>
+                      )}
+                      {['Queued', 'RetryScheduled'].includes(job.status) && (
+                        <button
+                          className="secondary-button"
+                          disabled={changingJobId !== null}
+                          onClick={() => void changeJob(job, 'cancel')}
+                          type="button"
+                        >
+                          <Icon className="button-icon" name="x" />
+                          <span>{changingJobId === job.id ? 'Cancelling…' : 'Cancel'}</span>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="pagination">
+          <span>Page {page} · {result?.totalCount ?? 0} total</span>
+          <span>
+            <button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} type="button">Previous</button>
+            <button disabled={!result || page * result.pageSize >= result.totalCount || loading} onClick={() => setPage((value) => value + 1)} type="button">Next</button>
+          </span>
+        </div>
+      </section>
+    </>
   )
 }

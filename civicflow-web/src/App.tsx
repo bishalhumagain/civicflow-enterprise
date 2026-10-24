@@ -56,7 +56,7 @@ import {PlatformErrors} from './components/PlatformErrors'
 import {NotificationCenter} from './components/NotificationCenter'
 import {BackgroundJobsPage} from './components/BackgroundJobsPage'
 import {AppFooter, PublicFooter, PublicHeader} from './components/PublicLayout'
-import {ThemeToggle} from './components/ThemeToggle'
+import {ProfileMenu} from './components/ProfileMenu'
 import {LandingPage} from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
 import PlatformAdminLoginPage from './pages/PlatformAdminLoginPage'
@@ -356,10 +356,6 @@ function App() {
             if (!platformAdminAccess && organizationAdminAccess) {
                 items.push({view: 'organizations', label: 'Organizations', icon: 'building'})
             }
-        }
-
-        if (citizenAccess || organizationAccess) {
-            items.push({view: 'profile', label: 'My profile', icon: 'profile'})
         }
 
         if (platformAdminAccess) {
@@ -1687,16 +1683,6 @@ function App() {
                         </button>
                     ))}
                 </nav>
-
-                <div className="sidebar-footer">
-                    <div className="profile">
-                        <span className="avatar">CF</span>
-                        <span>
-              <strong>{currentUser ? currentUser.fullName : 'Not signed in'}</strong>
-              <small>{currentUser ? currentUser.email : 'Sign in to continue'}</small>
-            </span>
-                    </div>
-                </div>
             </aside>
 
             <main className="main-content" id="main-content">
@@ -1708,7 +1694,6 @@ function App() {
                     </div>
 
                     <div className="topbar-actions">
-                        <ThemeToggle compact />
                         <NotificationCenter
                             onOpenCase={organizationAccess
                                 ? (caseId) => {
@@ -1717,10 +1702,12 @@ function App() {
                                 }
                                 : undefined}
                         />
-                        <button className="auth-button" onClick={handleSignOut} type="button">
-                            <Icon className="button-icon" name="logout" />
-                            <span>Sign out</span>
-                        </button>
+                        <ProfileMenu
+                            email={currentUser.email}
+                            fullName={currentUser.fullName}
+                            onOpenProfile={() => setViewSelection('profile')}
+                            onSignOut={handleSignOut}
+                        />
                     </div>
                 </header>
 
