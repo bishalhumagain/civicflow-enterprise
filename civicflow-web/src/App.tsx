@@ -45,7 +45,6 @@ import {StatCard} from './components/StatCard'
 import {CaseDetails} from './components/CaseDetails'
 import {StaffDirectory} from './components/StaffDirectory'
 import {OrganizationAdministration} from './components/OrganizationAdministration'
-import {OrganizationTypeAdministration} from './components/OrganizationTypeAdministration'
 import {PlatformDirectory} from './components/PlatformDirectory'
 import {AuditLog} from './components/AuditLog'
 import {emptyAuditFilters, type AuditFilters} from './components/audit-utils'
@@ -164,7 +163,6 @@ const workspaceViews: WorkspaceView[] = [
     'activity',
     'organization-dashboard',
     'organizations',
-    'organization-types',
     'platform-dashboard',
     'platform-directory',
     'platform-audit',
@@ -318,7 +316,7 @@ function App() {
         }
 
         if (platformAdminAccess) {
-            views.push('platform-dashboard', 'organizations', 'organization-types', 'platform-directory', 'platform-audit', 'platform-errors', 'platform-jobs')
+            views.push('platform-dashboard', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors', 'platform-jobs')
         }
 
         if (organizationAccess) {
@@ -363,7 +361,6 @@ function App() {
         if (platformAdminAccess) {
             items.push({view: 'platform-dashboard', label: 'Dashboard', icon: 'dashboard'})
             items.push({view: 'organizations', label: 'Organizations', icon: 'building'})
-            items.push({view: 'organization-types', label: 'Organization types', icon: 'building'})
             items.push({view: 'platform-directory', label: 'Directory', icon: 'directory'})
             items.push({view: 'platform-audit', label: 'Audit log', icon: 'activity'})
             items.push({view: 'platform-errors', label: 'Errors', icon: 'alert'})
@@ -1617,7 +1614,6 @@ function App() {
         activity: 'Activity log',
         'organization-dashboard': 'Dashboard',
         organizations: 'Organizations',
-        'organization-types': 'Organization types',
         'platform-dashboard': 'Dashboard',
         'platform-directory': 'Directory',
         'platform-audit': 'Audit log',
@@ -1869,9 +1865,6 @@ function App() {
                                     onRevokeInvitation={(invitationId) =>
                                         revokeInvitation(selectedOrganizationId, invitationId)}
                                 />
-                            ) : activeView === 'organization-types' &&
-                                platformAdminAccess ? (
-                                <OrganizationTypeAdministration/>
                             ) : organizationAccess ? (
                                 <>
                                     <div className="page-heading">

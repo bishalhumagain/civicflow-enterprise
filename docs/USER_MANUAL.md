@@ -166,7 +166,7 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 |---|---|
 | **Cases** | Case management (default view) |
 | **Team contacts** | Staff contact directory and staff phone numbers |
-| **Organizations** | Organization administrators manage memberships and invitations for organizations they administer; organization CRUD remains SuperAdmin-only |
+| **Organizations** | Organization administrators see the *Members & invitations* tab for organizations they administer (role changes, activation, invitations); the *Organization types* and *Organizations* tabs, along with organization CRUD, remain SuperAdmin-only |
 | **Activity log** | Organization administrators see the organization's audit trail; staff see only their own activity |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
 | **Profile** | Unified self-service profile (contact details for staff) |
@@ -175,7 +175,7 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 
 | Navigation entry | Description |
 |---|---|
-| **Organizations** | Organization CRUD, memberships, and invitations across all organizations (default view) |
+| **Organizations** | Three inner tabs — *Organization types* (shared catalogue CRUD, SuperAdmin only), *Organizations* (organization CRUD), and *Members & invitations* (with an organization-type + organization filter). Default view. |
 | **Directory** | Platform overview counters plus Citizens, Staff, and All Users sections; account edits, platform-role changes, and links to organization membership management |
 | **Audit log** | Platform-wide audit trail |
 | **Errors** | Application error list with filter (all/unhandled/handled) and mark-as-handled |
@@ -226,6 +226,7 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 
 **Available actions:**
 - Create, rename, deactivate, reactivate, and delete organizations
+- Manage the shared organization-type catalogue (create, rename, re-code, deactivate, reactivate, delete) from the *Organization types* tab; `Uncategorized` is protected and types in use cannot be deleted
 - Manage memberships and roles within any organization (add members with Viewer, CaseWorker, or OrganizationAdmin roles; update roles; activate/deactivate memberships)
 - Invite staff to any organization and manage those invitations (send, resend, revoke)
 - Browse the platform directory in three sections: Citizens with editable profiles, Staff with editable account contact details, and All Users with platform-role controls and links to organization membership management
@@ -238,18 +239,15 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 
 **Organization Administration UI Details**
 
-The Organizations view contains an organization list plus membership and invitation sections for the selected organization. Platform administrators see organization CRUD controls; organization administrators see only the organizations they administer and no organization CRUD controls.
+The Organizations view is split into three inner tabs for platform administrators, and a single *Members & invitations* tab for organization administrators:
 
-- **Organizations section**:
-  - Dropdown to select an organization (displays name and code)
-  - Platform-administrator actions: Rename, Deactivate/Reactivate, Delete
-  - Inline form for renaming: requires organization name (max 200 characters) and code (max 50 characters)
-  - Platform-administrator form for creating new organizations: requires name and code
-  - **View Members** opens the selected organization's membership and invitation administration
+1. **Organization types** *(SuperAdmin only)* — the shared `OrganizationType` catalogue. Every organization must be assigned one; the seeded **Uncategorized** type is used when a creator does not pick one and cannot be renamed away, deactivated, or deleted. The tab lists each type with its code, organization count, status pill, and created date, and offers *Create*, *Edit* (inline save), *Deactivate/Activate*, and *Delete*. A type in use by any organization cannot be deleted; the API returns `409 Conflict` and the UI surfaces the message.
+2. **Organizations** *(SuperAdmin only)* — organization CRUD. Create/update forms include a *Type* dropdown populated from the catalogue; when no types are available the current type name is shown read-only. Actions: view members, rename, activate/deactivate, and delete. Deleting an organization that still holds cases is refused with a `409`.
+3. **Members & invitations** — for platform administrators, the tab opens with a filter bar so they can narrow by organization type and then pick an organization; the filtered organization dropdown resets when the selected type would exclude the current pick. *Apply* loads the chosen organization's memberships and invitations; *Reset* clears the selection. Organization administrators land directly on this tab and only see the organizations they administer; the same membership role/activation controls and the `InvitationManager` (send, resend, revoke) appear below.
 
 - **Memberships section**:
   - Membership list showing user ID, role, active status, and activation toggle; organization administrators can change roles and activation for administered organizations
-  - Role options: Viewer, CaseWorker, OrganizationAdmin
+  - Role options: Viewer, CaseWorker, OrganizationAdmin (only SuperAdmins can grant OrganizationAdmin)
 
 - **InvitationManager section** (integrated component):
   - Form to send invitations: requires full name (1–150 characters), email (max 254 characters), optional phone number (max 30 characters), and role

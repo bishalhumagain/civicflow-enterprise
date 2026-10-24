@@ -8,7 +8,6 @@ export type WorkspaceView =
   | 'staff'
   | 'activity'
   | 'organizations'
-  | 'organization-types'
   | 'platform-directory'
   | 'platform-audit'
   | 'platform-dashboard'

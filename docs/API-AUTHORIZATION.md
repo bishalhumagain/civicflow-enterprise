@@ -128,14 +128,21 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 
 | Method and path | Access / parameters | Success, failures, and effects |
 |---|---|---|
-| `POST /api/organizations` | SuperAdmin; `CreateOrganizationRequest` | `201 OrganizationResponse`; `400` invalid values, `409` duplicate conflict; creates organization. |
-| `GET /api/organizations` | SuperAdmin or authenticated staff; none | `200 OrganizationResponse[]`; SuperAdmin sees all organizations, OrganizationAdmin sees active organizations they administer, other staff receive an empty list. |
+| `POST /api/organizations` | SuperAdmin; `CreateOrganizationRequest` (optional `OrganizationTypeId`) | `201 OrganizationResponse`; `400` invalid values, `409` duplicate conflict; creates organization. When `OrganizationTypeId` is `null`/`Guid.Empty`, the seeded `Uncategorized` type is applied; unknown or inactive types return `400`. |
+| `GET /api/organizations` | SuperAdmin or authenticated staff; none | `200 OrganizationResponse[]`; SuperAdmin sees all organizations, OrganizationAdmin sees active organizations they administer, other staff receive an empty list. Every row carries `organizationTypeId` and `organizationTypeName`. |
 | `GET /api/organizations/me` | Authenticated staff with active account; none | `200 OrganizationWorkspaceOption[]`; only the caller's active memberships. |
 | `GET /api/organizations/{id:guid}` | SuperAdmin | `200 OrganizationResponse`; `404` unknown ID. |
-| `PUT /api/organizations/{id:guid}` | SuperAdmin; `UpdateOrganizationRequest` | `200 OrganizationResponse`; `400` invalid values, `404` missing, `409` conflict; updates organization details. |
+| `PUT /api/organizations/{id:guid}` | SuperAdmin; `UpdateOrganizationRequest` (optional `OrganizationTypeId`) | `200 OrganizationResponse`; `400` invalid values or unknown/inactive type, `404` missing, `409` conflict; updates organization details. |
 | `PATCH /api/organizations/{id:guid}/deactivate` | SuperAdmin | `200 OrganizationResponse`; `404` missing; deactivates organization. |
 | `PATCH /api/organizations/{id:guid}/reactivate` | SuperAdmin | `200 OrganizationResponse`; `404` missing; reactivates organization. |
 | `DELETE /api/organizations/{id:guid}` | SuperAdmin | `204` deleted; `404` missing, `409` while cases remain; removes organization memberships, staff rows, and pending invitations. |
+| `GET /api/platform/organization-types` | SuperAdmin | `200 OrganizationTypeResponse[]`; shared catalogue with `id`, `name`, `code`, `isActive`, `createdAt`, `updatedAt`, and `organizationCount`. `404` when the business endpoints are disabled; `403` for non-super-admins. |
+| `GET /api/platform/organization-types/{id:guid}` | SuperAdmin | `200 OrganizationTypeResponse`; `404` missing. |
+| `POST /api/platform/organization-types` | SuperAdmin; `CreateOrganizationTypeRequest` (name 1–200, code 1–50) | `201 OrganizationTypeResponse`; `400` invalid values, `409` duplicate code; audits `organization_type.created`. |
+| `PUT /api/platform/organization-types/{id:guid}` | SuperAdmin; `UpdateOrganizationTypeRequest` | `200 OrganizationTypeResponse`; `400` invalid values, `404` missing, `409` duplicate code; audits `organization_type.updated`. |
+| `PATCH /api/platform/organization-types/{id:guid}/deactivate` | SuperAdmin | `200 OrganizationTypeResponse`; `404` missing; `409` when the target is the protected `Uncategorized` seed; audits `organization_type.deactivated`. |
+| `PATCH /api/platform/organization-types/{id:guid}/reactivate` | SuperAdmin | `200 OrganizationTypeResponse`; `404` missing; audits `organization_type.activated`. |
+| `DELETE /api/platform/organization-types/{id:guid}` | SuperAdmin | `204` deleted; `404` missing; `409` when any organization still references the type or when the target is `Uncategorized`; audits `organization_type.deleted`. |
 | `POST /api/organizations/{organizationId:guid}/memberships` | SuperAdmin, or OrganizationAdmin for their selected organization; `CreateOrganizationMembershipRequest` | `201 OrganizationMembershipResponse`; `400` invalid/prohibited role, `404` missing user/org, `409` existing/conflicting membership. Only SuperAdmin may grant OrganizationAdmin. |
 | `GET /api/organizations/{organizationId:guid}/memberships?isActive={bool}` | Same membership administrators; optional `isActive` | `200 OrganizationMembershipResponse[]`; restricted to the specified authorized organization. |
 | `GET /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` outside/missing membership. |

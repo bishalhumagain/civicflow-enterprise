@@ -97,8 +97,9 @@ The platform is built around three core principles:
 | Capability | Description |
 |---|---|
 | **Multi-tenant scoping** | All case data is organization-scoped. Server-side resolution + PostgreSQL RLS prevents cross-organization access. |
-| **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. Duplicate codes and invalid changes are reported inline. |
-| **Memberships** | Organization administrators open the Organizations view for the organizations they administer, then manage roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. |
+| **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. Duplicate codes and invalid changes are reported inline. Every organization is assigned a type; when none is chosen, the seeded `Uncategorized` type is applied. |
+| **Organization types** | Super administrators manage a shared catalogue of organization types (`OrganizationType`) from the *Organization types* tab. Types can be created, renamed, re-coded, deactivated, reactivated, and deleted; `Uncategorized` is protected, and a type in use by any organization cannot be deleted. Organizations list and detail responses include `organizationTypeId` and `organizationTypeName`. |
+| **Memberships** | Organization administrators open the Organizations view for the organizations they administer, then manage roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. Platform administrators can filter the members view by organization type and organization. |
 | **Invitation-based onboarding** | Organization administrators invite staff; acceptance grants the Staff portal role and a CaseWorker organization membership. Single-use, expiring links (default 72h, configurable 1–720h); invitees choose their own password. Failed email delivery is recorded on the invitation and can be retried without invalidating the link. |
 | **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators and platform administrators. |
 
@@ -185,7 +186,7 @@ The platform is built around three core principles:
 │   │   ├── Identity/                        #   Roles, anti-forgery, security headers, seeder, PAT auth handler
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
-│   └── Migrations/                         # 23 EF Core migrations
+│   └── Migrations/                         # 24 EF Core migrations
 ├── PublicServiceCaseManagement.Tests/       # xUnit test project (299 tests)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── src/
@@ -219,7 +220,7 @@ The backend follows a **feature-based** organization with clear layering:
 
 | Folder | Responsibility |
 |---|---|
-| `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `Organization`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
+| `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `Organization`, `OrganizationType`, `WellKnownOrganizationTypes`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
 | `Features/` | Controllers + service contracts + service implementations, organized by feature area |
 | `Infrastructure/` | Cross-cutting: `Identity/` (roles, PAT auth handler, anti-forgery, security headers, seeder, email sender, audit logger), `Organizations/` (context, resolvers, middleware), `Persistence/` (DbContext, factory), `Files/` (local storage), `Errors/` (global handler, error logger), `Audit/` (audit trail writer), `Authorization/` (business endpoint gate) |
 | `Migrations/` | EF Core migrations, including persistent background jobs and notifications |
@@ -266,6 +267,8 @@ HTTP request
 | `api-client.ts` | `requestJson<T>` wraps `apiRequest` with JSON parsing and `ApiError` class (status + code). |
 | `api/citizens.ts` | Citizen profile API client. |
 | `api/profile.ts` | Unified profile API client. |
+| `api/organizations.ts` | Organization CRUD client (create/update optionally carry `organizationTypeId`). |
+| `api/organization-types.ts` | SuperAdmin organization-type catalogue client. |
 
 The organization workspace obtains active memberships from `GET /api/organizations/me`. The UI selects a membership and sends its ID as `X-Organization-Id`; the API validates the authenticated user's active account, membership, and organization on every scoped request. The organization ID is not configured in the frontend build environment.
 
@@ -287,7 +290,7 @@ The organization workspace obtains active memberships from `GET /api/organizatio
 **Workspaces** (role-specific, navigation derived from API-reported roles):
 - **Citizen**: Dashboard, public intake, profile, access tokens
 - **Staff**: Cases, team contacts, activity log, access tokens; OrganizationAdmin also sees Organizations for administered organizations
-- **SuperAdmin**: Organizations, three-section directory, audit log, error tracker, access tokens
+- **SuperAdmin**: Organizations (three inner tabs: organization types, organizations, and members + invitations with a type/organization filter), directory, audit log, error tracker, background jobs, access tokens
 
 **Key components**: `OrganizationAdministration`, `InvitationManager`, `StaffDirectory`, `PlatformDirectory`, `PlatformErrors`, `AuditLog`, `CaseDetails`, `CitizenDashboard`, `ProfilePage`, `StatCard`, `StatusPill`, `Toast`.
 
@@ -351,7 +354,7 @@ No administrator ever handles another person's password:
 - `civicflow_migrator` — CREATE privilege (for EF Core migrations only)
 - `civicflow_runtime` — DML only (no DDL), used by the running API
 
-**Tables** (17 application + 6 identity):
+**Tables** (18 application + 6 identity):
 
 | Table | Purpose | RLS? |
 |---|---|---|
@@ -361,6 +364,7 @@ No administrator ever handles another person's password:
 | `case_documents` | Uploaded case documents | Yes |
 | `staff_members` | Organization staff | Yes |
 | `organizations` | Tenant organizations | No |
+| `organization_types` | Shared organization-type catalogue (SuperAdmin-managed) | No |
 | `organization_memberships` | User-organization associations | No |
 | `account_invitations` | Pending staff invitations | No (anonymous redemption) |
 | `application_users` | Identity users | No |
@@ -379,7 +383,7 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-**Migrations**: 23 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion` for the durable queue, notification outbox, attempt history, and job concurrency protection.
+**Migrations**: 24 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications`, `AddBackgroundJobConcurrencyVersion`, and `AddOrganizationTypes` for the durable queue, notification outbox, attempt history, job concurrency protection, and the platform-owned organization-type catalogue.
 
 ### Security Model
 
@@ -517,13 +521,25 @@ The API obtains the citizen identity from the authenticated session, verifies th
 | Method | Path | Authorization | Description |
 |---|---|---|---|
 | GET | `/api/organizations/me` | StaffClient + active account | Return only the caller's active memberships and organization-level roles; no organization header required |
-| GET | `/api/organizations` | SuperAdmin: all organizations; OrganizationAdmin: active organizations they administer; other staff: empty list | List organizations |
-| POST | `/api/organizations` | SuperAdmin | Create organization |
+| GET | `/api/organizations` | SuperAdmin: all organizations; OrganizationAdmin: active organizations they administer; other staff: empty list | List organizations (each row includes `organizationTypeId` and `organizationTypeName`) |
+| POST | `/api/organizations` | SuperAdmin | Create organization; `OrganizationTypeId` is optional and falls back to the seeded `Uncategorized` type |
 | GET | `/api/organizations/{id}` | SuperAdmin | Get organization detail |
-| PUT | `/api/organizations/{id}` | SuperAdmin | Rename/update organization |
+| PUT | `/api/organizations/{id}` | SuperAdmin | Rename/update organization; `OrganizationTypeId` may be supplied to move an organization to another active type |
 | PATCH | `/api/organizations/{id}/deactivate` | SuperAdmin | Deactivate organization |
 | PATCH | `/api/organizations/{id}/reactivate` | SuperAdmin | Reactivate organization |
 | DELETE | `/api/organizations/{id}` | SuperAdmin | Delete (204/404/409 if cases exist) |
+
+### Organization Types (`/api/platform/organization-types`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| GET | `/api/platform/organization-types` | SuperAdmin | List all organization types with active/inactive status and organization counts |
+| GET | `/api/platform/organization-types/{id}` | SuperAdmin | Read a single organization type |
+| POST | `/api/platform/organization-types` | SuperAdmin | Create an organization type; `409` on duplicate code |
+| PUT | `/api/platform/organization-types/{id}` | SuperAdmin | Rename or re-code a type; `404` missing, `409` duplicate code |
+| PATCH | `/api/platform/organization-types/{id}/deactivate` | SuperAdmin | Deactivate a type; the protected `Uncategorized` type cannot be deactivated |
+| PATCH | `/api/platform/organization-types/{id}/reactivate` | SuperAdmin | Reactivate a previously deactivated type |
+| DELETE | `/api/platform/organization-types/{id}` | SuperAdmin | Delete a type; `409` when any organization still references it, and `Uncategorized` cannot be deleted |
 
 ### Memberships (`/api/organizations/{orgId}/memberships`)
 
