@@ -56,6 +56,36 @@ public sealed class OrganizationTransactionContext(
             cancellationToken);
     }
 
+    public async Task BeginCitizenAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A valid citizen identity is required.",
+                nameof(userId));
+        }
+
+        if (transaction is not null || organizationId.HasValue)
+        {
+            throw new InvalidOperationException(
+                "A request cannot switch to a citizen identity context after an organization context has been resolved.");
+        }
+
+        if (!dbContext.Database.IsNpgsql())
+        {
+            return;
+        }
+
+        transaction = await dbContext.Database.BeginTransactionAsync(
+            cancellationToken);
+
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"select set_config('civicflow.user_id', {userId.ToString()}, true)",
+            cancellationToken);
+    }
+
     public async Task CompleteAsync(
         bool succeeded,
         CancellationToken cancellationToken = default)

@@ -1,11 +1,14 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
 
@@ -18,8 +21,106 @@ public sealed class CitizenCasesController(
     IOrganizationService organizationService,
     IAuthenticatedOrganizationResolver organizationResolver,
     IOrganizationTransactionContext organizationTransactionContext,
-    IBusinessEndpointAccess businessEndpointAccess) : ControllerBase
+    IBusinessEndpointAccess businessEndpointAccess,
+    CivicFlowDbContext dbContext) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<CitizenCaseSummary>>> GetMyCases(
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        var userId = await organizationResolver.ResolveApplicationUserIdAsync(
+            cancellationToken);
+
+        if (userId is null)
+            return Unauthorized();
+
+        await organizationTransactionContext.BeginCitizenAsync(
+            userId.Value,
+            cancellationToken);
+
+        var cases = await dbContext.Cases
+            .AsNoTracking()
+            .Where(caseEntity => caseEntity.SubmittedByUserId == userId)
+            .OrderByDescending(caseEntity => caseEntity.CreatedAt)
+            .ThenBy(caseEntity => caseEntity.Id)
+            .Select(caseEntity => new CitizenCaseSummary(
+                caseEntity.Id,
+                caseEntity.ReferenceNumber,
+                caseEntity.Title,
+                caseEntity.Status,
+                caseEntity.CreatedAt,
+                caseEntity.UpdatedAt))
+            .ToListAsync(cancellationToken);
+
+        return Ok(cases);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<CitizenCaseDetails>> GetMyCase(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        var userId = await organizationResolver.ResolveApplicationUserIdAsync(
+            cancellationToken);
+
+        if (userId is null)
+            return Unauthorized();
+
+        await organizationTransactionContext.BeginCitizenAsync(
+            userId.Value,
+            cancellationToken);
+
+        var caseDetails = await dbContext.Cases
+            .AsNoTracking()
+            .Where(caseEntity =>
+                caseEntity.Id == id &&
+                caseEntity.SubmittedByUserId == userId)
+            .Select(caseEntity => new
+            {
+                caseEntity.Id,
+                caseEntity.OrganizationId,
+                caseEntity.ReferenceNumber,
+                caseEntity.Title,
+                caseEntity.Description,
+                caseEntity.Status,
+                caseEntity.CreatedAt,
+                caseEntity.UpdatedAt
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (caseDetails is null)
+            return NotFound();
+
+        var statusHistory = await dbContext.CaseStatusHistories
+            .AsNoTracking()
+            .Where(history =>
+                history.CaseId == caseDetails.Id &&
+                history.OrganizationId == caseDetails.OrganizationId)
+            .OrderBy(history => history.ChangedAt)
+            .ThenBy(history => history.Id)
+            .Select(history => new CitizenCaseStatusHistory(
+                history.PreviousStatus,
+                history.NewStatus,
+                history.ChangedAt))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new CitizenCaseDetails(
+            caseDetails.Id,
+            caseDetails.ReferenceNumber,
+            caseDetails.Title,
+            caseDetails.Description,
+            caseDetails.Status,
+            caseDetails.CreatedAt,
+            caseDetails.UpdatedAt,
+            statusHistory));
+    }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(11 * 1024 * 1024)]
@@ -131,3 +232,26 @@ public sealed record CitizenCaseSubmissionResponse(
     Domain.Cases.CaseStatus Status,
     DateTimeOffset CreatedAt,
     CaseDocumentResponse? AdditionalDocument);
+
+public sealed record CitizenCaseSummary(
+    Guid Id,
+    string ReferenceNumber,
+    string Title,
+    CaseStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record CitizenCaseDetails(
+    Guid Id,
+    string ReferenceNumber,
+    string Title,
+    string Description,
+    CaseStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<CitizenCaseStatusHistory> StatusHistory);
+
+public sealed record CitizenCaseStatusHistory(
+    CaseStatus PreviousStatus,
+    CaseStatus NewStatus,
+    DateTimeOffset ChangedAt);

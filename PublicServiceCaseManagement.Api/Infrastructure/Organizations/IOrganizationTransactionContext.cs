@@ -8,6 +8,10 @@ public interface IOrganizationTransactionContext
         Guid organizationId,
         CancellationToken cancellationToken = default);
 
+    Task BeginCitizenAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task CompleteAsync(
         bool succeeded,
         CancellationToken cancellationToken = default);

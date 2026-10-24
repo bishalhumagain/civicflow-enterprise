@@ -1,4 +1,5 @@
 import { authFetch } from "../auth";
+import type { CaseStatus } from "../domain";
 
 export interface CitizenProfile {
   id: string;
@@ -26,6 +27,26 @@ export interface CreateCitizenProfileRequest {
   gender?: string;
   permanentAddress?: string;
   temporaryAddress?: string;
+}
+
+export interface CitizenCaseSummary {
+  id: string;
+  referenceNumber: string;
+  title: string;
+  status: CaseStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CitizenCaseStatusHistory {
+  previousStatus: CaseStatus;
+  newStatus: CaseStatus;
+  changedAt: string;
+}
+
+export interface CitizenCaseDetails extends CitizenCaseSummary {
+  description: string;
+  statusHistory: CitizenCaseStatusHistory[];
 }
 
 export class CitizenApiError extends Error {
@@ -95,4 +116,38 @@ export async function saveMyCitizenProfile(
   }
 
   return (await response.json()) as CitizenProfile;
+}
+
+export async function getMyCases(): Promise<CitizenCaseSummary[]> {
+  const response = await authFetch("/api/citizens/cases");
+
+  if (!response.ok) {
+    throw new CitizenApiError(
+      await readErrorMessage(
+        response,
+        `Failed to fetch your requests: ${response.status}`,
+      ),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as CitizenCaseSummary[];
+}
+
+export async function getMyCase(id: string): Promise<CitizenCaseDetails> {
+  const response = await authFetch(
+    `/api/citizens/cases/${encodeURIComponent(id)}`,
+  );
+
+  if (!response.ok) {
+    throw new CitizenApiError(
+      await readErrorMessage(
+        response,
+        `Failed to fetch request details: ${response.status}`,
+      ),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as CitizenCaseDetails;
 }

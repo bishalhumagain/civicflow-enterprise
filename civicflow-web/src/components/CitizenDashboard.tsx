@@ -1,3 +1,9 @@
+import {useEffect, useState} from 'react'
+import {
+    getMyCases,
+    type CitizenCaseSummary,
+} from '../api/citizens'
+import {StatusPill} from './StatusPill'
 import {StatCard} from './StatCard'
 
 export type CitizenDashboardProps = {
@@ -21,6 +27,16 @@ export function CitizenDashboard({
                                      onOpenProfile,
                                  }: CitizenDashboardProps) {
     const firstName = fullName.trim().split(/\s+/)[0] || fullName
+    const [cases, setCases] = useState<CitizenCaseSummary[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        getMyCases()
+            .then(setCases)
+            .catch(err => setError(err instanceof Error ? err.message : 'Failed to load your requests'))
+            .finally(() => setLoading(false))
+    }, [])
 
     return (
         <>
@@ -55,10 +71,39 @@ export function CitizenDashboard({
                 />
             </div>
 
-            <div className="info-banner citizen-tracking-note" role="status">
-                Case tracking and status updates are not available in the citizen portal yet. You can submit a new
-                request using public intake.
+            <div className="section-heading">
+                <div>
+                    <h2>My requests</h2>
+                    <span className="muted">Track your submitted service requests</span>
+                </div>
             </div>
+
+            {loading ? (
+                <div className="muted">Loading your requests...</div>
+            ) : error ? (
+                <div className="error-banner" role="alert">{error}</div>
+            ) : cases.length === 0 ? (
+                <div className="info-banner citizen-tracking-note" role="status">
+                    You haven't submitted any service requests yet. Use public intake to submit your first request.
+                </div>
+            ) : (
+                <div className="directory-grid">
+                    {cases.map(c => (
+                        <article key={c.id} className="case-card citizen-action-card">
+                            <div className="case-card-header">
+                                <h3>{c.title}</h3>
+                                <StatusPill status={c.status} />
+                            </div>
+                            <p className="muted">
+                                Reference: {c.referenceNumber}
+                            </p>
+                            <p className="muted">
+                                Submitted: {new Date(c.createdAt).toLocaleDateString()}
+                            </p>
+                        </article>
+                    ))}
+                </div>
+            )}
 
             <div className="section-heading">
                 <div>
