@@ -53,7 +53,12 @@
       "Bash(gh auth setup-git; echo \"exit=$?\"; git config --global --get-all credential.https://github.com.helper; echo \"---\"; git config --global --list 2>&1 | grep -i credential)",
       "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && GIT_TERMINAL_PROMPT=0 git push origin main 2>&1 | tail -15)",
       "Bash(echo \"protocol=https\\\\nhost=github.com\\\\n\\\\n\" | gh auth git-credential get 2>&1 | head -10; echo \"---\"; git config --global --get-all credential.helper)",
-      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && GIT_CURL_VERBOSE=0 git -c credential.helper='!gh auth git-credential' push origin main 2>&1 | tail -20)"
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && GIT_CURL_VERBOSE=0 git -c credential.helper='!gh auth git-credential' push origin main 2>&1 | tail -20)",
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement/civicflow-web && npx eslint . 2>&1 | tail -30)",
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && sed -n '30,60p' civicflow-web/src/components/BackgroundJobsPage.tsx)",
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement/civicflow-web && npx eslint . 2>&1 | tail -15 && echo \"---typecheck---\" && npx tsc -b --noEmit 2>&1 | tail -5)",
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && git add civicflow-web/src/components/OrganizationTypeAdministration.tsx && git commit -m \"$\\(cat <<'EOF'\nFix react-hooks lint on OrganizationTypeAdministration\n\nWrap the initial catalogue fetch in a setTimeout\\(0\\) so the effect body\nno longer calls setState synchronously. This mirrors the pattern already\nused by BackgroundJobsPage and clears the CI failure.\nEOF\n\\)\" && GIT_TERMINAL_PROMPT=0 git -c credential.helper='!gh auth git-credential' push origin main 2>&1 | tail -6)",
+      "Bash(cd /Users/huma/Projects/PublicServiceCaseManagement && git --no-pager show --stat HEAD)"
     ]
   }
 }
