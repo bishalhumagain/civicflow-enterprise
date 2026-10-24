@@ -227,4 +227,56 @@ public sealed class SecurityHardeningIntegrationTests
         Assert.False(
             SessionLifetimeMiddleware.IsExpired(issued, issued.AddYears(5), TimeSpan.Zero));
     }
+
+    [Fact]
+    public async Task TokenCreation_IsRateLimited()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+
+        var email = $"token-rate-{Guid.NewGuid():N}@example.com";
+        await RegisterAndConfirmAsync(factory, client, email);
+        await LoginAsync(client, email);
+
+        // Minting a personal access token is a sensitive action, so the create
+        // endpoint is guarded by the fixed-window "auth" policy. A burst beyond
+        // the per-partition permit limit must eventually be rejected with 429,
+        // while a genuine earlier request still succeeds with 201.
+        var sawCreated = false;
+        var sawThrottled = false;
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/tokens",
+                new { name = $"token-{attempt}", expiresInDays = 1 });
+
+            if (response.StatusCode == HttpStatusCode.Created)
+            {
+                sawCreated = true;
+            }
+            else if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                sawThrottled = true;
+                break;
+            }
+            else
+            {
+                Assert.Fail(
+                    $"Unexpected status {(int)response.StatusCode} " +
+                    $"{response.StatusCode} on attempt {attempt}.");
+            }
+        }
+
+        Assert.True(
+            sawCreated,
+            "The first token creation must succeed before throttling kicks in.");
+        Assert.True(
+            sawThrottled,
+            "A burst of token-creation requests must eventually be rate limited.");
+    }
 }

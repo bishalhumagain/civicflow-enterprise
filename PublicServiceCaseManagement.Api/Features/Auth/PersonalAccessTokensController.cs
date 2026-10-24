@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace PublicServiceCaseManagement.Api.Features.Auth;
 
@@ -32,6 +33,7 @@ public sealed class PersonalAccessTokensController(
     }
 
     [HttpPost]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<CreatePersonalAccessTokenResponse>> Create(
         [FromBody] CreatePersonalAccessTokenRequest request,
         CancellationToken cancellationToken)
