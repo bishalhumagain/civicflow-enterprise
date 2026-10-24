@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Configuration;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Audit;
 using PublicServiceCaseManagement.Api.Features.Auth;
@@ -37,6 +38,10 @@ if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_ENV
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Bind centralized server configuration
+builder.Services.Configure<ServerConfiguration>(
+    builder.Configuration.GetSection(ServerConfiguration.SectionName));
 
 var isDevelopment = builder.Environment.IsDevelopment();
 

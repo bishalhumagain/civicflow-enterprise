@@ -13,4 +13,14 @@ public interface IPlatformDirectoryService
 
     Task<PlatformOverviewResponse> GetOverviewAsync(
         CancellationToken cancellationToken = default);
+
+    Task SetUserActiveStatusAsync(
+        Guid userId,
+        bool isActive,
+        CancellationToken cancellationToken = default);
+
+    Task ChangePlatformRoleAsync(
+        Guid userId,
+        string platformRole,
+        CancellationToken cancellationToken = default);
 }

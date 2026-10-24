@@ -67,6 +67,75 @@ public sealed class PlatformDirectoryController(
         return Ok(overview);
     }
 
+    [HttpPatch("api/platform/users/{userId:guid}/activate")]
+    public async Task<IActionResult> ActivateUser(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        await platformDirectoryService.SetUserActiveStatusAsync(
+            userId,
+            true,
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPatch("api/platform/users/{userId:guid}/deactivate")]
+    public async Task<IActionResult> DeactivateUser(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        await platformDirectoryService.SetUserActiveStatusAsync(
+            userId,
+            false,
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPatch("api/platform/users/{userId:guid}/platform-role")]
+    public async Task<IActionResult> ChangePlatformRole(
+        Guid userId,
+        [FromBody] ChangePlatformRoleRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        try
+        {
+            await platformDirectoryService.ChangePlatformRoleAsync(
+                userId,
+                request.PlatformRole,
+                cancellationToken);
+
+            return NoContent();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+    }
+
     private async Task<bool> IsPlatformSuperAdminAsync(
         CancellationToken cancellationToken)
     {

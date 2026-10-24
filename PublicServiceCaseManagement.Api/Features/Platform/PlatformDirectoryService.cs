@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Platform;
@@ -208,6 +209,46 @@ public sealed class PlatformDirectoryService(
             activeOrganizationCount,
             invitationCount,
             pendingInvitationCount);
+    }
+
+    public async Task SetUserActiveStatusAsync(
+        Guid userId,
+        bool isActive,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(user => user.Id == userId, cancellationToken);
+
+        if (user is null)
+            throw new KeyNotFoundException($"User with ID {userId} not found.");
+
+        user.IsActive = isActive;
+        user.UpdatedAt = timeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ChangePlatformRoleAsync(
+        Guid userId,
+        string platformRole,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<PlatformRole>(platformRole, true, out var role) ||
+            !Enum.IsDefined(role))
+        {
+            throw new ArgumentException($"Invalid platform role: {platformRole}");
+        }
+
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(user => user.Id == userId, cancellationToken);
+
+        if (user is null)
+            throw new KeyNotFoundException($"User with ID {userId} not found.");
+
+        user.PlatformRole = role;
+        user.UpdatedAt = timeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>>
