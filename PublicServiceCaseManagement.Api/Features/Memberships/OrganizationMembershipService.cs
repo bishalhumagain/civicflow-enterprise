@@ -163,6 +163,105 @@ public sealed class OrganizationMembershipService(
         return membership;
     }
 
+    public async Task<OrganizationMembership> TransferAsync(
+        Guid sourceOrganizationId,
+        Guid membershipId,
+        Guid destinationOrganizationId,
+        OrganizationRole role,
+        CancellationToken cancellationToken)
+    {
+        if (sourceOrganizationId == destinationOrganizationId)
+        {
+            throw new ArgumentException(
+                "The destination organization must be different from the source organization.",
+                nameof(destinationOrganizationId));
+        }
+
+        var membership = await dbContext.OrganizationMemberships
+            .SingleOrDefaultAsync(
+                item =>
+                    item.Id == membershipId &&
+                    item.OrganizationId == sourceOrganizationId,
+                cancellationToken);
+
+        if (membership is null)
+        {
+            throw new KeyNotFoundException("The membership does not exist.");
+        }
+
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == membership.UserId,
+                cancellationToken);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException("The application user does not exist.");
+        }
+
+        var destination = await dbContext.Organizations
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == destinationOrganizationId,
+                cancellationToken);
+
+        if (destination is null)
+        {
+            throw new KeyNotFoundException("The destination organization does not exist.");
+        }
+
+        if (!destination.IsActive)
+        {
+            throw new InvalidOperationException(
+                "Cannot transfer a membership to an inactive organization.");
+        }
+
+        var destinationExists = await dbContext.OrganizationMemberships
+            .AnyAsync(
+                candidate =>
+                    candidate.UserId == membership.UserId &&
+                    candidate.OrganizationId == destinationOrganizationId,
+                cancellationToken);
+
+        if (destinationExists)
+        {
+            throw new InvalidOperationException(
+                "This user already has a membership in the destination organization.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var previousRole = membership.Role;
+        var previousOrganizationId = membership.OrganizationId;
+
+        membership.Deactivate(now);
+
+        var transferred = OrganizationMembership.Create(
+            membership.UserId,
+            destinationOrganizationId,
+            role,
+            now);
+
+        dbContext.OrganizationMemberships.Add(transferred);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Membership,
+                Action = AuditActions.MembershipTransferred,
+                OrganizationId = destinationOrganizationId,
+                EntityType = "OrganizationMembership",
+                EntityId = transferred.Id.ToString(),
+                Details =
+                    $"userId={membership.UserId} organization " +
+                    $"{previousOrganizationId} -> {destinationOrganizationId} " +
+                    $"role {previousRole} -> {role}"
+            },
+            cancellationToken);
+
+        return transferred;
+    }
+
     public async Task<OrganizationMembership?> SetActiveStatusAsync(
         Guid organizationId,
         Guid membershipId,

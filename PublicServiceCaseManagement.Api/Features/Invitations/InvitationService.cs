@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
@@ -105,7 +106,7 @@ public sealed class InvitationService(
         dbContext.AccountInvitations.Add(invitation);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await SendInvitationEmailAsync(
+        await TryDeliverInvitationAsync(
             invitation,
             organization.Name,
             token,
@@ -183,7 +184,7 @@ public sealed class InvitationService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await SendInvitationEmailAsync(
+        await TryDeliverInvitationAsync(
             invitation,
             organization.Name,
             token,
@@ -529,6 +530,52 @@ public sealed class InvitationService(
                     membership.IsActive,
                 cancellationToken);
 
+    private async Task TryDeliverInvitationAsync(
+        AccountInvitation invitation,
+        string organizationName,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+
+        try
+        {
+            await SendInvitationEmailAsync(
+                invitation,
+                organizationName,
+                token,
+                cancellationToken);
+
+            invitation.MarkDeliverySucceeded(now);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // The invitation stays valid. The administrator sees a delivery
+            // failure in the grid and can retry with Resend.
+            invitation.MarkDeliveryFailed(exception.Message, now);
+
+            await auditLogger.RecordAsync(
+                new AuditRecord
+                {
+                    Category = AuditCategory.Organization,
+                    Action = AuditActions.InvitationDeliveryFailed,
+                    OrganizationId = invitation.OrganizationId,
+                    EntityType = "AccountInvitation",
+                    EntityId = invitation.Id.ToString(),
+                    Details =
+                        $"Delivery failed for {invitation.Email}: " +
+                        $"{exception.GetType().Name}"
+                },
+                cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task SendInvitationEmailAsync(
         AccountInvitation invitation,
         string organizationName,
@@ -624,7 +671,8 @@ public sealed class InvitationService(
             invitation.ExpiresAt,
             invitation.IsExpired(now),
             invitation.IsUsed,
-            invitation.IsRevoked);
+            invitation.IsRevoked,
+            invitation.IsDeliveryFailed);
 
     private static string DescribeFailures(IdentityResult result) =>
         string.Join(

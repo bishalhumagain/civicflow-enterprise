@@ -46,6 +46,7 @@ export type AccountInvitation = {
   isExpired: boolean
   isUsed: boolean
   isRevoked: boolean
+  deliveryFailed: boolean
 }
 export type InvitationDetails = {
   email: string
@@ -117,6 +118,35 @@ export type PlatformStaff = {
   accountIsActive: boolean
   membershipCreatedAt: string
 }
+export type PlatformCitizen = {
+  userId: string
+  profileId: string
+  fullName: string
+  email: string
+  phoneNumber: string | null
+  emailConfirmed: boolean
+  isActive: boolean
+  nidNumber: string | null
+  citizenshipNumber: string | null
+  age: number | null
+  gender: string | null
+  permanentAddress: string | null
+  temporaryAddress: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformCitizenUpdate = {
+  fullName: string
+  phoneNumber?: string | null
+  nidNumber?: string | null
+  citizenshipNumber?: string | null
+  age?: number | null
+  gender?: string | null
+  permanentAddress?: string | null
+  temporaryAddress?: string | null
+}
+
 export type PlatformOverview = {
   userCount: number
   activeUserCount: number

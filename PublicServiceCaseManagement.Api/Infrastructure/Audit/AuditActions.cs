@@ -20,6 +20,7 @@ public static class AuditActions
     public const string InvitationResent = "invitation.resent";
     public const string InvitationRevoked = "invitation.revoked";
     public const string InvitationAccepted = "invitation.accepted";
+    public const string InvitationDeliveryFailed = "invitation.delivery_failed";
 
     public const string OrganizationCreated = "organization.created";
     public const string OrganizationUpdated = "organization.updated";
@@ -31,6 +32,7 @@ public static class AuditActions
     public const string MembershipRoleChanged = "membership.role_changed";
     public const string MembershipActivated = "membership.activated";
     public const string MembershipDeactivated = "membership.deactivated";
+    public const string MembershipTransferred = "membership.transferred";
 
     public const string StaffCreated = "staff.created";
     public const string StaffActivated = "staff.activated";

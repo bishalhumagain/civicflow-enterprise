@@ -34,8 +34,8 @@ import {
     type Organization,
     type OrganizationWorkspaceOption,
     type PlatformOverview,
+    type PlatformCitizen,
     type PlatformStaff,
-    type PlatformUser,
     type StaffMember,
     type WorkspaceView,
 } from './domain'
@@ -207,7 +207,7 @@ function App() {
     const [loginError, setLoginError] = useState<string | null>(null)
     const [loginErrorCode, setLoginErrorCode] = useState<string | null>(null)
 
-    const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([])
+    const [platformCitizens, setPlatformCitizens] = useState<PlatformCitizen[]>([])
     const [platformStaff, setPlatformStaff] = useState<PlatformStaff[]>([])
     const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null)
     const [directoryLoading, setDirectoryLoading] = useState(false)
@@ -589,17 +589,19 @@ function App() {
             setDirectoryLoading(true)
 
             try {
-                const [users, staff, overview] = await Promise.all([
-                    requestJson<PlatformUser[]>('/api/platform/users'),
+                const [citizens, staff, overview, loadedOrganizations] = await Promise.all([
+                    requestJson<PlatformCitizen[]>('/api/platform/citizens'),
                     requestJson<PlatformStaff[]>('/api/platform/staff'),
                     requestJson<PlatformOverview>('/api/platform/overview'),
+                    requestJson<Organization[]>('/api/organizations'),
                 ])
 
                 if (!mounted) return
 
-                setPlatformUsers(users)
+                setPlatformCitizens(citizens)
                 setPlatformStaff(staff)
                 setPlatformOverview(overview)
+                setOrganizations(loadedOrganizations)
             } catch (reason) {
                 if (mounted) {
                     setError(
@@ -1378,81 +1380,6 @@ function App() {
         }
     }
 
-    async function createOrganization(name: string, code: string) {
-        if (!currentUser) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const created = await requestJson<Organization>('/api/organizations', {
-                method: 'POST',
-                body: JSON.stringify({name, code}),
-            })
-
-            setOrganizations((current) => [...current, created])
-            setSelectedOrganizationId(created.id)
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Organization creation failed.')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
-    async function updateOrganization(id: string, name: string, code: string) {
-        if (!currentUser) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const updated = await requestJson<Organization>(`/api/organizations/${id}`, {
-                method: 'PUT',
-                body: JSON.stringify({name, code}),
-            })
-
-            setOrganizations((current) => current.map((item) => item.id === updated.id ? updated : item))
-            showToast('Organization updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Organization update failed.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
-    async function deleteOrganization(organization: Organization) {
-        if (!currentUser) return
-
-        const confirmed = window.confirm(
-            `Delete ${organization.name}? Its memberships, staff records and pending invitations are removed as well. An organization that still holds cases cannot be deleted.`,
-        )
-
-        if (!confirmed) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            await requestJson<void>(`/api/organizations/${organization.id}`, {
-                method: 'DELETE',
-            })
-
-            setOrganizations((current) => current.filter((item) => item.id !== organization.id))
-            setSelectedOrganizationId((current) => (
-                current === organization.id ? '' : current
-            ))
-            showToast('Organization deleted.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Organization deletion failed.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
     async function updateStaffPhone(member: StaffMember, phoneNumber: string) {
         if (!currentUser || !organizationId) return
 
@@ -1475,57 +1402,6 @@ function App() {
             const message = reason instanceof Error ? reason.message : 'Phone number update failed.'
             setError(message)
             showToast(message, 'error')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
-    async function updateOrganizationStatus(organization: Organization) {
-        if (!currentUser) return
-        if (!window.confirm(`${organization.isActive ? 'Deactivate' : 'Reactivate'} ${organization.name}?`)) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const result = await requestJson<Organization>(
-                `/api/organizations/${organization.id}/${organization.isActive ? 'deactivate' : 'reactivate'}`,
-                {method: 'PATCH'},
-            )
-
-            setOrganizations((current) => current.map((item) => item.id === result.id ? result : item))
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Organization status change failed.')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
-    async function createMembership(userId: string, role: string) {
-        if (!currentUser || !selectedOrganizationId) return
-
-        const currentOrganizationId = selectedOrganizationId
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const created = await requestJson<Membership>(
-                `/api/organizations/${currentOrganizationId}/memberships`,
-                {
-                    method: 'POST',
-                    body: JSON.stringify({userId, role}),
-                },
-            )
-
-            setMembershipsData((current: MembershipsData | null) => ({
-                organizationId: currentOrganizationId,
-                items: current?.organizationId === currentOrganizationId
-                    ? [...current.items, created]
-                    : [created],
-            }))
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Membership creation failed.')
         } finally {
             setAdminLoading(false)
         }
@@ -1986,8 +1862,10 @@ function App() {
                                 <PlatformDirectory
                                     loading={directoryLoading}
                                     overview={platformOverview}
-                                    users={platformUsers}
+                                    citizens={platformCitizens}
                                     staff={platformStaff}
+                                    organizations={organizations}
+                                    refreshData={() => setRetryVersion((version) => version + 1)}
                                 />
                             ) : activeView === 'platform-errors' && platformAdminAccess ? (
                                 <PlatformErrors
@@ -2031,11 +1909,7 @@ function App() {
                                     invitations={organizationInvitations}
                                     selectedOrganizationId={selectedOrganizationId}
                                     onSelectOrganization={setSelectedOrganizationId}
-                                    onCreateOrganization={createOrganization}
-                                    onUpdateOrganization={updateOrganization}
-                                    onToggleOrganization={updateOrganizationStatus}
-                                    onDeleteOrganization={deleteOrganization}
-                                    onCreateMembership={createMembership}
+                                    refreshData={() => setRetryVersion((version) => version + 1)}
                                     onUpdateMembership={updateMembership}
                                     onInvite={(fullName, email, phoneNumber, role) =>
                                         inviteStaff(selectedOrganizationId, fullName, email, phoneNumber, role)}

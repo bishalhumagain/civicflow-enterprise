@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AccountInvitation, Membership, Organization } from '../domain'
 import { InvitationManager } from './InvitationManager'
+import { createOrganization, updateOrganization, activateOrganization, deactivateOrganization, deleteOrganization } from '../api/organizations'
 
 export function OrganizationAdministration({
   authenticated,
@@ -10,11 +11,7 @@ export function OrganizationAdministration({
   invitations,
   selectedOrganizationId,
   onSelectOrganization,
-  onCreateOrganization,
-  onUpdateOrganization,
-  onToggleOrganization,
-  onDeleteOrganization,
-  onCreateMembership,
+  refreshData,
   onUpdateMembership,
   onInvite,
   onResendInvitation,
@@ -27,11 +24,7 @@ export function OrganizationAdministration({
   invitations: AccountInvitation[]
   selectedOrganizationId: string
   onSelectOrganization: (id: string) => void
-  onCreateOrganization: (name: string, code: string) => Promise<void>
-  onUpdateOrganization: (id: string, name: string, code: string) => Promise<void>
-  onToggleOrganization: (organization: Organization) => Promise<void>
-  onDeleteOrganization: (organization: Organization) => Promise<void>
-  onCreateMembership: (userId: string, role: string) => Promise<void>
+  refreshData: () => void
   onUpdateMembership: (membership: Membership, action: 'role' | 'active', role?: string) => Promise<void>
   onInvite: (
     fullName: string,
@@ -42,31 +35,111 @@ export function OrganizationAdministration({
   onResendInvitation: (invitationId: string) => Promise<void>
   onRevokeInvitation: (invitationId: string) => Promise<void>
 }) {
-  const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [userId, setUserId] = useState('')
-  const [role, setRole] = useState('Viewer')
-  const [editing, setEditing] = useState(false)
+  const [editingOrg, setEditingOrg] = useState<string | null>(null)
   const [editedName, setEditedName] = useState('')
   const [editedCode, setEditedCode] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newOrgName, setNewOrgName] = useState('')
+  const [newOrgCode, setNewOrgCode] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const selected = organizations.find((item) => item.id === selectedOrganizationId)
 
-  function startEditing() {
-    if (!selected) return
+  async function run(
+    key: string,
+    action: () => Promise<void>,
+    successMessage: string,
+  ) {
+    setBusy(key)
+    setError(null)
+    setNotice(null)
 
-    setEditedName(selected.name)
-    setEditedCode(selected.code)
-    setEditing(true)
+    try {
+      await action()
+      setNotice(successMessage)
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The organization operation could not be completed.',
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleCreateOrganization(e: React.FormEvent) {
+    e.preventDefault()
+    await run(
+      'create',
+      async () => {
+        await createOrganization(newOrgName.trim(), newOrgCode.trim())
+        setNewOrgName('')
+        setNewOrgCode('')
+        setShowCreateForm(false)
+        refreshData()
+      },
+      'Organization created.',
+    )
+  }
+
+  async function handleUpdateOrganization(org: Organization) {
+    await run(
+      `update-${org.id}`,
+      async () => {
+        await updateOrganization(org.id, editedName.trim(), editedCode.trim())
+        setEditingOrg(null)
+        refreshData()
+      },
+      'Organization updated.',
+    )
+  }
+
+  async function handleToggleOrganization(org: Organization) {
+    await run(
+      `toggle-${org.id}`,
+      async () => {
+        if (org.isActive) {
+          await deactivateOrganization(org.id)
+        } else {
+          await activateOrganization(org.id)
+        }
+        refreshData()
+      },
+      org.isActive ? 'Organization deactivated.' : 'Organization activated.',
+    )
+  }
+
+  async function handleDeleteOrganization(org: Organization) {
+    if (!confirm(`Are you sure you want to delete ${org.name}? This action cannot be undone.`)) {
+      return
+    }
+
+    await run(
+      `delete-${org.id}`,
+      async () => {
+        await deleteOrganization(org.id)
+        refreshData()
+      },
+      'Organization deleted.',
+    )
+  }
+
+  function startEditing(org: Organization) {
+    setEditingOrg(org.id)
+    setEditedName(org.name)
+    setEditedCode(org.code)
   }
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">ACCESS ADMINISTRATION</p>
-          <h1>Organizations &amp; memberships</h1>
-          <p className="muted">Platform administrators can manage organizations; organization administrators can manage memberships in their own organization.</p>
+          <p className="eyebrow">ORGANIZATION ADMINISTRATION</p>
+          <h1>Organizations</h1>
+          <p className="muted">Manage organizations and their members.</p>
         </div>
       </div>
 
@@ -77,180 +150,229 @@ export function OrganizationAdministration({
       ) : (
         <>
           <section className="case-card admin-panel">
-            <h2>Organizations</h2>
+            <div className="admin-row" style={{ marginBottom: 16 }}>
+              <button
+                className="primary-button"
+                disabled={loading || busy !== null}
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                type="button"
+              >
+                {showCreateForm ? 'Cancel' : 'Create Organization'}
+              </button>
+            </div>
 
-            {organizations.length === 0 ? (
-              <p className="muted">No platform organizations loaded. If you are an OrganizationAdmin, select the configured organization below to manage its memberships.</p>
-            ) : (
-              <>
-                <div className="admin-row">
-                  <select
-                    aria-label="Selected organization"
-                    value={selectedOrganizationId}
-                    onChange={(event) => {
-                      setEditing(false)
-                      onSelectOrganization(event.target.value)
-                    }}
-                  >
-                    {organizations.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                    ))}
-                  </select>
-                  {selected && (
-                    <>
-                      <button
-                        className="secondary-button"
-                        disabled={loading}
-                        onClick={startEditing}
-                        type="button"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={loading}
-                        onClick={() => void onToggleOrganization(selected)}
-                        type="button"
-                      >
-                        {selected.isActive ? 'Deactivate' : 'Reactivate'}
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={loading}
-                        onClick={() => void onDeleteOrganization(selected)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {editing && selected && (
-                  <form
-                    className="inline-form"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void onUpdateOrganization(
-                        selected.id,
-                        editedName.trim(),
-                        editedCode.trim(),
-                      )
-                      setEditing(false)
-                    }}
-                  >
-                    <input
-                      required
-                      maxLength={200}
-                      placeholder="Organization name"
-                      value={editedName}
-                      onChange={(event) => setEditedName(event.target.value)}
-                    />
-                    <input
-                      required
-                      maxLength={50}
-                      placeholder="Code"
-                      value={editedCode}
-                      onChange={(event) => setEditedCode(event.target.value)}
-                    />
-                    <button className="primary-button" disabled={loading} type="submit">
-                      Save changes
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={loading}
-                      onClick={() => setEditing(false)}
-                      type="button"
-                    >
-                      Cancel
-                    </button>
-                  </form>
-                )}
-              </>
+            {showCreateForm && (
+              <form
+                className="inline-form"
+                onSubmit={handleCreateOrganization}
+                style={{ marginBottom: 24 }}
+              >
+                <input
+                  required
+                  maxLength={200}
+                  placeholder="Organization name"
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                />
+                <input
+                  required
+                  maxLength={50}
+                  placeholder="Code"
+                  value={newOrgCode}
+                  onChange={(e) => setNewOrgCode(e.target.value)}
+                />
+                <button className="primary-button" disabled={loading || busy !== null} type="submit">
+                  Create
+                </button>
+              </form>
             )}
 
-            <form
-              className="inline-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void onCreateOrganization(name, code)
-                setName('')
-                setCode('')
-              }}
-            >
-              <input required placeholder="Organization name" value={name} onChange={(event) => setName(event.target.value)} />
-              <input required placeholder="Code" value={code} onChange={(event) => setCode(event.target.value)} />
-              <button className="primary-button" disabled={loading} type="submit">Create organization</button>
-            </form>
-          </section>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            {notice && <p className="form-success" role="status">{notice}</p>}
 
-          <section className="case-card admin-panel">
-            <h2>Memberships {selectedOrganizationId && <small>{selectedOrganizationId}</small>}</h2>
-
-            <form
-              className="inline-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void onCreateMembership(userId, role)
-                setUserId('')
-              }}
-            >
-              <input
-                required
-                placeholder="Application user ID"
-                value={userId}
-                onChange={(event) => setUserId(event.target.value)}
-              />
-              <select value={role} onChange={(event) => setRole(event.target.value)}>
-                <option>Viewer</option>
-                <option>CaseWorker</option>
-                <option>OrganizationAdmin</option>
-              </select>
-              <button className="primary-button" disabled={loading || !selectedOrganizationId} type="submit">
-                Add membership
-              </button>
-            </form>
-
-            {memberships.length === 0 ? (
-              <p className="muted empty-state">No memberships returned, or this identity is not authorized for the selected organization.</p>
+            {organizations.length === 0 ? (
+              <p className="muted empty-state">No organizations found.</p>
             ) : (
-              <div className="membership-list">
-                {memberships.map((membership) => (
-                  <div className="membership-row" key={membership.id}>
-                    <code>{membership.userId}</code>
-                    <select
-                      value={membership.role}
-                      disabled={loading}
-                      onChange={(event) => void onUpdateMembership(membership, 'role', event.target.value)}
-                    >
-                      <option>Viewer</option>
-                      <option>CaseWorker</option>
-                      <option>OrganizationAdmin</option>
-                    </select>
-                    <span>{membership.isActive ? 'Active' : 'Inactive'}</span>
-                    <button
-                      className="secondary-button"
-                      disabled={loading}
-                      onClick={() => void onUpdateMembership(membership, 'active')}
-                      type="button"
-                    >
-                      {membership.isActive ? 'Deactivate' : 'Reactivate'}
-                    </button>
-                  </div>
-                ))}
+              <div aria-label="Organizations" className="table-wrap" role="region" tabIndex={0}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>NAME</th>
+                      <th>CODE</th>
+                      <th>STATUS</th>
+                      <th>CREATED</th>
+                      <th>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {organizations.map((org) => (
+                      <tr key={org.id}>
+                        {editingOrg === org.id ? (
+                          <>
+                            <td>
+                              <input
+                                required
+                                maxLength={200}
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                required
+                                maxLength={50}
+                                value={editedCode}
+                                onChange={(e) => setEditedCode(e.target.value)}
+                              />
+                            </td>
+                            <td>{org.isActive ? 'Active' : 'Inactive'}</td>
+                            <td>{new Date(org.createdAt).toLocaleDateString()}</td>
+                            <td>
+                              <button
+                                className="primary-button"
+                                disabled={busy !== null}
+                                onClick={() => void handleUpdateOrganization(org)}
+                                type="button"
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="secondary-button"
+                                disabled={busy !== null}
+                                onClick={() => setEditingOrg(null)}
+                                type="button"
+                              >
+                                Cancel
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td>
+                              <strong>{org.name}</strong>
+                            </td>
+                            <td>
+                              <code>{org.code}</code>
+                            </td>
+                            <td>
+                              <span className={org.isActive ? 'status-green' : 'status-amber'}>
+                                {org.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td>{new Date(org.createdAt).toLocaleDateString()}</td>
+                            <td>
+                              <button
+                                className="secondary-button"
+                                disabled={busy !== null}
+                                onClick={() => onSelectOrganization(org.id)}
+                                type="button"
+                              >
+                                View Members
+                              </button>
+                              <button
+                                className="secondary-button"
+                                disabled={busy !== null}
+                                onClick={() => startEditing(org)}
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="secondary-button"
+                                disabled={busy !== null}
+                                onClick={() => void handleToggleOrganization(org)}
+                                type="button"
+                              >
+                                {org.isActive ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button
+                                className="secondary-button danger"
+                                disabled={busy !== null}
+                                onClick={() => void handleDeleteOrganization(org)}
+                                type="button"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
 
           {selectedOrganizationId && (
-            <InvitationManager
-              disabled={!selectedOrganizationId}
-              invitations={invitations}
-              loading={loading}
-              onInvite={onInvite}
-              onResend={onResendInvitation}
-              onRevoke={onRevokeInvitation}
-            />
+            <>
+              <section className="case-card admin-panel">
+                <h2>Memberships for {selected?.name}</h2>
+
+                {memberships.length === 0 ? (
+                  <p className="muted empty-state">No memberships found for this organization.</p>
+                ) : (
+                  <div aria-label="Organization memberships" className="table-wrap" role="region" tabIndex={0}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>USER ID</th>
+                          <th>ROLE</th>
+                          <th>STATUS</th>
+                          <th>CREATED</th>
+                          <th>ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {memberships.map((membership) => (
+                          <tr key={membership.id}>
+                            <td>
+                              <code title={membership.userId}>{membership.userId.slice(0, 8)}...</code>
+                            </td>
+                            <td>
+                              <select
+                                value={membership.role}
+                                disabled={busy !== null || loading}
+                                onChange={(e) => void onUpdateMembership(membership, 'role', e.target.value)}
+                              >
+                                <option value="Viewer">Viewer</option>
+                                <option value="CaseWorker">CaseWorker</option>
+                                <option value="OrganizationAdmin">OrganizationAdmin</option>
+                              </select>
+                            </td>
+                            <td>
+                              <span className={membership.isActive ? 'status-green' : 'status-amber'}>
+                                {membership.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td>{new Date(membership.createdAt).toLocaleDateString()}</td>
+                            <td>
+                              <button
+                                className="secondary-button"
+                                disabled={busy !== null || loading}
+                                onClick={() => void onUpdateMembership(membership, 'active')}
+                                type="button"
+                              >
+                                {membership.isActive ? 'Deactivate' : 'Activate'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              <InvitationManager
+                disabled={!selectedOrganizationId}
+                invitations={invitations}
+                loading={loading || busy !== null}
+                onInvite={onInvite}
+                onResend={onResendInvitation}
+                onRevoke={onRevokeInvitation}
+              />
+            </>
           )}
         </>
       )}

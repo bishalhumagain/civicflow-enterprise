@@ -6,6 +6,7 @@ export function invitationStatus(invitation: AccountInvitation): string {
   if (invitation.isUsed) return 'Accepted'
   if (invitation.isRevoked) return 'Revoked'
   if (invitation.isExpired) return 'Expired'
+  if (invitation.deliveryFailed) return 'Delivery failed'
   return 'Pending'
 }
 

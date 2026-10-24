@@ -152,6 +152,56 @@ public sealed class OrganizationMembershipsController(
         }
     }
 
+    [HttpPost("{membershipId:guid}/transfer")]
+    public async Task<ActionResult<OrganizationMembershipResponse>> Transfer(
+        Guid organizationId,
+        Guid membershipId,
+        [FromBody] TransferOrganizationMembershipRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        // Moving a membership changes access in two organizations at once, so
+        // only a platform administrator may perform it.
+        if (await organizationContext.GetPlatformRoleAsync(cancellationToken) !=
+            PlatformRole.SuperAdmin)
+            return Forbid();
+
+        if (!TryParseRole(request.Role, out var role))
+            return BadRequest(new { error = "The organization role is invalid." });
+
+        if (!await CanGrantRoleAsync(role, cancellationToken))
+            return BadRequest(new
+            {
+                error = "Organization administrators cannot grant the OrganizationAdmin role."
+            });
+
+        try
+        {
+            var membership = await membershipService.TransferAsync(
+                organizationId,
+                membershipId,
+                request.DestinationOrganizationId,
+                role,
+                cancellationToken);
+
+            return Ok(ToResponse(membership));
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { error = exception.Message });
+        }
+    }
+
     [HttpPatch("{membershipId:guid}/deactivate")]
     public Task<ActionResult<OrganizationMembershipResponse>> Deactivate(
         Guid organizationId,

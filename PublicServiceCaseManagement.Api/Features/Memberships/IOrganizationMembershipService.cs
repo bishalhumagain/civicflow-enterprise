@@ -31,4 +31,11 @@ public interface IOrganizationMembershipService
         Guid membershipId,
         bool isActive,
         CancellationToken cancellationToken);
+
+    Task<OrganizationMembership> TransferAsync(
+        Guid sourceOrganizationId,
+        Guid membershipId,
+        Guid destinationOrganizationId,
+        OrganizationRole role,
+        CancellationToken cancellationToken);
 }

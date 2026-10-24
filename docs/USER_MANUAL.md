@@ -227,7 +227,7 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 - Create, rename, deactivate, reactivate, and delete organizations
 - Manage memberships and roles within any organization (add members with Viewer, CaseWorker, or OrganizationAdmin roles; update roles; activate/deactivate memberships)
 - Invite staff to any organization and manage those invitations (send, resend, revoke)
-- Browse the platform directory (overview counters, all accounts, all staff memberships)
+- Browse the platform directory: citizen accounts with editable profiles, and organization memberships with role changes, activation, invitations, and transfer between organizations
 - Read the platform-wide audit log
 - View platform dashboard statistics (total cases, per-status, per-priority, weekly/monthly trends)
 - Track and manage application errors (list, filter, view detail, mark as handled)
@@ -252,7 +252,7 @@ The Organizations view consists of two main sections: "Organizations" and "Membe
 
 - **InvitationManager section** (integrated component):
   - Form to send invitations: requires full name (1–150 characters), email (max 254 characters), optional phone number (max 30 characters), and role
-  - Invitation list showing name, email, role, expiry date, phone number (if provided), and status
+  - Invitation list showing name, email, role, expiry date, phone number (if provided), and status, including a delivery-failed state with a Resend action
   - Actions: Resend (for pending invitations) and Revoke (for pending invitations)
   - No password is created or emailed; the invitee sets their own password from the single-use link
 
@@ -367,24 +367,26 @@ Organization administrators can edit case title and description and can permanen
 ### 5.7 Managing Organizations
 
 1. Navigate to **Organizations** (available to platform administrators in the platform workspace)
-2. Use the dropdown to select an organization from the list
-3. **Create a new organization**: Enter the organization name and code, then click "Create organization"
-4. **Rename an organization**: Select the organization, click "Rename", update the name and code in the inline form, then save
-5. **Activate/Deactivate an organization**: Click the "Deactivate" or "Reactivate" button for the selected organization
-6. **Delete an organization**: Click "Delete" for the selected organization — deletion is refused while the organization still holds cases
-7. **Manage memberships**:
-   - Add a membership by entering the application user ID and selecting a role (Viewer, CaseWorker, or OrganizationAdmin), then click "Add membership"
-   - Update a member's role using the role dropdown in the membership list
-   - Activate or deactivate a membership using the "Deactivate" or "Reactivate" button
-8. **Manage invitations**: Use the InvitationManager to send, resend, or revoke invitations for the selected organization
+2. Use the create button to add an organization by name and code; duplicate names or codes and invalid values are reported inline
+3. **Rename an organization**: Click **Edit** on the organization row, update the name and code, then save
+4. **Activate/Deactivate an organization**: Use the **Activate** or **Deactivate** button on the row
+5. **Delete an organization**: Click **Delete** for the organization — deletion is refused while the organization still holds cases
+6. **Manage memberships**:
+   - Select **View members** to open the organization's membership grid
+   - Update a member's role using the role dropdown
+   - Activate or deactivate a membership using the **Activate** or **Deactivate** button
+7. **Manage invitations**: Use the invitation panel below the membership grid to send, resend, or revoke invitations for the selected organization. A failed email delivery is shown on the invitation and can be retried with **Resend** without invalidating the link.
 
 ### 5.8 Reviewing the Platform Directory
 
 1. Sign in as a platform administrator and open **Directory**
 2. Read the overview counters (accounts, active accounts, staff, active staff, organizations, active organizations, invitations, pending invitations)
-3. Browse the **Accounts** table for every account with its roles, platform role, phone number, and organization memberships
-4. Browse the **Staff memberships** table for every staff membership with organization, role, and status
-5. Use the search field to narrow the tables
+3. Open the **Citizens** tab to browse citizen accounts. Use **Edit** to correct name, phone, NID, citizenship number, age, gender, or addresses, and **Activate/Deactivate** to control account access
+4. Open the **Organization Members** tab to browse every membership. Change the role from the row dropdown, activate/deactivate the membership, or use **Move to…** to transfer the member to another active organization; transfers require a platform super administrator and are audited
+5. Use the search field, sort control, and pagination to narrow either grid
+6. Use **Invitations** on a member row or the organization selector in the **Member invitations** panel to manage invitations for that organization
+
+Citizens and organization members are distinct: an account appears in the Citizens grid only when it has a citizen profile, and a membership row never duplicates the account identity.
 
 ### 5.9 Reviewing the Audit Log
 

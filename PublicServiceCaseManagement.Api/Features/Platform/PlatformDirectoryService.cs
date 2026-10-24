@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Platform;
@@ -16,7 +19,8 @@ namespace PublicServiceCaseManagement.Api.Features.Platform;
 /// </remarks>
 public sealed class PlatformDirectoryService(
     CivicFlowDbContext dbContext,
-    TimeProvider timeProvider) : IPlatformDirectoryService
+    TimeProvider timeProvider,
+    IAuditLogger auditLogger) : IPlatformDirectoryService
 {
     public async Task<IReadOnlyList<PlatformUserSummary>> GetUsersAsync(
         CancellationToken cancellationToken = default)
@@ -211,6 +215,115 @@ public sealed class PlatformDirectoryService(
             pendingInvitationCount);
     }
 
+    public async Task<IReadOnlyList<PlatformCitizenSummary>> GetCitizensAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await (
+            from profile in dbContext.CitizenProfiles.AsNoTracking()
+            join user in dbContext.ApplicationUsers.AsNoTracking()
+                on profile.ApplicationUserId equals user.Id
+            orderby profile.FullName, profile.Id
+            select new { Profile = profile, User = user }
+        ).ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => ToCitizenSummary(row.User, row.Profile))
+            .ToList();
+    }
+
+    public async Task<PlatformCitizenSummary> UpdateCitizenAsync(
+        Guid userId,
+        UpdatePlatformCitizenRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.ApplicationUsers
+            .SingleOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException("The citizen account does not exist.");
+        }
+
+        var profile = await dbContext.CitizenProfiles
+            .SingleOrDefaultAsync(
+                candidate => candidate.ApplicationUserId == userId,
+                cancellationToken);
+
+        if (profile is null)
+        {
+            throw new KeyNotFoundException("The citizen profile does not exist.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FullName) ||
+            request.FullName.Trim().Length > 150)
+        {
+            throw new ArgumentException(
+                "Full name is required and must not exceed 150 characters.",
+                nameof(request.FullName));
+        }
+
+        if (request.Age is < 0 or > 150)
+        {
+            throw new ArgumentException(
+                "Age must be between 0 and 150.",
+                nameof(request.Age));
+        }
+
+        var nid = request.NIDNumber?.Trim();
+        if (!string.IsNullOrWhiteSpace(nid) &&
+            await dbContext.CitizenProfiles.AnyAsync(
+                candidate => candidate.Id != profile.Id &&
+                             candidate.NIDNumber == nid,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "A citizen profile with this NID number already exists.");
+        }
+
+        var citizenship = request.CitizenshipNumber?.Trim();
+        if (!string.IsNullOrWhiteSpace(citizenship) &&
+            await dbContext.CitizenProfiles.AnyAsync(
+                candidate => candidate.Id != profile.Id &&
+                             candidate.CitizenshipNumber == citizenship,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "A citizen profile with this citizenship number already exists.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+
+        profile.Update(
+            request.FullName,
+            request.PhoneNumber,
+            request.NIDNumber,
+            request.CitizenshipNumber,
+            request.Age,
+            request.Gender,
+            request.PermanentAddress,
+            request.TemporaryAddress,
+            now);
+
+        user.FullName = profile.FullName;
+        user.PhoneNumber = profile.PhoneNumber;
+        user.UpdatedAt = now;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = AuditActions.AccountProfileUpdated,
+                EntityType = "CitizenProfile",
+                EntityId = profile.Id.ToString(),
+                Details = $"Citizen profile for {profile.Email} updated by a platform administrator."
+            },
+            cancellationToken);
+
+        return ToCitizenSummary(user, profile);
+    }
+
     public async Task SetUserActiveStatusAsync(
         Guid userId,
         bool isActive,
@@ -250,6 +363,26 @@ public sealed class PlatformDirectoryService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    private static PlatformCitizenSummary ToCitizenSummary(
+        ApplicationUser user,
+        CitizenProfile profile) =>
+        new(
+            user.Id,
+            profile.Id,
+            profile.FullName,
+            profile.Email,
+            profile.PhoneNumber,
+            user.EmailConfirmed,
+            user.IsActive,
+            profile.NIDNumber,
+            profile.CitizenshipNumber,
+            profile.Age,
+            profile.Gender,
+            profile.PermanentAddress,
+            profile.TemporaryAddress,
+            profile.CreatedAt,
+            profile.UpdatedAt);
 
     private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>>
         LoadRoleNamesAsync(

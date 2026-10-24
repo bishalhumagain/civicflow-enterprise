@@ -196,6 +196,9 @@ Sign-in failures confirmed to return the machine-readable codes `email_not_confi
 - `GET /api/platform/overview` returned counters (`userCount`, `staffCount`, `organizationCount`, `invitationCount`, and active/pending variants)
 - `GET /api/platform/users` returned every account with roles, platform role, and memberships
 - `GET /api/platform/staff` returned every staff membership with organization, role, and status
+- `GET /api/platform/citizens` returned citizen profiles; `PUT /api/platform/citizens/{userId}` updated the profile and account name, and duplicate NID values were rejected with `409`
+- `POST /api/organizations/{orgId}/memberships/{membershipId}/transfer` moved a membership to an active destination organization, deactivated the source membership, and recorded `membership.transferred`
+- A simulated email transport failure left the invitation valid with `deliveryFailed: true`; `Resend` cleared the failure state after delivery recovered
 
 ### Invitation-with-phone path
 

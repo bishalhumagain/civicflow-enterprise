@@ -3,6 +3,7 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Platform;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Tests.Infrastructure;
 using Xunit;
 
 namespace PublicServiceCaseManagement.Tests.Features.Platform;
@@ -21,7 +22,7 @@ public sealed class PlatformDirectoryServiceTests
 
         var context = new CivicFlowDbContext(options);
 
-        return (context, new PlatformDirectoryService(context, TimeProvider.System));
+        return (context, new PlatformDirectoryService(context, TimeProvider.System, new RecordingAuditLogger()));
     }
 
     [Fact]

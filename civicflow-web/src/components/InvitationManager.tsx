@@ -99,7 +99,7 @@ export function InvitationManager({
           disabled={loading || disabled}
           type="submit"
         >
-          {loading ? 'Sending…' : 'Send invitation'}
+          {loading ? 'Inviting…' : 'Invite member'}
         </button>
       </form>
 
@@ -129,8 +129,23 @@ export function InvitationManager({
                   {invitation.phoneNumber && (
                     <small className="muted">{invitation.phoneNumber}</small>
                   )}
+                  {invitation.deliveryFailed && (
+                    <small className="muted">
+                      Email delivery failed. Use Resend to retry.
+                    </small>
+                  )}
                 </div>
-                <span>{invitationStatus(invitation)}</span>
+                <span
+                  className={
+                    invitationStatus(invitation) === 'Pending'
+                      ? 'status-green'
+                      : invitationStatus(invitation) === 'Delivery failed'
+                        ? 'status-amber'
+                        : undefined
+                  }
+                >
+                  {invitationStatus(invitation)}
+                </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {canResend(invitation) && (
                     <button

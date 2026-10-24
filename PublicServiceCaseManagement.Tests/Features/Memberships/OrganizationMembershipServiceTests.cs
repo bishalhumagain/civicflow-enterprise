@@ -493,4 +493,134 @@ public sealed class OrganizationMembershipServiceTests
         Assert.True(result.IsActive);
     }
 
+    [Fact]
+    public async Task TransferAsync_MovesMembershipAndPreservesSourceRecord()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var source = CreateOrganization();
+        var destination = CreateOrganization();
+        var user = CreateUser();
+        var membership = OrganizationMembership.Create(
+            user.Id,
+            source.Id,
+            OrganizationRole.Viewer,
+            Now);
+
+        dbContext.Organizations.AddRange(source, destination);
+        dbContext.ApplicationUsers.Add(user);
+        dbContext.OrganizationMemberships.Add(membership);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
+
+        var transferred = await service.TransferAsync(
+            source.Id,
+            membership.Id,
+            destination.Id,
+            OrganizationRole.CaseWorker,
+            CancellationToken.None);
+
+        Assert.Equal(destination.Id, transferred.OrganizationId);
+        Assert.Equal(OrganizationRole.CaseWorker, transferred.Role);
+        Assert.True(transferred.IsActive);
+        Assert.False(membership.IsActive);
+    }
+
+    [Fact]
+    public async Task TransferAsync_ToSameOrganization_ThrowsArgumentException()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var organization = CreateOrganization();
+        var user = CreateUser();
+        var membership = OrganizationMembership.Create(
+            user.Id,
+            organization.Id,
+            OrganizationRole.Viewer,
+            Now);
+
+        dbContext.Organizations.Add(organization);
+        dbContext.ApplicationUsers.Add(user);
+        dbContext.OrganizationMemberships.Add(membership);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.TransferAsync(
+                organization.Id,
+                membership.Id,
+                organization.Id,
+                OrganizationRole.Viewer,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task TransferAsync_ToInactiveOrganization_ThrowsInvalidOperationException()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var source = CreateOrganization();
+        var destination = CreateOrganization();
+        destination.Deactivate(Now);
+        var user = CreateUser();
+        var membership = OrganizationMembership.Create(
+            user.Id,
+            source.Id,
+            OrganizationRole.Viewer,
+            Now);
+
+        dbContext.Organizations.AddRange(source, destination);
+        dbContext.ApplicationUsers.Add(user);
+        dbContext.OrganizationMemberships.Add(membership);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.TransferAsync(
+                source.Id,
+                membership.Id,
+                destination.Id,
+                OrganizationRole.Viewer,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task TransferAsync_WhenDestinationMembershipExists_ThrowsInvalidOperationException()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var source = CreateOrganization();
+        var destination = CreateOrganization();
+        var user = CreateUser();
+        var sourceMembership = OrganizationMembership.Create(
+            user.Id,
+            source.Id,
+            OrganizationRole.Viewer,
+            Now);
+        var destinationMembership = OrganizationMembership.Create(
+            user.Id,
+            destination.Id,
+            OrganizationRole.CaseWorker,
+            Now);
+
+        dbContext.Organizations.AddRange(source, destination);
+        dbContext.ApplicationUsers.Add(user);
+        dbContext.OrganizationMemberships.AddRange(
+            sourceMembership,
+            destinationMembership);
+        await dbContext.SaveChangesAsync();
+
+        var service = new OrganizationMembershipService(dbContext, new RecordingAuditLogger());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.TransferAsync(
+                source.Id,
+                sourceMembership.Id,
+                destination.Id,
+                OrganizationRole.Viewer,
+                CancellationToken.None));
+    }
 }

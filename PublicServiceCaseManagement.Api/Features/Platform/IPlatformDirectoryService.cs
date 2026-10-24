@@ -14,6 +14,14 @@ public interface IPlatformDirectoryService
     Task<PlatformOverviewResponse> GetOverviewAsync(
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<PlatformCitizenSummary>> GetCitizensAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<PlatformCitizenSummary> UpdateCitizenAsync(
+        Guid userId,
+        UpdatePlatformCitizenRequest request,
+        CancellationToken cancellationToken = default);
+
     Task SetUserActiveStatusAsync(
         Guid userId,
         bool isActive,

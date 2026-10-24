@@ -97,9 +97,9 @@ The platform is built around three core principles:
 | Capability | Description |
 |---|---|
 | **Multi-tenant scoping** | All case data is organization-scoped. Server-side resolution + PostgreSQL RLS prevents cross-organization access. |
-| **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. |
+| **Organization CRUD** | Super administrators create, rename, activate/deactivate, and delete organizations. Deletion is refused while cases exist. Duplicate codes and invalid changes are reported inline. |
 | **Memberships** | Organization administrators manage staff roles and activation but cannot grant OrganizationAdmin; only platform administrators can provision organization admins. |
-| **Invitation-based onboarding** | Organization administrators invite staff; acceptance grants the Staff portal role and a CaseWorker organization membership. Single-use, expiring links (default 72h, configurable 1–720h); invitees choose their own password. |
+| **Invitation-based onboarding** | Organization administrators invite staff; acceptance grants the Staff portal role and a CaseWorker organization membership. Single-use, expiring links (default 72h, configurable 1–720h); invitees choose their own password. Failed email delivery is recorded on the invitation and can be retried without invalidating the link. |
 | **Phone numbers** | Optional on staff and invitations (6–30 chars, at least 6 digits). Never overwrites a number an existing account already has. Correctable by organization administrators. |
 
 ### Audit & Compliance
@@ -116,7 +116,7 @@ The platform is built around three core principles:
 
 | Capability | Description |
 |---|---|
-| **Platform directory** | Overview counters (accounts, staff, organizations, invitations), all accounts with roles/memberships, all staff memberships. |
+| **Platform directory** | Overview counters (accounts, staff, organizations, invitations) plus two distinct grids: citizen accounts with editable profiles, and organization memberships with role changes, activation, invitation management, and superadmin-only transfer between organizations. |
 | **Organization management** | Full CRUD, including deletion with cleanup of memberships, staff records, and pending invitations. |
 | **Super-admin bootstrap** | Configurable seed with fail-fast validation on partial/policy-violating configuration. Explicit `ResetPassword` switch for one-time repair. |
 

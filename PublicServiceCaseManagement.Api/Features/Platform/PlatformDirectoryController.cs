@@ -51,6 +51,69 @@ public sealed class PlatformDirectoryController(
         return Ok(staff);
     }
 
+    [HttpGet("api/platform/citizens")]
+    public async Task<ActionResult<IReadOnlyList<PlatformCitizenSummary>>>
+        GetCitizens(CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        var citizens = await platformDirectoryService.GetCitizensAsync(
+            cancellationToken);
+
+        return Ok(citizens);
+    }
+
+    [HttpPut("api/platform/citizens/{userId:guid}")]
+    public async Task<ActionResult<PlatformCitizenSummary>> UpdateCitizen(
+        Guid userId,
+        [FromBody] UpdatePlatformCitizenRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        try
+        {
+            var citizen = await platformDirectoryService.UpdateCitizenAsync(
+                userId,
+                request,
+                cancellationToken);
+
+            return Ok(citizen);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { error = exception.Message });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+    }
+
+    [HttpPatch("api/platform/citizens/{userId:guid}/activate")]
+    public Task<IActionResult> ActivateCitizen(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        SetCitizenActiveStatus(userId, true, cancellationToken);
+
+    [HttpPatch("api/platform/citizens/{userId:guid}/deactivate")]
+    public Task<IActionResult> DeactivateCitizen(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        SetCitizenActiveStatus(userId, false, cancellationToken);
+
     [HttpGet("api/platform/overview")]
     public async Task<ActionResult<PlatformOverviewResponse>> GetOverview(
         CancellationToken cancellationToken)
@@ -129,6 +192,32 @@ public sealed class PlatformDirectoryController(
         catch (ArgumentException exception)
         {
             return BadRequest(new { error = exception.Message });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+    }
+
+    private async Task<IActionResult> SetCitizenActiveStatus(
+        Guid userId,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        try
+        {
+            await platformDirectoryService.SetUserActiveStatusAsync(
+                userId,
+                isActive,
+                cancellationToken);
+
+            return NoContent();
         }
         catch (KeyNotFoundException exception)
         {

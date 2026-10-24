@@ -133,6 +133,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `PUT /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/role` | Same membership administrators; `ChangeOrganizationMembershipRoleRequest` | `200 OrganizationMembershipResponse`; `400` invalid/prohibited role, `404` missing membership. |
 | `PATCH /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/deactivate` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` missing membership. |
 | `PATCH /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/reactivate` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` missing membership. |
+| `POST /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/transfer` | SuperAdmin; `TransferOrganizationMembershipRequest` | `200 OrganizationMembershipResponse` for the new destination membership; deactivates the source membership and audits `membership.transferred`. `400` same organization or invalid role; `404` missing membership/organization; `409` inactive destination or duplicate destination membership. |
 | `POST /api/organizations/{organizationId:guid}/invitations` | SuperAdmin, or OrganizationAdmin for their selected organization; `CreateInvitationRequest` | `201 InvitationResponse`; `400` invalid/prohibited role, `404` missing organization, `409` duplicate/conflict; generates single-use expiring token and sends invite email. OrganizationAdmins may invite CaseWorkers only. |
 | `GET /api/organizations/{organizationId:guid}/invitations` | Same invitation administrators | `200 InvitationResponse[]`; organization-scoped list; token/hash is never returned. |
 | `POST /api/organizations/{organizationId:guid}/invitations/{invitationId:guid}/resend` | Same invitation administrators | `200 InvitationResponse`; `404` missing, `409` used/revoked/unavailable; creates and sends a replacement single-use link. |
@@ -205,6 +206,10 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `GET /api/organizations/{organizationId:guid}/audit` | SuperAdmin, or active same-organization member; same audit query filters | `200 AuditEventPageResponse`; OrganizationAdmin sees org events; Viewer/CaseWorker actor filter is mandatory and cannot be widened by query. |
 | `GET /api/platform/users` | SuperAdmin | `200 PlatformUserSummary[]`; platform-wide accounts and role/membership summaries. |
 | `GET /api/platform/staff` | SuperAdmin | `200 PlatformStaffSummary[]`; platform-wide staff memberships. |
+| `GET /api/platform/citizens` | SuperAdmin | `200 PlatformCitizenSummary[]`; citizen accounts joined to their citizen profile. |
+| `PUT /api/platform/citizens/{userId:guid}` | SuperAdmin; `UpdatePlatformCitizenRequest` | `200 PlatformCitizenSummary`; updates profile and account name/phone. `400` invalid name/age; `404` missing account/profile; `409` duplicate NID/citizenship number. |
+| `PATCH /api/platform/citizens/{userId:guid}/activate` | SuperAdmin | `204`; activates the citizen account. |
+| `PATCH /api/platform/citizens/{userId:guid}/deactivate` | SuperAdmin | `204`; deactivates the citizen account. |
 | `GET /api/platform/overview` | SuperAdmin | `200 PlatformOverviewResponse`; platform counters. |
 | `GET /api/dashboard/platform` | SuperAdmin | `200 CaseStatistics`; platform-wide statistics. |
 | `GET /api/dashboard/organization?organizationId={guid}` | Active organization member; optional ID must match resolved membership | `200 CaseStatistics`; `403` absent/mismatched organization context. |

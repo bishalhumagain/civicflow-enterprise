@@ -70,6 +70,20 @@ public sealed class AccountInvitation
 
     public Guid? AcceptedUserId { get; private set; }
 
+    /// <summary>
+    /// Set when the most recent delivery attempt failed. The invitation
+    /// itself remains valid so an administrator can retry delivery.
+    /// </summary>
+    public DateTimeOffset? DeliveryFailedAt { get; private set; }
+
+    /// <summary>
+    /// A short, non-sensitive description of the last delivery failure.
+    /// Never contains the invitation token or credentials.
+    /// </summary>
+    public string? DeliveryError { get; private set; }
+
+    public bool IsDeliveryFailed => DeliveryFailedAt.HasValue;
+
     public bool IsUsed => UsedAt.HasValue;
 
     public bool IsRevoked => RevokedAt.HasValue;
@@ -160,6 +174,25 @@ public sealed class AccountInvitation
             expiresAt);
     }
 
+    public void MarkDeliverySucceeded(DateTimeOffset now)
+    {
+        if (!IsDeliveryFailed)
+        {
+            return;
+        }
+
+        DeliveryFailedAt = null;
+        DeliveryError = null;
+        UpdatedAt = now;
+    }
+
+    public void MarkDeliveryFailed(string? error, DateTimeOffset now)
+    {
+        DeliveryFailedAt = now;
+        DeliveryError = NormalizeDeliveryError(error);
+        UpdatedAt = now;
+    }
+
     public void MarkUsed(Guid acceptedUserId, DateTimeOffset now)
     {
         if (acceptedUserId == Guid.Empty)
@@ -225,5 +258,19 @@ public sealed class AccountInvitation
         TokenHash = tokenHash;
         ExpiresAt = expiresAt;
         UpdatedAt = now;
+    }
+
+    private static string? NormalizeDeliveryError(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return null;
+        }
+
+        var trimmed = error.Trim();
+
+        return trimmed.Length <= 500
+            ? trimmed
+            : trimmed[..500];
     }
 }

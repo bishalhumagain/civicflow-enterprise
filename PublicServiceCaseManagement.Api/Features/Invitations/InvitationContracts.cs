@@ -27,7 +27,8 @@ public sealed record InvitationResponse(
     DateTimeOffset ExpiresAt,
     bool IsExpired,
     bool IsUsed,
-    bool IsRevoked);
+    bool IsRevoked,
+    bool DeliveryFailed);
 
 public sealed record InvitationDetailsResponse(
     string Email,

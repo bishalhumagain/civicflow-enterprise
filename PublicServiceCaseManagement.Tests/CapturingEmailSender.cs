@@ -14,12 +14,24 @@ public sealed class CapturingEmailSender : IEmailSender
     public IReadOnlyCollection<CapturedEmail> Messages =>
         messages.ToArray();
 
+    /// <summary>
+    /// Simulates a transport failure so delivery-state handling can be tested
+    /// without a real SMTP server.
+    /// </summary>
+    public bool FailDelivery { get; set; }
+
     public Task SendAsync(
         string toEmail,
         string subject,
         string body,
         CancellationToken cancellationToken = default)
     {
+        if (FailDelivery)
+        {
+            throw new InvalidOperationException(
+                "Simulated SMTP transport failure.");
+        }
+
         messages.Enqueue(new CapturedEmail(toEmail, subject, body));
         return Task.CompletedTask;
     }

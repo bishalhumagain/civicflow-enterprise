@@ -444,6 +444,9 @@ public sealed class CivicFlowDbContext(
             entity.Property(invitation => invitation.ExpiresAt)
                 .IsRequired();
 
+            entity.Property(invitation => invitation.DeliveryError)
+                .HasMaxLength(500);
+
             entity.HasIndex(invitation => invitation.TokenHash)
                 .IsUnique();
 
