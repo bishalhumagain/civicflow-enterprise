@@ -55,6 +55,8 @@ import {OrganizationDashboard} from './components/OrganizationDashboard'
 import {PlatformErrors} from './components/PlatformErrors'
 import {NotificationCenter} from './components/NotificationCenter'
 import {BackgroundJobsPage} from './components/BackgroundJobsPage'
+import {AppFooter, PublicFooter, PublicHeader} from './components/PublicLayout'
+import {ThemeToggle} from './components/ThemeToggle'
 import {LandingPage} from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
 import PlatformAdminLoginPage from './pages/PlatformAdminLoginPage'
@@ -67,6 +69,7 @@ import {ResetPasswordPage} from './pages/ResetPasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import {useToast} from './components/use-toast'
 import type {LoginCredentials} from './components/LoginForm'
+import {useAppConfig} from './app-config'
 
 const STAFF_LOGIN_PATH = '/admin'
 const PLATFORM_ADMIN_LOGIN_PATH = '/super-platform-admin'
@@ -166,6 +169,7 @@ function resolveSessionPortal(user: AuthUser): SignInPortal {
 
 function App() {
     const {showToast} = useToast()
+    const {applicationName} = useAppConfig()
     const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
     const [sessionChecked, setSessionChecked] = useState(false)
     const [cases, setCases] = useState<CaseRecord[]>([])
@@ -1477,12 +1481,7 @@ function App() {
     if (route === 'staff-login' && !organizationAccess) {
         return (
             <div className="landing-page">
-                <header className="landing-header">
-                    <div className="landing-brand">
-                        <span className="landing-brand-mark">C</span>
-                        <span className="landing-brand-name">CivicFlow</span>
-                    </div>
-                </header>
+                <PublicHeader />
                 <main className="landing-main">
                     <section style={{maxWidth: 520, margin: '0 auto', width: '100%'}}>
                         <h2 style={{marginTop: 0}}>Organization workspace unavailable</h2>
@@ -1509,9 +1508,7 @@ function App() {
                         </div>
                     </section>
                 </main>
-                <footer className="landing-footer">
-                    <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
-                </footer>
+                <PublicFooter />
             </div>
         )
     }
@@ -1522,12 +1519,7 @@ function App() {
     if (route === 'platform-admin-login' && !platformAdminAccess) {
         return (
             <div className="landing-page">
-                <header className="landing-header">
-                    <div className="landing-brand">
-                        <span className="landing-brand-mark">C</span>
-                        <span className="landing-brand-name">CivicFlow</span>
-                    </div>
-                </header>
+                <PublicHeader />
                 <main className="landing-main">
                     <section style={{maxWidth: 520, margin: '0 auto', width: '100%'}}>
                         <h2 style={{marginTop: 0}}>Platform administration unavailable</h2>
@@ -1553,9 +1545,7 @@ function App() {
                         </div>
                     </section>
                 </main>
-                <footer className="landing-footer">
-                    <p>CivicFlow Enterprise · Platform administration</p>
-                </footer>
+                <PublicFooter />
             </div>
         )
     }
@@ -1602,10 +1592,20 @@ function App() {
         <div className="app-shell">
             <a className="skip-link" href="#main-content">Skip to main content</a>
             <aside className="sidebar">
-                <div className="brand">
+                <button
+                    className="brand brand-button"
+                    onClick={() => setViewSelection(
+                        availableViews.includes('organization-dashboard')
+                            ? 'organization-dashboard'
+                            : availableViews.includes('platform-dashboard')
+                                ? 'platform-dashboard'
+                                : availableViews[0] ?? 'citizen-dashboard',
+                    )}
+                    type="button"
+                >
                     <span className="brand-mark">C</span>
-                    <span>CivicFlow</span>
-                </div>
+                    <span>{applicationName}</span>
+                </button>
 
                 <div className="workspace-label">WORKSPACE</div>
 
@@ -1673,6 +1673,7 @@ function App() {
                     </div>
 
                     <div className="topbar-actions">
+                        <ThemeToggle compact />
                         <NotificationCenter
                             onOpenCase={organizationAccess
                                 ? (caseId) => {
@@ -1682,7 +1683,8 @@ function App() {
                                 : undefined}
                         />
                         <button className="auth-button" onClick={handleSignOut} type="button">
-                            Sign out
+                            <Icon className="button-icon" name="logout" />
+                            <span>Sign out</span>
                         </button>
                     </div>
                 </header>
@@ -1853,7 +1855,8 @@ function App() {
                                             onClick={() => setShowCreateForm(true)}
                                             type="button"
                                         >
-                                            ＋ New case
+                                            <Icon className="button-icon" name="plus" />
+                                            <span>New case</span>
                                         </button>
                                     </div>
 
@@ -1932,7 +1935,7 @@ function App() {
                                         <section className="case-card">
                                             <div className="case-toolbar">
                                                 <div className="search">
-                                                    ⌕
+                                                    <Icon className="search-icon" name="search" />
                                                     <input
                                                         aria-label="Search cases"
                                                         placeholder="Search cases…"
@@ -2062,10 +2065,7 @@ function App() {
                         </>
                     )}
 
-                    <p className="footer-note">
-                        CivicFlow Enterprise · Secure organization-scoped case management ·{' '}
-                        <a href="https://github.com/bishalhumagain/civicflow-enterprise">View project</a>
-                    </p>
+                    <AppFooter />
                 </section>
             </main>
         </div>

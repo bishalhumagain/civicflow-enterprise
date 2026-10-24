@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api'
+import { Icon } from './Icon'
 
 type JobSummary = {
   id: string
@@ -117,7 +118,8 @@ export function BackgroundJobsPage() {
                         onClick={() => void changeJob(job, 'retry')}
                         type="button"
                       >
-                        {changingJobId === job.id ? 'Retrying…' : 'Retry'}
+                        <Icon className="button-icon" name="refresh" />
+                        <span>{changingJobId === job.id ? 'Retrying…' : 'Retry'}</span>
                       </button>
                     )}
                     {['Queued', 'RetryScheduled'].includes(job.status) && (
@@ -127,7 +129,8 @@ export function BackgroundJobsPage() {
                         onClick={() => void changeJob(job, 'cancel')}
                         type="button"
                       >
-                        {changingJobId === job.id ? 'Cancelling…' : 'Cancel'}
+                        <Icon className="button-icon" name="x" />
+                        <span>{changingJobId === job.id ? 'Cancelling…' : 'Cancel'}</span>
                       </button>
                     )}
                   </td>

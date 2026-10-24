@@ -6,6 +6,7 @@ import {
   invitationRoles,
   invitationStatus,
 } from './invitation-utils'
+import { Icon } from './Icon'
 
 /**
  * Invitation form and pending-invitation list shared by the staff directory
@@ -99,7 +100,8 @@ export function InvitationManager({
           disabled={loading || disabled}
           type="submit"
         >
-          {loading ? 'Inviting…' : 'Invite member'}
+          <Icon className="button-icon" name="invite" />
+          <span>{loading ? 'Inviting…' : 'Invite member'}</span>
         </button>
       </form>
 
@@ -154,7 +156,8 @@ export function InvitationManager({
                       onClick={() => void onResend(invitation.id)}
                       type="button"
                     >
-                      Resend
+                      <Icon className="button-icon" name="refresh" />
+                      <span>Resend</span>
                     </button>
                   )}
                   {canRevoke(invitation) && (
@@ -164,7 +167,8 @@ export function InvitationManager({
                       onClick={() => void onRevoke(invitation.id)}
                       type="button"
                     >
-                      Revoke
+                      <Icon className="button-icon" name="x" />
+                      <span>Revoke</span>
                     </button>
                   )}
                 </div>

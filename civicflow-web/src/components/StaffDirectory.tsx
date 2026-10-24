@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { StaffMember } from '../domain'
+import { Icon } from './Icon'
 
 /**
  * The organization's team contact list. Membership roles, activation, and
@@ -80,7 +81,8 @@ export function StaffDirectory({
                         onClick={() => void savePhone(member)}
                         type="button"
                       >
-                        Save
+                        <Icon className="button-icon" name="save" />
+                        <span>Save</span>
                       </button>
                       <button
                         className="secondary-button"
@@ -104,7 +106,8 @@ export function StaffDirectory({
                           style={{ display: 'inline', padding: 0 }}
                           type="button"
                         >
-                          Edit
+                          <Icon className="button-icon" name="edit" />
+                          <span>Edit</span>
                         </button>
                       )}
                     </span>

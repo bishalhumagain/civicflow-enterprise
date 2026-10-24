@@ -42,6 +42,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Bind centralized server configuration
 builder.Services.Configure<ServerConfiguration>(
     builder.Configuration.GetSection(ServerConfiguration.SectionName));
+builder.Services.Configure<ApplicationConfiguration>(
+    builder.Configuration.GetSection(ApplicationConfiguration.SectionName));
 
 var isDevelopment = builder.Environment.IsDevelopment();
 

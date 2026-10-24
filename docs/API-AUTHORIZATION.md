@@ -81,6 +81,12 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `GET /api/health` | Anonymous; no parameters | `200` `{status, service}` liveness response. |
 | `GET /api/health/ready` | Anonymous; no parameters | `200` when PostgreSQL is reachable; otherwise `503` with a generic unavailable response. |
 
+### Public configuration
+
+| Method and path | Access / parameters | Response and effects |
+|---|---|---|
+| `GET /api/config/public` | Anonymous; no parameters | `200` `{applicationName}`. Safe branding only, sourced from `Application:Name`; no connection strings, secrets, or operational settings are exposed. |
+
 ### Authentication, invitations redemption, and personal tokens
 
 | Method and path | Access / request | Success, failures, and effects |

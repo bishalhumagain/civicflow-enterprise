@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AccountInvitation, Membership, Organization } from '../domain'
 import { InvitationManager } from './InvitationManager'
+import { Icon } from './Icon'
 import { createOrganization, updateOrganization, activateOrganization, deactivateOrganization, deleteOrganization } from '../api/organizations'
 
 export function OrganizationAdministration({
@@ -164,7 +165,9 @@ export function OrganizationAdministration({
                   onClick={() => setShowCreateForm(!showCreateForm)}
                   type="button"
                 >
-                  {showCreateForm ? 'Cancel' : 'Create Organization'}
+                  {showCreateForm
+                    ? 'Cancel'
+                    : <><Icon className="button-icon" name="plus" /><span>Create organization</span></>}
                 </button>
               </div>
             )}
@@ -190,7 +193,8 @@ export function OrganizationAdministration({
                   onChange={(e) => setNewOrgCode(e.target.value)}
                 />
                 <button className="primary-button" disabled={loading || busy !== null} type="submit">
-                  Create
+                  <Icon className="button-icon" name="plus" />
+                  <span>Create</span>
                 </button>
               </form>
             )}
@@ -242,7 +246,8 @@ export function OrganizationAdministration({
                                 onClick={() => void handleUpdateOrganization(org)}
                                 type="button"
                               >
-                                Save
+                                <Icon className="button-icon" name="save" />
+                                <span>Save</span>
                               </button>
                               <button
                                 className="secondary-button"
@@ -275,7 +280,8 @@ export function OrganizationAdministration({
                                 onClick={() => onSelectOrganization(org.id)}
                                 type="button"
                               >
-                                View Members
+                                <Icon className="button-icon" name="eye" />
+                                <span>View members</span>
                               </button>
                               {canManageOrganizations && (
                                 <>
@@ -285,7 +291,8 @@ export function OrganizationAdministration({
                                     onClick={() => startEditing(org)}
                                     type="button"
                                   >
-                                    Edit
+                                    <Icon className="button-icon" name="edit" />
+                                    <span>Edit</span>
                                   </button>
                                   <button
                                     className="secondary-button"
@@ -301,7 +308,8 @@ export function OrganizationAdministration({
                                     onClick={() => void handleDeleteOrganization(org)}
                                     type="button"
                                   >
-                                    Delete
+                                    <Icon className="button-icon" name="trash" />
+                                    <span>Delete</span>
                                   </button>
                                 </>
                               )}

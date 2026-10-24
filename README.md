@@ -132,6 +132,7 @@ The platform is built around three core principles:
 | **Invitation management UI** | Send, resend, revoke, list (pending/accepted/expired/revoked). |
 | **Audit log UI** | Shared component with category/action/text/date-range filters and pagination. |
 | **Profile management** | Unified self-service profile for citizens and staff. |
+| **Theme and branding** | Complete light and dark themes with a persisted preference and system-theme fallback. The public and workspace headers use the configured application name, and every footer is generated from that same value. |
 
 ---
 
@@ -581,6 +582,12 @@ The API obtains the citizen identity from the authenticated session, verifies th
 | GET | `/api/health` | Anonymous | Health status |
 | GET | `/api/health/ready` | Anonymous | Database connectivity check |
 
+### Public Configuration (`/api/config/public`)
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| GET | `/api/config/public` | Anonymous | Returns the safe application branding (`applicationName`) used by the shell and footer. Configure it with `Application:Name` in `appsettings.json`; nothing else from configuration is exposed. |
+
 ---
 
 ## Getting Started
@@ -620,6 +627,7 @@ Edit `appsettings.json`:
 - `ConnectionStrings:CivicFlow` — use the `civicflow_migrator` credentials for migrations, `civicflow_runtime` for the running API
 - `Cors:AllowedOrigins` — add the frontend origin (default: `http://localhost:5173`)
 - `Frontend:BaseUrl` — the frontend URL (for invitation links)
+- `Application:Name` — product name shown in the header and copyright footer (default: `CivicFlow Enterprise`)
 - `SeedAdmin:Email` / `SeedAdmin:Password` / `SeedAdmin:FullName` — optional, for initial super-admin. The configured password is hashed by ASP.NET Core Identity; it is set when the account is first created and does not overwrite a later password change.
 
 > **Never commit `appsettings.json`** — it is gitignored. Use environment variables or .NET user-secrets for production.

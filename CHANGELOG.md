@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a complete light/dark theme with a persisted, system-aware preference.
+- Applied the CivicFlow teal-blue, moonstone, powder-blue, magic-mint, white-smoke, and warm-beige palette across public and authenticated surfaces.
+- Centralized brand and footer components; branding and the copyright footer now use `Application:Name` exposed through the anonymous `GET /api/config/public` endpoint.
+- Refined action icons, form/dropdown containment, responsive layouts, and shared status/error states.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

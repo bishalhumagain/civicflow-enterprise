@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
+import { Icon } from './Icon'
 import {
   statusLabels,
   statusOptions,
@@ -138,7 +139,8 @@ export function CaseDetails({
             }
             type="submit"
           >
-            Save case details
+            <Icon className="button-icon" name="save" />
+            <span>Save case details</span>
           </button>
         </form>
       ) : (
@@ -297,7 +299,8 @@ export function CaseDetails({
             onClick={() => setDeleteConfirmationCaseId(caseRecord.id)}
             type="button"
           >
-            Delete
+            <Icon className="button-icon" name="trash" />
+            <span>Delete</span>
           </button>
         </div>
       )}

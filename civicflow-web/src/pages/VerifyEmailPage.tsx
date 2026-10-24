@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { resendVerification, verifyEmail } from '../auth'
+import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type VerifyEmailPageProps = {
   onBack: () => void
@@ -54,12 +55,7 @@ export function VerifyEmailPage({ onBack, onSignIn }: VerifyEmailPageProps) {
 
   return (
     <div className="landing-page">
-      <header className="landing-header">
-        <div className="landing-brand">
-          <span className="landing-brand-mark">C</span>
-          <span className="landing-brand-name">CivicFlow</span>
-        </div>
-      </header>
+      <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
           <h2>Verify your email</h2>
@@ -107,9 +103,7 @@ export function VerifyEmailPage({ onBack, onSignIn }: VerifyEmailPageProps) {
           </div>
         </section>
       </main>
-      <footer className="landing-footer">
-        <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

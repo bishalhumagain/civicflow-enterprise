@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { AuditEvent } from '../domain'
 import { auditCategories } from '../domain'
 import { emptyAuditFilters, type AuditFilters } from './audit-utils'
+import { Icon } from './Icon'
 
 /**
  * Read-only view of the audit trail. The component never writes anything, it
@@ -114,7 +115,8 @@ export function AuditLog({
           />
 
           <button className="primary-button" disabled={loading} type="submit">
-            {loading ? 'Loading…' : 'Apply filters'}
+            <Icon className="button-icon" name="filter" />
+            <span>{loading ? 'Loading…' : 'Apply filters'}</span>
           </button>
           <button
             className="secondary-button"
@@ -122,7 +124,8 @@ export function AuditLog({
             onClick={handleReset}
             type="button"
           >
-            Reset
+            <Icon className="button-icon" name="refresh" />
+            <span>Reset</span>
           </button>
         </form>
       </section>

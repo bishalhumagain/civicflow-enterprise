@@ -1,5 +1,6 @@
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
 import { Icon } from '../components/Icon'
+import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type StaffLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
@@ -20,12 +21,7 @@ export function StaffLoginPage({
 }: StaffLoginPageProps) {
   return (
     <div className="landing-page">
-      <header className="landing-header">
-        <div className="landing-brand">
-          <span className="landing-brand-mark">C</span>
-          <span className="landing-brand-name">CivicFlow</span>
-        </div>
-      </header>
+      <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -57,9 +53,7 @@ export function StaffLoginPage({
           ) : null}
         </section>
       </main>
-      <footer className="landing-footer">
-        <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

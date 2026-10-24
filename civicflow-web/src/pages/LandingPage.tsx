@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react'
+import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type LandingPageProps = {
     /** Citizen sign-in (existing account). */
@@ -44,12 +45,7 @@ export function LandingPage({
                             }: LandingPageProps) {
     return (
         <div className="landing-page">
-            <header className="landing-header">
-                <div className="landing-brand">
-                    <span className="landing-brand-mark">C</span>
-                    <span className="landing-brand-name">CivicFlow</span>
-                </div>
-            </header>
+            <PublicHeader />
             <main className="landing-main">
                 {configurationWarning && (
                     <div className="auth-error" role="alert" style={{marginBottom: 20}}>
@@ -115,9 +111,7 @@ export function LandingPage({
                     </p>
                 </section>
             </main>
-            <footer className="landing-footer">
-                <p>CivicFlow Enterprise · Secure organization-scoped case management</p>
-            </footer>
+            <PublicFooter />
         </div>
     )
 }
