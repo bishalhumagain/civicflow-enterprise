@@ -16,7 +16,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite uses EF Core InMemory and a synthetic authentication handler for most API tests (299 tests total). A subset exercises the real ASP.NET Core Identity flow through the cookie scheme.
+The automated suite uses EF Core InMemory and a synthetic authentication handler for most API tests (365 tests total). A subset exercises the real ASP.NET Core Identity flow through the cookie scheme.
 
 ### Authentication lifecycle
 
@@ -72,6 +72,8 @@ Covered by automated integration tests:
 - Accepting an invitation reactivates an inactive membership and assigns the invitation's organization role
 - Organization administrators cannot invite or promote another OrganizationAdmin
 - Citizen intake returns active organizations and creates a case in the selected organization with submitter attribution and arbitrary file upload
+- A citizen-submitted case is routed to an organization administrator: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned, and an organization with no administrator is a safe no-op
+- A case status change notifies both the submitter and the staff member assigned to the case (`CaseWorker` and read-only `Viewer`)
 - Assignment role changes between CaseWorker and Viewer are recorded in assignment history
 - Staff case lists and identifier lookups are restricted to assigned cases; unassigned and another staff member's cases return no data
 - CaseWorker assignments can update cases, while Viewer assignments are read-only; only organization administrators can assign cases

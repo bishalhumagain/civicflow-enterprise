@@ -120,7 +120,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `GET /api/citizens/organizations` | Citizen; no parameters | `200 CitizenOrganizationOption[]`; active organizations eligible for public intake only. |
 | `GET /api/citizens/cases` | Citizen; no parameters | `200 CitizenCaseSummary[]`; only cases submitted by the authenticated citizen, newest first. |
 | `GET /api/citizens/cases/{id:guid}` | Citizen; case ID | `200 CitizenCaseDetails` with status history; `404` when the case is absent or not submitted by the authenticated citizen. |
-| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and optional attachment. |
+| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and optional attachment, then routes the case to an organization administrator for triage. |
 | `GET /api/profile/me` | Citizen or staff; no parameters | `200 ProfileResponse`; `401` unresolved identity, `404` if profile is absent. |
 | `PUT /api/profile/me` | Citizen or staff; `UpdateProfileRequest` | `200 ProfileResponse`; updates only the authenticated user's permitted self-service fields. Account type and organization membership are server-derived. |
 

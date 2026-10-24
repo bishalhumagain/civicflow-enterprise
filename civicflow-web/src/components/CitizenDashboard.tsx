@@ -1,8 +1,11 @@
 import {useEffect, useState} from 'react'
 import {
     getMyCases,
+    getMyCase,
     type CitizenCaseSummary,
+    type CitizenCaseDetails,
 } from '../api/citizens'
+import {statusLabels} from '../domain'
 import {StatusPill} from './StatusPill'
 import {StatCard} from './StatCard'
 
@@ -30,6 +33,30 @@ export function CitizenDashboard({
     const [cases, setCases] = useState<CitizenCaseSummary[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [selected, setSelected] = useState<CitizenCaseDetails | null>(null)
+    const [detailLoading, setDetailLoading] = useState(false)
+    const [detailError, setDetailError] = useState<string | null>(null)
+
+    async function openCase(id: string) {
+        setDetailLoading(true)
+        setDetailError(null)
+
+        try {
+            const details = await getMyCase(id)
+            setSelected(details)
+        } catch (reason: unknown) {
+            setDetailError(reason instanceof Error
+                ? reason.message
+                : 'Failed to load request details. Try again.')
+        } finally {
+            setDetailLoading(false)
+        }
+    }
+
+    function closeCase() {
+        setSelected(null)
+        setDetailError(null)
+    }
 
     useEffect(() => {
         let mounted = true
@@ -94,7 +121,47 @@ export function CitizenDashboard({
                 </div>
             </div>
 
-            {loading ? (
+            {selected ? (
+                <>
+                    {detailError ? (
+                        <div className="error-banner" role="alert">{detailError}</div>
+                    ) : null}
+
+                    <article className="case-card citizen-case-detail">
+                        <div className="case-card-header">
+                            <h3>{selected.title}</h3>
+                            <StatusPill status={selected.status} />
+                        </div>
+                        <p className="muted">Reference: {selected.referenceNumber}</p>
+                        <p className="muted">
+                            Last updated: {new Date(selected.updatedAt).toLocaleString()}
+                        </p>
+                        <p className="citizen-case-detail-description">{selected.description}</p>
+
+                        <h4>Status history</h4>
+                        {selected.statusHistory.length === 0 ? (
+                            <p className="muted">No status changes have been recorded yet.</p>
+                        ) : (
+                            <ol className="citizen-status-timeline">
+                                {selected.statusHistory.map((entry, index) => (
+                                    <li key={`${entry.changedAt}-${index}`}>
+                                        <span className="citizen-status-transition">
+                                            {statusLabels[entry.previousStatus]} → {statusLabels[entry.newStatus]}
+                                        </span>
+                                        <span className="muted">
+                                            {new Date(entry.changedAt).toLocaleString()}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+
+                        <button className="primary-button" onClick={closeCase} type="button">
+                            Back to my requests
+                        </button>
+                    </article>
+                </>
+            ) : loading ? (
                 <div className="muted">Loading your requests...</div>
             ) : error ? (
                 <div className="error-banner" role="alert">{error}</div>
@@ -103,22 +170,36 @@ export function CitizenDashboard({
                     You haven't submitted any service requests yet. Use public intake to submit your first request.
                 </div>
             ) : (
-                <div className="directory-grid">
-                    {cases.map(c => (
-                        <article key={c.id} className="case-card citizen-action-card">
-                            <div className="case-card-header">
-                                <h3>{c.title}</h3>
-                                <StatusPill status={c.status} />
-                            </div>
-                            <p className="muted">
-                                Reference: {c.referenceNumber}
-                            </p>
-                            <p className="muted">
-                                Submitted: {new Date(c.createdAt).toLocaleDateString()}
-                            </p>
-                        </article>
-                    ))}
-                </div>
+                <>
+                    {detailError ? (
+                        <div className="error-banner" role="alert">{detailError}</div>
+                    ) : null}
+
+                    <div className="directory-grid">
+                        {cases.map(c => (
+                            <article key={c.id} className="case-card citizen-action-card">
+                                <div className="case-card-header">
+                                    <h3>{c.title}</h3>
+                                    <StatusPill status={c.status} />
+                                </div>
+                                <p className="muted">
+                                    Reference: {c.referenceNumber}
+                                </p>
+                                <p className="muted">
+                                    Submitted: {new Date(c.createdAt).toLocaleDateString()}
+                                </p>
+                                <button
+                                    className="primary-button"
+                                    onClick={() => openCase(c.id)}
+                                    type="button"
+                                    disabled={detailLoading}
+                                >
+                                    {detailLoading ? "Loading..." : "View details"}
+                                </button>
+                            </article>
+                        ))}
+                    </div>
+                </>
             )}
 
             <div className="section-heading">

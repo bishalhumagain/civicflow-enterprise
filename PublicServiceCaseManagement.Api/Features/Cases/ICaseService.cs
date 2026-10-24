@@ -57,6 +57,10 @@ public interface ICaseService
         Guid? assignedByUserId = null,
         Domain.Cases.CaseAssignmentRole role =
             Domain.Cases.CaseAssignmentRole.CaseWorker);
+    Task<Case?> RouteToOrganizationAdministratorAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
     Task<IReadOnlyList<CaseAssignmentHistory>> GetAssignmentHistoryAsync(
         Guid caseId,
         Guid organizationId,

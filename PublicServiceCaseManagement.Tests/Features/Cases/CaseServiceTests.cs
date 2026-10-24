@@ -1,7 +1,10 @@
 
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Domain.Notifications;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
+using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -387,5 +390,199 @@ public sealed class CaseServiceTests
         Assert.Null(result);
         Assert.Null(caseEntity.AssignedToStaffMemberId);
         Assert.Empty(await dbContext.CaseAssignmentHistories.ToListAsync());
+    }
+
+    private static ApplicationUser CreateApplicationUser(string email) =>
+        ApplicationUser.Create("Test Principal", email, Now);
+
+    private static OrganizationMembership CreateAdminMembership(Guid userId) =>
+        OrganizationMembership.Create(
+            userId,
+            OrganizationId,
+            OrganizationRole.OrganizationAdmin,
+            Now);
+
+    private static CaseService CreateService(
+        CivicFlowDbContext dbContext,
+        RecordingNotificationOutbox outbox) =>
+        new(dbContext, new RecordingAuditLogger(), outbox);
+
+    private sealed record QueuedNotification(
+        Guid RecipientUserId,
+        string Type,
+        string IdempotencyKey);
+
+    private sealed class RecordingNotificationOutbox : INotificationOutbox
+    {
+        public List<QueuedNotification> Queued { get; } = [];
+
+        public Task<Guid?> EnqueueAsync(
+            Guid recipientUserId,
+            string type,
+            string title,
+            string message,
+            string? entityType,
+            Guid? entityId,
+            string idempotencyKey,
+            Guid? organizationId,
+            string? correlationId,
+            CancellationToken cancellationToken)
+        {
+            Queued.Add(new QueuedNotification(recipientUserId, type, idempotencyKey));
+            return Task.FromResult<Guid?>(Guid.NewGuid());
+        }
+    }
+
+    [Fact]
+    public async Task RouteToOrganizationAdministratorAsync_WhenAdminStaffExists_AssignsToAdmin()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var adminUser = CreateApplicationUser("admin@example.com");
+        var adminStaff = CreateStaffMember(email: "admin@example.com");
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.ApplicationUsers.Add(adminUser);
+        dbContext.OrganizationMemberships.Add(CreateAdminMembership(adminUser.Id));
+        dbContext.StaffMembers.Add(adminStaff);
+        await dbContext.SaveChangesAsync();
+
+        var outbox = new RecordingNotificationOutbox();
+        var service = CreateService(dbContext, outbox);
+
+        var result = await service.RouteToOrganizationAdministratorAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(adminStaff.Id, result.AssignedToStaffMemberId);
+        Assert.Equal(CaseAssignmentRole.CaseWorker, result.AssignedRole);
+        Assert.Contains(
+            outbox.Queued,
+            notification => notification.RecipientUserId == adminUser.Id &&
+                            notification.Type == NotificationTypes.CaseAssigned);
+    }
+
+    [Fact]
+    public async Task RouteToOrganizationAdministratorAsync_WhenNoAdminStaffRow_NotifiesAdminsAndLeavesUnassigned()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var adminUser = CreateApplicationUser("admin@example.com");
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.ApplicationUsers.Add(adminUser);
+        dbContext.OrganizationMemberships.Add(CreateAdminMembership(adminUser.Id));
+        await dbContext.SaveChangesAsync();
+
+        var outbox = new RecordingNotificationOutbox();
+        var service = CreateService(dbContext, outbox);
+
+        var result = await service.RouteToOrganizationAdministratorAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Null(result.AssignedToStaffMemberId);
+        Assert.Contains(
+            outbox.Queued,
+            notification => notification.RecipientUserId == adminUser.Id &&
+                            notification.Type == NotificationTypes.CaseAssigned &&
+                            notification.IdempotencyKey ==
+                                $"case-triage:{caseEntity.Id}:user:{adminUser.Id}");
+    }
+
+    [Fact]
+    public async Task RouteToOrganizationAdministratorAsync_WhenNoAdmins_NoOp()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        var caseWorker = CreateStaffMember(email: "worker@example.com");
+        var caseWorkerUser = CreateApplicationUser("worker@example.com");
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(caseWorker);
+        dbContext.ApplicationUsers.Add(caseWorkerUser);
+        dbContext.OrganizationMemberships.Add(
+            OrganizationMembership.Create(
+                caseWorkerUser.Id,
+                OrganizationId,
+                OrganizationRole.CaseWorker,
+                Now));
+        await dbContext.SaveChangesAsync();
+
+        var outbox = new RecordingNotificationOutbox();
+        var service = CreateService(dbContext, outbox);
+
+        var result = await service.RouteToOrganizationAdministratorAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Null(result.AssignedToStaffMemberId);
+        Assert.Empty(outbox.Queued);
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_WhenCaseHasAssignedViewer_QueuesStaffNotification()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var citizenUserId = Guid.NewGuid();
+        var caseEntity = Case.Create(
+            OrganizationId,
+            $"CF-{Guid.NewGuid():N}"[..11].ToUpperInvariant(),
+            "Damaged streetlight",
+            "A streetlight near the public park is damaged.",
+            Now,
+            citizenUserId);
+
+        var viewerStaff = CreateStaffMember(email: "viewer@example.com");
+
+        var viewerUser = CreateApplicationUser("viewer@example.com");
+        var viewerMembership = OrganizationMembership.Create(
+            viewerUser.Id,
+            OrganizationId,
+            OrganizationRole.Viewer,
+            Now);
+
+        dbContext.Cases.Add(caseEntity);
+        dbContext.StaffMembers.Add(viewerStaff);
+        dbContext.ApplicationUsers.Add(viewerUser);
+        dbContext.OrganizationMemberships.Add(viewerMembership);
+        await dbContext.SaveChangesAsync();
+
+        var assignService = CreateService(dbContext);
+        await assignService.AssignAsync(
+            caseEntity.Id,
+            OrganizationId,
+            viewerStaff.Id,
+            CancellationToken.None,
+            role: CaseAssignmentRole.Viewer);
+
+        var outbox = new RecordingNotificationOutbox();
+        var notifyService = CreateService(dbContext, outbox);
+
+        var result = await notifyService.ChangeStatusAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CaseStatus.UnderReview);
+
+        Assert.NotNull(result);
+        Assert.Contains(
+            outbox.Queued,
+            notification => notification.RecipientUserId == citizenUserId &&
+                            notification.Type == NotificationTypes.CaseStatusChanged);
+        Assert.Contains(
+            outbox.Queued,
+            notification => notification.RecipientUserId == viewerUser.Id &&
+                            notification.Type == NotificationTypes.CaseStatusChanged &&
+                            notification.IdempotencyKey.StartsWith("case-status-staff:"));
     }
 }

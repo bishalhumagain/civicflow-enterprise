@@ -41,7 +41,7 @@ CivicFlow Enterprise helps government and public-service organizations intake, t
 
 CivicFlow Enterprise is a public-service case management platform designed for government departments and public-service agencies. It provides three separate, secure portals:
 
-1. **Citizen Portal** — Citizens register, verify their email, maintain a civil-registry profile, and can submit public service requests.
+1. **Citizen Portal** — Citizens register, verify their email, maintain a civil-registry profile, submit public service requests, and track those requests with a detail view showing status and full status history.
 2. **Organization Portal** — Staff members manage cases within their organization: create cases, change status through a state machine, assign to staff, upload documents, manage staff directories, and send/revoke invitations.
 3. **Platform Administration** — Super administrators manage all organizations, view the platform directory, review the audit trail, track application errors, and monitor dashboard statistics.
 
@@ -87,8 +87,8 @@ The platform is built around three core principles:
 | **Case lifecycle** | Create, list (paged, searchable, filterable), view detail, change status, and assign with organization and per-case role enforcement. Organization admins see their organization's cases; staff see only cases assigned to them. |
 | **Case editing and deletion** | Assigned CaseWorkers and organization administrators can update editable case details; organization administrators alone can permanently delete a case after an explicit confirmation. |
 | **Status state machine** | Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected. Enforced in domain logic; closed/rejected cases are not editable. |
-| **Assignment** | Organization administrators assign cases to active staff in the same organization as CaseWorker or Viewer; assignment and role changes are audited. Viewers have read-only case access. |
-| **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. |
+| **Assignment** | Organization administrators assign cases to active staff in the same organization as CaseWorker or Viewer; assignment and role changes are audited. Viewers have read-only case access. A newly submitted citizen case is triaged to an organization administrator automatically (assigned to an admin staff member when one exists, otherwise every active admin is notified). |
+| **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. They can then track each request and open a detail view showing its current status and full status history. |
 | **Status & assignment history** | Full audit trail of every status change and assignment, with timestamps and actors. |
 | **Document upload/download** | Multipart uploads of any file type up to 10MB, SHA-256 hash verification, path-traversal protection, and attachment-only downloads. |
 
@@ -187,7 +187,7 @@ The platform is built around three core principles:
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
 │   └── Migrations/                         # 24 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (299 tests)
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (365 tests)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── src/
 │   │   ├── App.tsx                         # Session, routing, workspace
@@ -413,7 +413,7 @@ CivicFlow uses EF Core and PostgreSQL as its durable queue and transactional out
 
 The hosted `BackgroundJobWorker` claims work with a PostgreSQL `FOR UPDATE SKIP LOCKED` update and a time-limited lease. Only the registered `notification.email` job is accepted; its payload contains a notification ID, never an address, password, bearer token, invitation secret, or arbitrary executable data. Job states are `Queued → Running → Succeeded`, `RetryScheduled`, or `Failed`; queued and retry-scheduled work can also be `Cancelled`. A lease-expired job is recovered on a later poll. Transient email failures use exponential delay (default base 30 seconds, capped at one hour) with 0.75–1.25 jitter and a default maximum of five attempts (clamped to 1–20). Failed work remains inspectable until retention cleanup. A SuperAdmin retry is audited, retains monotonic attempt history, and can extend the total attempt ceiling only up to 20.
 
-Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), and case status changes (to the case submitter). Messages are generic and do not reveal case details. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
+Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), and case status changes (to the case submitter and to the staff member currently assigned to the case, whether `CaseWorker` or read-only `Viewer`). A newly submitted citizen case is also triaged to an organization administrator: when an active admin has a matching staff record the case is assigned to the earliest such admin (notifying them through the case-assignment event), and otherwise every active `OrganizationAdmin` receives a triage notification while the case stays unassigned. Messages are generic and do not reveal case details. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
 
 Authenticated users can list their own notifications with `GET /api/notifications?page=1&pageSize=20&unreadOnly=false`, read their unread count at `GET /api/notifications/unread-count`, mark one read with `PATCH /api/notifications/{id}/read`, or mark their own unread notifications read with `POST /api/notifications/read`. All reads and writes are recipient-scoped. The notification panel in the workspace refreshes the count every 60 seconds.
 
@@ -490,7 +490,7 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 | GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an accessible case |
 | GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download documents for an accessible case |
 
-Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, and documents; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
+Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. A citizen-submitted case is routed to an organization administrator for triage: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned until an admin assigns it. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, and documents; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
 
 ### Citizen Intake (`/api/citizens`)
 
@@ -501,7 +501,7 @@ Staff-created cases always use the authenticated organization context; clients c
 | GET | `/api/citizens/cases/{id}` | CitizenClient | Read one submitted case and its status history |
 | POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title`, `description`, and optional `additionalDocument` (any file type, max 10 MB) |
 
-The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, and persists an optional document as a case attachment. Citizens can list and read only the cases they submitted; the client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided. Citizen self-service routes remain available when `BusinessEndpoints:Enabled` is false.
+The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, persists an optional document as a case attachment, and routes the new case to an organization administrator for triage. Citizens can list and read only the cases they submitted, opening a detail view with the full description and status history; the client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided. Citizen self-service routes remain available when `BusinessEndpoints:Enabled` is false.
 
 ### Staff (`/api/staff`)
 
@@ -721,7 +721,7 @@ Verification, password-reset, and invitation messages are sent through `IEmailSe
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**299 tests** covering:
+**365 tests** covering:
 
 | Category | What's tested |
 |---|---|
@@ -732,9 +732,9 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 | **Super-admin seeding** | Fresh seed + login, weak/partial seed failure, skip when unconfigured, repair of damaged account, password-change preservation |
 | **Personal access tokens** | Creation, hashing, bearer auth, role propagation, least privilege, tampering, expiry, revocation |
 | **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, scoped organization listing, audit endpoints, staff account and phone update |
-| **Cases** | CRUD, status changes, assignments, paging |
+| **Cases** | CRUD, status changes, assignments, paging, routing a submitted case to an organization admin, and status notifications to the assigned staff member (`CaseWorker` and `Viewer`) |
 | **Case documents** | Upload, download |
-| **Citizens** | Profile auth, create/update, duplicates, intake, own-case list/detail, business-gate exemption |
+| **Citizens** | Profile auth, create/update, duplicates, intake, own-case list/detail with status history, administrator triage routing, business-gate exemption |
 | **Staff** | CRUD, platform staff, phone update |
 | **Organizations** | CRUD, delete rules |
 | **Memberships** | CRUD, role changes |
@@ -826,7 +826,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 ### Implemented and Verified
 
-- Backend API with EF Core/PostgreSQL and 23 migrations
+- Backend API with EF Core/PostgreSQL and 24 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
 - Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
@@ -838,14 +838,14 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Staff: CRUD, platform-wide listing, phone numbers, activation/deactivation
 - Organizations: CRUD, delete with case-check, memberships, roles
 - Invitation-based onboarding (single-use, expiring, SHA-256 hashed, resend/revoke)
-- Citizens: self-registration, profile with duplicate detection
+- Citizens: self-registration, profile with duplicate detection, submitted-case tracking with a detail view and status history, and administrator triage routing on submission
 - Unified self-service profile for citizens and staff
 - Audit trail (platform-wide and org-scoped, filterable, paged, fail-safe)
 - Platform directory (overview counters, Citizens, Staff, and All Users sections)
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 322 automated tests (unit + integration)
+- 365 automated tests (unit + integration)
 - CI pipeline (GitHub Actions)
 
 ### Implemented but Limited
@@ -855,7 +855,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
 - Live PostgreSQL checks are manual probes, not CI integration tests
 - Development does not deliver email. It writes one-time links (including sensitive tokens) to the API console automatically; use this only in a private Development environment. Use TLS-enabled SMTP for delivery outside Development.
-- Citizen case intake supports active-organization selection and optional arbitrary-file attachments; citizen case tracking is not yet available
+- Citizen case intake supports active-organization selection and optional arbitrary-file attachments; submitted cases are routed to an organization administrator for triage, and citizens can track each request's status and open its full detail with status history
 
 ### Not Started
 

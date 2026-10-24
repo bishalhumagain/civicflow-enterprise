@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Notifications;
+using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
@@ -252,6 +253,50 @@ public sealed class CaseService(
                 cancellationToken);
         }
 
+        // Staff members assigned to the case — either as the working assignee
+        // or in a read-only viewer role — are watchers, so a status change must
+        // notify them too. Recipients are resolved from the assigned staff
+        // member's matching active membership users by email.
+        if (caseEntity.AssignedToStaffMemberId is { } assignedStaffMemberId)
+        {
+            var assignedStaffEmail = await dbContext.StaffMembers
+                .AsNoTracking()
+                .Where(staff => staff.Id == assignedStaffMemberId)
+                .Select(staff => staff.Email)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(assignedStaffEmail))
+            {
+                var watcherUserIds = await (
+                    from membership in dbContext.OrganizationMemberships
+                    join user in dbContext.ApplicationUsers
+                        on membership.UserId equals user.Id
+                    where membership.OrganizationId == organizationId &&
+                          membership.IsActive &&
+                          user.IsActive &&
+                          user.Email != null &&
+                          user.Email.ToUpper() == assignedStaffEmail.ToUpper()
+                    select user.Id)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+
+                foreach (var watcherUserId in watcherUserIds)
+                {
+                    await notificationOutbox.EnqueueAsync(
+                        watcherUserId,
+                        NotificationTypes.CaseStatusChanged,
+                        "Case update",
+                        "The status of a case you are watching changed.",
+                        "Case",
+                        caseEntity.Id,
+                        $"case-status-staff:{history.Id}:user:{watcherUserId}",
+                        organizationId,
+                        history.Id.ToString("N"),
+                        cancellationToken);
+                }
+            }
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await auditLogger.RecordAsync(
@@ -372,6 +417,92 @@ public sealed class CaseService(
             cancellationToken);
 
         return caseEntity;
+    }
+
+    public async Task<Case?> RouteToOrganizationAdministratorAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        // A newly-created citizen case is owned initially by an organization
+        // administrator, who then assigns it to the right team member. Prefer a
+        // staff member that corresponds to an active OrganizationAdmin, chosen
+        // deterministically (earliest created) so repeat routing is stable.
+        var adminEmails = await (
+            from membership in dbContext.OrganizationMemberships
+            join user in dbContext.ApplicationUsers
+                on membership.UserId equals user.Id
+            where membership.OrganizationId == organizationId &&
+                  membership.Role == OrganizationRole.OrganizationAdmin &&
+                  membership.IsActive &&
+                  user.IsActive &&
+                  user.Email != null
+            select (user.Email ?? string.Empty).ToUpper())
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        Guid? adminStaffMemberId = null;
+
+        if (adminEmails.Count > 0)
+        {
+            adminStaffMemberId = await dbContext.StaffMembers
+                .Where(staff => staff.OrganizationId == organizationId &&
+                                staff.IsActive &&
+                                adminEmails.Contains(staff.Email.ToUpper()))
+                .OrderBy(staff => staff.CreatedAt)
+                .ThenBy(staff => staff.Id)
+                .Select(staff => (Guid?)staff.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (adminStaffMemberId is { } staffMemberId)
+        {
+            // AssignAsync records the assignment history and notifies the admin
+            // (resolved from their matching membership user by email).
+            return await AssignAsync(
+                caseId,
+                organizationId,
+                staffMemberId,
+                cancellationToken,
+                assignedByUserId: null,
+                role: CaseAssignmentRole.CaseWorker);
+        }
+
+        // No admin has a staff-member row yet, so the case cannot be formally
+        // owned by one. Still notify every active administrator so triage
+        // begins, and leave the case unassigned until an admin assigns it.
+        foreach (var adminUserId in await (
+            from membership in dbContext.OrganizationMemberships
+            join user in dbContext.ApplicationUsers
+                on membership.UserId equals user.Id
+            where membership.OrganizationId == organizationId &&
+                  membership.Role == OrganizationRole.OrganizationAdmin &&
+                  membership.IsActive &&
+                  user.IsActive &&
+                  user.Email != null
+            select user.Id)
+            .Distinct()
+            .ToListAsync(cancellationToken))
+        {
+            await notificationOutbox.EnqueueAsync(
+                adminUserId,
+                NotificationTypes.CaseAssigned,
+                "New case needs assignment",
+                "A case was submitted. Assign it to a team member.",
+                "Case",
+                caseId,
+                $"case-triage:{caseId}:user:{adminUserId}",
+                organizationId,
+                caseId.ToString("N"),
+                cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return await GetByIdAsync(
+            organizationId,
+            caseId,
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(

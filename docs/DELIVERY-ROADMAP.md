@@ -21,16 +21,16 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 ### Complete and verified
 
 **Backend infrastructure:**
-- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 23 migrations
+- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 24 migrations
 - Case creation, organization-scoped listing/detail access, status history, assignment history, and audit attribution
 - Database-backed application identity, active organization membership, active organization checks, and explicit role rules
 - SuperAdmin cross-organization membership administration without automatic case access
 - Explicit `BusinessEndpoints:Enabled` gate; production business endpoints remain disabled by default, while citizen self-service routes stay available
 - Case document metadata and local file-storage abstraction with filename/path, size, content-type, and hash validation; uploads accept any file type up to 10 MB
-- Citizen case intake and own-case list/detail tracking with active organization selection, session-derived submitter attribution, and optional arbitrary file attachments
+- Citizen case intake and own-case list/detail tracking with active organization selection, session-derived submitter attribution, optional arbitrary file attachments, and routing of the submitted case to an organization administrator for triage; a status change notifies the submitter and the assigned staff member
 - Per-case assignment roles (CaseWorker/Viewer) persisted in cases and assignment history
 - Organization administrators can invite staff but cannot grant OrganizationAdmin; platform administrators retain that provisioning privilege
-- xUnit domain, service, authorization, tenant-boundary, production-gate, and document integration tests (299 tests)
+- xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, and document integration tests (365 tests)
 - Disposable Compose fixtures for PostgreSQL roles
 
 **Authentication & identity:**

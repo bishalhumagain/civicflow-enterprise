@@ -184,6 +184,14 @@ public sealed class CitizenCasesController(
                 document.UploadedAt);
         }
 
+        // A citizen submission is triaged by an organization administrator: the
+        // case becomes owned by an admin (or, if no admin staff row exists yet,
+        // every active admin is notified) so someone always acts on it.
+        await caseService.RouteToOrganizationAdministratorAsync(
+            newCase.Id,
+            organization.Id,
+            cancellationToken);
+
         var response = new CitizenCaseSubmissionResponse(
             newCase.Id,
             newCase.ReferenceNumber,
