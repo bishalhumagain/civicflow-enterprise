@@ -43,7 +43,8 @@ export function OrganizationTypeAdministration() {
   }, [])
 
   useEffect(() => {
-    void loadTypes()
+    const timer = window.setTimeout(() => void loadTypes(), 0)
+    return () => window.clearTimeout(timer)
   }, [loadTypes])
 
   async function run(
