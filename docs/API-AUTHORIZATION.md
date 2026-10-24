@@ -4,7 +4,8 @@ This inventory reflects the controller routes currently mapped by
 `app.MapControllers()`; the API has no separately mapped minimal endpoints.
 The request/response names below refer to the DTOs in
 `PublicServiceCaseManagement.Api/Features`. Business endpoints that consult
-`BusinessEndpoints:Enabled` return `404` when that gate is disabled.
+`BusinessEndpoints:Enabled` return `404` when that gate is disabled; citizen
+self-service routes are exempt and remain available.
 
 ## Authentication and Tenant Resolution
 
@@ -38,9 +39,9 @@ The request/response names below refer to the DTOs in
 | Resource / operation | Citizen | Viewer | CaseWorker | OrganizationAdmin | SuperAdmin |
 |---|---|---|---|---|---|
 | Own account/profile and own PATs | Read/update own profile; own tokens | Own profile/tokens | Own profile/tokens | Own profile/tokens | Own tokens; platform profile is not provided |
-| Citizen case intake | Submit to an active organization; no case tracking endpoint | No | No | No | No |
+| Citizen case intake | Submit to an active organization; list/read own submitted cases | No | No | No | No |
 | Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers; Organizations view for administered organizations | Platform directory and organization administration |
-| Case reads | No case read/track endpoint | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
+| Case reads | Own submitted cases only (summary and status history) | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
 | Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign; delete with confirmation | No implicit case-wide bypass |
 | Notifications | Own notifications only | Own notifications only | Own notifications only | Own notifications only | Own notifications only |
 | Background jobs | No | No | No | No | Global job summaries/details and state-eligible retry/cancel |
@@ -63,9 +64,9 @@ Additional boundaries:
 - Citizens may submit to any organization returned by the active public intake
   directory. The authenticated user ID is assigned server-side; the request
   cannot set a creator ID.
-- There is no case notes/activity-write API, citizen case-tracking API, bulk
-  operation, export API, or general file-storage API in the current route
-  inventory. Case history and audit routes are read-only.
+- There is no case notes/activity-write API, bulk operation, export API, or
+  general file-storage API in the current route inventory. Case history and
+  audit routes are read-only.
 
 ## Endpoint Inventory
 
@@ -117,7 +118,9 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `POST /api/citizens/me` | Citizen; `CreateCitizenProfileRequest` | `201` on create, `200` if the profile already exists and is updated; `400` invalid data, `409` duplicate identity data. User ID comes from session. |
 | `PUT /api/citizens/me` | Citizen; `UpdateCitizenProfileRequest` | `200` updated profile; `400` invalid data, `404` if absent, `409` duplicate identity data. |
 | `GET /api/citizens/organizations` | Citizen; no parameters | `200 CitizenOrganizationOption[]`; active organizations eligible for public intake only. |
-| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and optional attachment. No subsequent citizen list/detail route currently exists. |
+| `GET /api/citizens/cases` | Citizen; no parameters | `200 CitizenCaseSummary[]`; only cases submitted by the authenticated citizen, newest first. |
+| `GET /api/citizens/cases/{id:guid}` | Citizen; case ID | `200 CitizenCaseDetails` with status history; `404` when the case is absent or not submitted by the authenticated citizen. |
+| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and optional attachment. |
 | `GET /api/profile/me` | Citizen or staff; no parameters | `200 ProfileResponse`; `401` unresolved identity, `404` if profile is absent. |
 | `PUT /api/profile/me` | Citizen or staff; `UpdateProfileRequest` | `200 ProfileResponse`; updates only the authenticated user's permitted self-service fields. Account type and organization membership are server-derived. |
 
@@ -253,8 +256,6 @@ The worker accepts only the registered `notification.email` type and looks up th
 - Error response envelopes are not fully normalized: framework validation
   uses MVC validation responses, feature errors often use `{error}`, and auth
   returns `{code,error}`. Clients should handle these documented shapes.
-- Citizen case submission is available, but citizen-owned case list/detail
-  tracking is not implemented.
 - Staff case notes/activity write endpoints, export, bulk operations, and
   general document deletion are not implemented.
 - The email sender is secure by default but requires SMTP configuration outside

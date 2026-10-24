@@ -4,7 +4,11 @@ import { requestJson } from '../api-client'
 type CitizenOrganization = { id: string; name: string; code: string }
 type CitizenCaseSubmission = { referenceNumber: string; additionalDocument: { fileName: string } | null }
 
-export function CitizenIntake() {
+export type CitizenIntakeProps = {
+  onSubmitted?: (submission: CitizenCaseSubmission) => void
+}
+
+export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
   const [organizations, setOrganizations] = useState<CitizenOrganization[]>([])
   const [organizationId, setOrganizationId] = useState('')
   const [title, setTitle] = useState('')
@@ -83,6 +87,7 @@ export function CitizenIntake() {
       setDescription('')
       setDocument(null)
       form.reset()
+      onSubmitted?.(result)
     } catch (reason) {
       setError(reason instanceof Error
         ? reason.message

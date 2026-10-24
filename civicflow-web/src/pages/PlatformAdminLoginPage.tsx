@@ -1,10 +1,8 @@
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
-import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type PlatformAdminLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
-  onBack?: () => void
   onForgotPassword?: () => void
   loading?: boolean
   error?: string | null
@@ -19,7 +17,6 @@ export type PlatformAdminLoginPageProps = {
  */
 export function PlatformAdminLoginPage({
   onSubmit,
-  onBack,
   onForgotPassword,
   loading = false,
   error = null,
@@ -30,15 +27,7 @@ export function PlatformAdminLoginPage({
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Platform Administrator Sign In</h2>
-            {onBack ? (
-              <button className="secondary-button" type="button" onClick={onBack}>
-                <Icon name="arrow-left" />
-                Back
-              </button>
-            ) : null}
-          </div>
+          <h2 style={{ marginTop: 0 }}>Platform Administrator Sign In</h2>
           <p className="muted" style={{ marginTop: 0 }}>
             This portal is reserved for platform administrators. Organization
             staff sign in through the organization portal, and citizens sign in

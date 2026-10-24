@@ -188,7 +188,7 @@ public sealed class CitizensApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetMe_WhenBusinessEndpointsDisabled_ReturnsNotFound()
+    public async Task PostMe_WhenBusinessEndpointsDisabled_RemainsAvailable()
     {
         await using var factory = new CivicFlowApiFactory(
             environmentName: "Production",
@@ -196,8 +196,19 @@ public sealed class CitizensApiIntegrationTests
         await factory.SeedAuthenticatedPlatformUserAsync();
         using var client = CreateCitizenClient(factory);
 
-        var response = await client.GetAsync("/api/citizens/me");
+        var request = new CreateCitizenProfileRequest(
+            "Bishal Humagain",
+            "bishal@example.com",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var response = await client.PostAsJsonAsync("/api/citizens/me", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 }

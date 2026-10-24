@@ -4,11 +4,10 @@ import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type ForgotPasswordPageProps = {
-  onBack: () => void
   onSignIn: () => void
 }
 
-export function ForgotPasswordPage({ onBack, onSignIn }: ForgotPasswordPageProps) {
+export function ForgotPasswordPage({ onSignIn }: ForgotPasswordPageProps) {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
@@ -65,13 +64,7 @@ export function ForgotPasswordPage({ onBack, onSignIn }: ForgotPasswordPageProps
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Reset your password</h2>
-            <button className="secondary-button" type="button" onClick={onBack}>
-              <Icon name="arrow-left" />
-              Back
-            </button>
-          </div>
+          <h2 style={{ marginTop: 0 }}>Reset your password</h2>
           <form className="case-card create-form" onSubmit={handleSubmit}>
             <p className="muted">
               Enter your account email and we will send a password recovery link

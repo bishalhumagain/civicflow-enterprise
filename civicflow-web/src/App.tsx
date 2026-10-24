@@ -152,6 +152,51 @@ function forgetPortal(): void {
     }
 }
 
+const WORKSPACE_VIEW_STORAGE_KEY = 'civicflow.workspaceView'
+
+const workspaceViews: WorkspaceView[] = [
+    'citizen-dashboard',
+    'citizen',
+    'profile',
+    'cases',
+    'staff',
+    'activity',
+    'organization-dashboard',
+    'organizations',
+    'platform-dashboard',
+    'platform-directory',
+    'platform-audit',
+    'platform-errors',
+    'platform-jobs',
+]
+
+function readRememberedWorkspaceView(): WorkspaceView | null {
+    try {
+        const stored = window.localStorage.getItem(WORKSPACE_VIEW_STORAGE_KEY)
+        return stored && workspaceViews.includes(stored as WorkspaceView)
+            ? stored as WorkspaceView
+            : null
+    } catch {
+        return null
+    }
+}
+
+function rememberWorkspaceView(view: WorkspaceView): void {
+    try {
+        window.localStorage.setItem(WORKSPACE_VIEW_STORAGE_KEY, view)
+    } catch {
+        // Storage can be unavailable; the in-memory tab still works.
+    }
+}
+
+function forgetWorkspaceView(): void {
+    try {
+        window.localStorage.removeItem(WORKSPACE_VIEW_STORAGE_KEY)
+    } catch {
+        // Ignore storage failures; the default tab is still available.
+    }
+}
+
 /**
  * Picks the portal a restored session belongs to. The remembered choice only
  * wins when the account's roles actually allow that portal.
@@ -199,8 +244,11 @@ function App() {
     const [showCreateForm, setShowCreateForm] = useState(false)
     const [newTitle, setNewTitle] = useState('')
     const [newDescription, setNewDescription] = useState('')
-    const [viewSelection, setViewSelection] = useState<WorkspaceView>('citizen-dashboard')
+    const [viewSelection, setViewSelection] = useState<WorkspaceView>(
+        () => readRememberedWorkspaceView() ?? 'citizen-dashboard',
+    )
     const [activePortal, setActivePortal] = useState<SignInPortal | null>(null)
+    const [citizenCasesVersion, setCitizenCasesVersion] = useState(0)
     const [casePage, setCasePage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [caseTotalCount, setCaseTotalCount] = useState(0)
@@ -284,6 +332,10 @@ function App() {
     const activeView: WorkspaceView = availableViews.includes(viewSelection)
         ? viewSelection
         : (availableViews[0] ?? 'citizen-dashboard')
+
+    useEffect(() => {
+        if (currentUser) rememberWorkspaceView(activeView)
+    }, [activeView, currentUser])
 
     const navigationItems = useMemo(() => {
         if (!currentUser) return []
@@ -425,9 +477,7 @@ function App() {
                 setCurrentUser(user)
 
                 if (user) {
-                    const portal = resolveSessionPortal(user)
-                    setActivePortal(portal)
-                    setViewSelection(portal === 'citizen' ? 'citizen-dashboard' : 'cases')
+                    setActivePortal(resolveSessionPortal(user))
                 }
             })
             .catch(() => {
@@ -994,12 +1044,6 @@ function App() {
     const handleForgotPassword = () => goToRoute(FORGOT_PASSWORD_PATH, 'forgot-password')
     const handleVerifyEmail = () => goToRoute(VERIFY_EMAIL_PATH, 'verify-email')
 
-    const handleBackToLanding = () => {
-        setLoginError(null)
-        navigateTo('/')
-        setRoute('landing')
-    }
-
     const completeSignIn = (user: AuthUser, portal: SignInPortal) => {
         setCurrentUser(user)
         setActivePortal(portal)
@@ -1064,6 +1108,7 @@ function App() {
         setOrganizations([])
         setActivePortal(null)
         forgetPortal()
+        forgetWorkspaceView()
         navigateTo('/')
         setRoute('landing')
         setViewSelection('citizen-dashboard')
@@ -1381,7 +1426,6 @@ function App() {
     if (route === 'setup-password') {
         return (
             <SetupPasswordPage
-                onBack={handleBackToLanding}
                 onSignIn={handleOrganizationSignIn}
             />
         )
@@ -1391,7 +1435,6 @@ function App() {
         return (
             <PlatformAdminLoginPage
                 onSubmit={handlePlatformAdminLoginSubmit}
-                onBack={handleBackToLanding}
                 onForgotPassword={handleForgotPassword}
                 loading={loginLoading}
                 error={loginError}
@@ -1404,7 +1447,6 @@ function App() {
         return (
             <StaffLoginPage
                 onSubmit={handleOrganizationLoginSubmit}
-                onBack={handleBackToLanding}
                 onForgotPassword={handleForgotPassword}
                 loading={loginLoading}
                 error={loginError}
@@ -1417,7 +1459,6 @@ function App() {
         return (
             <CitizenLoginPage
                 onSubmit={handleCitizenLoginSubmit}
-                onBack={handleBackToLanding}
                 onRegister={handleCitizenRegister}
                 onForgotPassword={handleForgotPassword}
                 loading={loginLoading}
@@ -1430,7 +1471,6 @@ function App() {
     if (!currentUser && route === 'citizen-register') {
         return (
             <CitizenRegisterPage
-                onBack={handleBackToLanding}
                 onSignIn={handleCitizenSignIn}
                 onVerifiedPending={() => handleVerifyEmail()}
             />
@@ -1440,7 +1480,6 @@ function App() {
     if (!currentUser && route === 'verify-email') {
         return (
             <VerifyEmailPage
-                onBack={handleBackToLanding}
                 onSignIn={handleCitizenSignIn}
             />
         )
@@ -1449,7 +1488,6 @@ function App() {
     if (!currentUser && route === 'forgot-password') {
         return (
             <ForgotPasswordPage
-                onBack={handleBackToLanding}
                 onSignIn={handleCitizenSignIn}
             />
         )
@@ -1458,7 +1496,6 @@ function App() {
     if (!currentUser && route === 'reset-password') {
         return (
             <ResetPasswordPage
-                onBack={handleBackToLanding}
                 onSignIn={handleCitizenSignIn}
             />
         )
@@ -1652,8 +1689,6 @@ function App() {
                 </nav>
 
                 <div className="sidebar-footer">
-                    <button className="link-button" onClick={handleBackToLanding}
-                            type="button"><Icon name="home"/> <span>Back to landing</span></button>
                     <div className="profile">
                         <span className="avatar">CF</span>
                         <span>
@@ -1714,6 +1749,7 @@ function App() {
 
                             {activeView === 'citizen-dashboard' ? (
                                 <CitizenDashboard
+                                    key={citizenCasesVersion}
                                     fullName={currentUser.fullName}
                                     email={currentUser.email}
                                     emailConfirmed={currentUser.emailConfirmed}
@@ -1721,7 +1757,9 @@ function App() {
                                     onOpenProfile={() => setViewSelection('profile')}
                                 />
                             ) : activeView === 'citizen' ? (
-                                <CitizenIntake/>
+                                <CitizenIntake
+                                    onSubmitted={() => setCitizenCasesVersion((version) => version + 1)}
+                                />
                             ) : activeView === 'profile' ? (
                                 <ProfilePage/>
                             ) : activeView === 'staff' && organizationAccess ? (
@@ -2055,6 +2093,7 @@ function App() {
                                 </>
                             ) : (
                                 <CitizenDashboard
+                                    key={citizenCasesVersion}
                                     fullName={currentUser.fullName}
                                     email={currentUser.email}
                                     emailConfirmed={currentUser.emailConfirmed}
@@ -2065,8 +2104,8 @@ function App() {
                         </>
                     )}
 
-                    <AppFooter />
                 </section>
+                <AppFooter />
             </main>
         </div>
     )

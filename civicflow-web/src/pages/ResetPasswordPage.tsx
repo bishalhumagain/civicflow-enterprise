@@ -1,14 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { resetPassword } from '../auth'
-import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type ResetPasswordPageProps = {
-  onBack: () => void
   onSignIn: () => void
 }
 
-export function ResetPasswordPage({ onBack, onSignIn }: ResetPasswordPageProps) {
+export function ResetPasswordPage({ onSignIn }: ResetPasswordPageProps) {
   const params = new URLSearchParams(window.location.search)
   const email = params.get('email') ?? ''
   const token = params.get('token') ?? ''
@@ -44,13 +42,7 @@ export function ResetPasswordPage({ onBack, onSignIn }: ResetPasswordPageProps) 
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Choose a new password</h2>
-            <button className="secondary-button" type="button" onClick={onBack}>
-              <Icon name="arrow-left" />
-              Back
-            </button>
-          </div>
+          <h2 style={{ marginTop: 0 }}>Choose a new password</h2>
 
           {linkIncomplete ? (
             <div className="auth-error" role="alert">

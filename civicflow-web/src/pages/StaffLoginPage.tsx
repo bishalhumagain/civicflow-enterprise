@@ -1,10 +1,8 @@
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
-import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type StaffLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
-  onBack?: () => void
   onForgotPassword?: () => void
   loading?: boolean
   error?: string | null
@@ -13,7 +11,6 @@ export type StaffLoginPageProps = {
 
 export function StaffLoginPage({
   onSubmit,
-  onBack,
   onForgotPassword,
   loading = false,
   error = null,
@@ -24,15 +21,7 @@ export function StaffLoginPage({
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Organization &amp; Platform Sign In</h2>
-            {onBack ? (
-              <button className="secondary-button" type="button" onClick={onBack}>
-                <Icon name="arrow-left" />
-                Back
-              </button>
-            ) : null}
-          </div>
+          <h2 style={{ marginTop: 0 }}>Organization &amp; Platform Sign In</h2>
           <p className="muted" style={{ marginTop: 0 }}>
             Staff and Organization Administrators sign in here. Platform
             administrators use the dedicated platform administration portal,

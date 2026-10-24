@@ -1,4 +1,5 @@
 import { authFetch } from "../auth";
+import { readApiErrorDetails } from "../api-error";
 import type { CaseStatus } from "../domain";
 
 export interface CitizenProfile {
@@ -59,21 +60,6 @@ export class CitizenApiError extends Error {
   }
 }
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.error === "string" && body.error.length > 0) {
-      return body.error;
-    }
-  } catch {
-    // ignore malformed bodies
-  }
-  return fallback;
-}
-
 export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
   const response = await authFetch("/api/citizens/me");
 
@@ -82,11 +68,10 @@ export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
   }
 
   if (!response.ok) {
+    const { message } = await readApiErrorDetails(response)
+
     throw new CitizenApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch citizen profile: ${response.status}`,
-      ),
+      message ?? `Failed to fetch citizen profile: ${response.status}`,
       response.status,
     );
   }
@@ -106,11 +91,10 @@ export async function saveMyCitizenProfile(
   });
 
   if (!response.ok) {
+    const { message } = await readApiErrorDetails(response)
+
     throw new CitizenApiError(
-      await readErrorMessage(
-        response,
-        `Failed to save citizen profile: ${response.status}`,
-      ),
+      message ?? `Failed to save citizen profile: ${response.status}`,
       response.status,
     );
   }
@@ -122,11 +106,10 @@ export async function getMyCases(): Promise<CitizenCaseSummary[]> {
   const response = await authFetch("/api/citizens/cases");
 
   if (!response.ok) {
+    const { message } = await readApiErrorDetails(response)
+
     throw new CitizenApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch your requests: ${response.status}`,
-      ),
+      message ?? `Failed to fetch your requests: ${response.status}`,
       response.status,
     );
   }
@@ -140,11 +123,10 @@ export async function getMyCase(id: string): Promise<CitizenCaseDetails> {
   );
 
   if (!response.ok) {
+    const { message } = await readApiErrorDetails(response)
+
     throw new CitizenApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch request details: ${response.status}`,
-      ),
+      message ?? `Failed to fetch request details: ${response.status}`,
       response.status,
     );
   }

@@ -1,4 +1,5 @@
 import { apiRequest } from './api'
+import { fallbackApiErrorMessage, readApiErrorDetails } from './api-error'
 
 let requestOrganizationId: string | null = null
 
@@ -24,31 +25,6 @@ export class ApiError extends Error {
   }
 }
 
-async function readApiError(
-  response: Response,
-): Promise<{ message: string | null; code: string | null }> {
-  try {
-    const body = await response.clone().json()
-
-    if (!body || typeof body !== 'object') {
-      return { message: null, code: null }
-    }
-
-    const record = body as Record<string, unknown>
-    const message =
-      typeof record.error === 'string'
-        ? record.error
-        : typeof record.message === 'string'
-          ? record.message
-          : null
-    const code = typeof record.code === 'string' ? record.code : null
-
-    return { message, code }
-  } catch {
-    return { message: null, code: null }
-  }
-}
-
 /**
  * Authenticated JSON request against an organization-scoped endpoint. The
  * organization is resolved server-side from `X-Organization-Id`, which is
@@ -68,7 +44,7 @@ export async function requestJson<T>(
   )
 
   if (!response.ok) {
-    const { message, code } = await readApiError(response)
+    const { message, code } = await readApiErrorDetails(response)
 
     if (response.status === 401) {
       throw new ApiError(
@@ -87,7 +63,7 @@ export async function requestJson<T>(
     }
 
     throw new ApiError(
-      message ?? `API request failed with HTTP ${response.status}.`,
+      message ?? fallbackApiErrorMessage(response.status),
       response.status,
       code,
     )

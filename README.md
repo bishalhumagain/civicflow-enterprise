@@ -185,7 +185,7 @@ The platform is built around three core principles:
 │   │   ├── Identity/                        #   Roles, anti-forgery, security headers, seeder, PAT auth handler
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
-│   └── Migrations/                         # 18 EF Core migrations
+│   └── Migrations/                         # 23 EF Core migrations
 ├── PublicServiceCaseManagement.Tests/       # xUnit test project (299 tests)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── src/
@@ -379,7 +379,7 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-**Migrations**: 20 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion` for the durable queue, notification outbox, attempt history, and job concurrency protection.
+**Migrations**: 23 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion` for the durable queue, notification outbox, attempt history, and job concurrency protection.
 
 ### Security Model
 
@@ -493,9 +493,11 @@ Staff-created cases always use the authenticated organization context; clients c
 | Method | Path | Authorization | Description |
 |---|---|---|---|
 | GET | `/api/citizens/organizations` | CitizenClient | List active organizations available for case submission |
+| GET | `/api/citizens/cases` | CitizenClient | List the authenticated citizen's submitted cases |
+| GET | `/api/citizens/cases/{id}` | CitizenClient | Read one submitted case and its status history |
 | POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title`, `description`, and optional `additionalDocument` (any file type, max 10 MB) |
 
-The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, and persists an optional document as a case attachment. The client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided.
+The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, and persists an optional document as a case attachment. Citizens can list and read only the cases they submitted; the client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided. Citizen self-service routes remain available when `BusinessEndpoints:Enabled` is false.
 
 ### Staff (`/api/staff`)
 
@@ -716,7 +718,7 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 | **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, scoped organization listing, audit endpoints, staff account and phone update |
 | **Cases** | CRUD, status changes, assignments, paging |
 | **Case documents** | Upload, download |
-| **Citizens** | Profile auth, create/update, duplicates, business-endpoint gating |
+| **Citizens** | Profile auth, create/update, duplicates, intake, own-case list/detail, business-gate exemption |
 | **Staff** | CRUD, platform staff, phone update |
 | **Organizations** | CRUD, delete rules |
 | **Memberships** | CRUD, role changes |
@@ -760,7 +762,7 @@ The `compose.yaml` file provides PostgreSQL 17 with:
 - **Object storage** — replace `LocalFileStorage` with production-grade storage + malware scanning
 - **Secret management** — use environment variables, user-secrets, or a secret manager (never commit secrets)
 - **Database** — use separate `civicflow_migrator` for migrations, `civicflow_runtime` for the running API
-- **BusinessEndpoints:Enabled** — set to `true` only after security review; defaults to `false`
+- **BusinessEndpoints:Enabled** — set to `true` only after security review; defaults to `false`. Citizen self-service routes are exempt.
 - **CORS** — restrict `AllowedOrigins` to production frontend origins
 - **Rate limiting** — tune for production traffic patterns
 
@@ -808,7 +810,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 ### Implemented and Verified
 
-- Backend API with EF Core/PostgreSQL and 20 migrations
+- Backend API with EF Core/PostgreSQL and 23 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
 - Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)

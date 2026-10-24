@@ -1,16 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { register } from '../auth'
-import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type CitizenAuthPageProps = {
-  onBack: () => void
   onSignIn: () => void
   onVerifiedPending: (email: string) => void
 }
 
 export function CitizenRegisterPage({
-  onBack,
   onSignIn,
   onVerifiedPending,
 }: CitizenAuthPageProps) {
@@ -55,13 +52,7 @@ export function CitizenRegisterPage({
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Create a Citizen Account</h2>
-            <button className="secondary-button" type="button" onClick={onBack}>
-              <Icon name="arrow-left" />
-              Back
-            </button>
-          </div>
+          <h2 style={{ marginTop: 0 }}>Create a Citizen Account</h2>
           <form className="case-card create-form" onSubmit={handleSubmit}>
             <label>
               Full name

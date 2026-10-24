@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
@@ -10,16 +9,12 @@ namespace PublicServiceCaseManagement.Api.Features.Citizens;
 [Route("api/citizens")]
 public sealed class CitizensController(
     ICitizenProfileService citizenProfileService,
-    IAuthenticatedOrganizationResolver organizationResolver,
-    IBusinessEndpointAccess businessEndpointAccess) : ControllerBase
+    IAuthenticatedOrganizationResolver organizationResolver) : ControllerBase
 {
     [HttpGet("me")]
     public async Task<ActionResult<CitizenProfileResponse>> GetMe(
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 
@@ -41,9 +36,6 @@ public sealed class CitizensController(
         CreateCitizenProfileRequest request,
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 
@@ -93,9 +85,6 @@ public sealed class CitizensController(
         UpdateCitizenProfileRequest request,
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 

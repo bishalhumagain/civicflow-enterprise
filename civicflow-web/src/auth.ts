@@ -1,3 +1,5 @@
+import { readApiErrorDetails } from './api-error'
+
 /**
  * Cookie-based authentication client for the CivicFlow API.
  *
@@ -91,15 +93,6 @@ export class AuthApiError extends Error {
     this.status = status
     this.isCsrfFailure = isCsrfFailure
     this.code = code
-  }
-}
-
-async function readErrorCode(response: Response): Promise<string | null> {
-  try {
-    const body = await response.clone().json()
-    return body && typeof body.code === 'string' ? body.code : null
-  } catch {
-    return null
   }
 }
 
@@ -216,42 +209,16 @@ async function looksLikeCsrfFailure(response: Response): Promise<boolean> {
   }
 }
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json()
-
-    if (body && typeof body.error === 'string' && body.error.length > 0) {
-      return body.error
-    }
-
-    if (body && typeof body.message === 'string' && body.message.length > 0) {
-      return body.message
-    }
-
-    if (body && Array.isArray(body.errors) && body.errors.length > 0) {
-      return body.errors.join(' ')
-    }
-  } catch {
-    // Fall through to the generic message.
-  }
-
-  return fallback
-}
-
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const response = await authFetch('/api/auth/me')
 
   if (response.status === 401) return null
 
   if (!response.ok) {
+    const { message } = await readApiErrorDetails(response)
+
     throw new AuthApiError(
-      await readErrorMessage(
-        response,
-        `Unable to load the current session (HTTP ${response.status}).`,
-      ),
+      message ?? `Unable to load the current session (HTTP ${response.status}).`,
       response.status,
     )
   }
@@ -276,11 +243,13 @@ export async function login(
   })
 
   if (!response.ok) {
+    const { message, code } = await readApiErrorDetails(response)
+
     throw new AuthApiError(
-      await readErrorMessage(response, 'Sign-in failed.'),
+      message ?? 'Sign-in failed.',
       response.status,
       false,
-      await readErrorCode(response),
+      code,
     )
   }
 
@@ -498,14 +467,13 @@ export async function lookupInvitation(
   })
 
   if (!response.ok) {
+    const { message, code } = await readApiErrorDetails(response)
+
     throw new AuthApiError(
-      await readErrorMessage(
-        response,
-        'This invitation link is invalid, expired, or has already been used.',
-      ),
+      message ?? 'This invitation link is invalid, expired, or has already been used.',
       response.status,
       false,
-      await readErrorCode(response),
+      code,
     )
   }
 
@@ -526,11 +494,13 @@ export async function acceptInvitation(
   })
 
   if (!response.ok) {
+    const { message, code } = await readApiErrorDetails(response)
+
     throw new AuthApiError(
-      await readErrorMessage(response, 'The invitation could not be accepted.'),
+      message ?? 'The invitation could not be accepted.',
       response.status,
       false,
-      await readErrorCode(response),
+      code,
     )
   }
 

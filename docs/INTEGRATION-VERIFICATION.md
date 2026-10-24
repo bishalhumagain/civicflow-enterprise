@@ -97,7 +97,8 @@ Covered by automated integration tests using the synthetic authentication handle
 - Staff requests return `403`
 - Unlinked identities return `401`
 - Create/update behavior and duplicate validation are asserted
-- The endpoints honour `BusinessEndpoints:Enabled` gating
+- Citizen routes remain available when `BusinessEndpoints:Enabled` is false
+- Citizen case intake and own-case list/detail work with the gate disabled
 
 ### Unified profile
 
@@ -268,7 +269,7 @@ Automated authentication tests replace `IEmailSender` with an in-memory capture 
 - PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.
 - Runtime database role can read application tables but cannot create schema objects or bypass the tested role boundary.
 - Migration role is not used by the running API.
-- Production endpoint behavior is verified with `BusinessEndpoints:Enabled` both `false` and `true`.
+- Production staff/organization endpoint behavior is verified with `BusinessEndpoints:Enabled` both `false` and `true`; citizen self-service routes stay available in both modes.
 
 ---
 

@@ -3,11 +3,10 @@ import { resendVerification, verifyEmail } from '../auth'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type VerifyEmailPageProps = {
-  onBack: () => void
   onSignIn: () => void
 }
 
-export function VerifyEmailPage({ onBack, onSignIn }: VerifyEmailPageProps) {
+export function VerifyEmailPage({ onSignIn }: VerifyEmailPageProps) {
   const params = new URLSearchParams(window.location.search)
   const email = params.get('email') ?? ''
   const token = params.get('token')
@@ -96,9 +95,6 @@ export function VerifyEmailPage({ onBack, onSignIn }: VerifyEmailPageProps) {
             )}
             <button className="primary-button" type="button" onClick={onSignIn}>
               Go to sign in
-            </button>
-            <button className="link-button" type="button" onClick={onBack}>
-              Back to landing
             </button>
           </div>
         </section>

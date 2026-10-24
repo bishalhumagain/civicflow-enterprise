@@ -17,7 +17,8 @@ public sealed class CitizenCaseIntakeIntegrationTests
     {
         await using var factory = new CivicFlowApiFactory(
             useAuthenticatedOrganizationContext: true,
-            enableBusinessEndpoints: true);
+            environmentName: "Production",
+            enableBusinessEndpoints: false);
         var organizationId = await factory.SeedAuthenticatedOrganizationAsync();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add(
@@ -52,6 +53,21 @@ public sealed class CitizenCaseIntakeIntegrationTests
             .ReadFromJsonAsync<CitizenCaseResponse>();
         Assert.NotNull(submitted);
         Assert.Equal("evidence.custom", submitted!.AdditionalDocument!.FileName);
+
+        var listResponse = await client.GetAsync("/api/citizens/cases");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var listed = await listResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<CitizenCaseSummaryResponse>>();
+        Assert.Contains(listed!, candidate => candidate.Id == submitted.Id);
+
+        var detailResponse = await client.GetAsync(
+            $"/api/citizens/cases/{submitted.Id}");
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        var detail = await detailResponse.Content
+            .ReadFromJsonAsync<CitizenCaseDetailResponse>();
+        Assert.NotNull(detail);
+        Assert.Equal("Broken streetlight", detail!.Title);
+        Assert.Equal(submitted.Status, detail.Status);
 
         using (var scope = factory.Services.CreateScope())
         {
@@ -129,6 +145,29 @@ public sealed class CitizenCaseIntakeIntegrationTests
         string Status,
         DateTimeOffset CreatedAt,
         CitizenDocumentResponse? AdditionalDocument);
+
+    private sealed record CitizenCaseSummaryResponse(
+        Guid Id,
+        string ReferenceNumber,
+        string Title,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt);
+
+    private sealed record CitizenCaseDetailResponse(
+        Guid Id,
+        string ReferenceNumber,
+        string Title,
+        string Description,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt,
+        IReadOnlyList<CitizenStatusHistoryResponse> StatusHistory);
+
+    private sealed record CitizenStatusHistoryResponse(
+        string? PreviousStatus,
+        string NewStatus,
+        DateTimeOffset ChangedAt);
 
     private sealed record CitizenDocumentResponse(Guid Id, string FileName);
 }

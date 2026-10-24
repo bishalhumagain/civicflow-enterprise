@@ -32,10 +32,26 @@ export function CitizenDashboard({
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
+        let mounted = true
+
         getMyCases()
-            .then(setCases)
-            .catch(err => setError(err instanceof Error ? err.message : 'Failed to load your requests'))
-            .finally(() => setLoading(false))
+            .then((loaded) => {
+                if (mounted) setCases(loaded)
+            })
+            .catch((reason: unknown) => {
+                if (mounted) {
+                    setError(reason instanceof Error
+                        ? reason.message
+                        : 'Failed to load your requests. Refresh the page and try again.')
+                }
+            })
+            .finally(() => {
+                if (mounted) setLoading(false)
+            })
+
+        return () => {
+            mounted = false
+        }
     }, [])
 
     return (

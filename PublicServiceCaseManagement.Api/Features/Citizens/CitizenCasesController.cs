@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Organizations;
-using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -21,16 +20,12 @@ public sealed class CitizenCasesController(
     IOrganizationService organizationService,
     IAuthenticatedOrganizationResolver organizationResolver,
     IOrganizationTransactionContext organizationTransactionContext,
-    IBusinessEndpointAccess businessEndpointAccess,
     CivicFlowDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CitizenCaseSummary>>> GetMyCases(
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 
@@ -63,9 +58,6 @@ public sealed class CitizenCasesController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 
@@ -128,9 +120,6 @@ public sealed class CitizenCasesController(
         [FromForm] CitizenCreateCaseRequest request,
         CancellationToken cancellationToken)
     {
-        if (!businessEndpointAccess.IsEnabled)
-            return NotFound();
-
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
             cancellationToken);
 

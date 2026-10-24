@@ -5,12 +5,10 @@ import {
   lookupInvitation,
   type InvitationDetails,
 } from '../auth'
-import { Icon } from '../components/Icon'
 import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type SetupPasswordPageProps = {
   onSignIn: () => void
-  onBack: () => void
 }
 
 type PageState = 'loading' | 'ready' | 'unavailable' | 'accepted'
@@ -23,7 +21,7 @@ const unavailableMessage =
  * single-use link in their email, reviews which organization invited them,
  * and chooses their own password. The link cannot be reused once accepted.
  */
-export function SetupPasswordPage({ onSignIn, onBack }: SetupPasswordPageProps) {
+export function SetupPasswordPage({ onSignIn }: SetupPasswordPageProps) {
   const params = new URLSearchParams(window.location.search)
   const token = params.get('token')?.trim() ?? ''
 
@@ -103,13 +101,7 @@ export function SetupPasswordPage({ onSignIn, onBack }: SetupPasswordPageProps) 
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Set up your password</h2>
-            <button className="secondary-button" type="button" onClick={onBack}>
-              <Icon name="arrow-left" />
-              Back
-            </button>
-          </div>
+          <h2 style={{ marginTop: 0 }}>Set up your password</h2>
 
           {state === 'loading' && (
             <p className="muted">Checking your invitation…</p>
