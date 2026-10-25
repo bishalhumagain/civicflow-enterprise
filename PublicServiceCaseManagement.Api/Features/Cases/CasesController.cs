@@ -369,6 +369,70 @@ public sealed class CasesController(
         }
     }
 
+    [HttpPatch("{id:guid}/priority")]
+    public async Task<IActionResult> ChangePriority(
+        Guid id,
+        [FromBody] ChangeCasePriorityRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+
+        if (organizationId is null)
+            return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+        if (!await CanEditCaseAsync(existingCase, cancellationToken))
+            return Forbid();
+
+        var authorizedStaffMemberId =
+            await IsOrganizationAdminAsync(cancellationToken)
+                ? null
+                : await GetCurrentStaffMemberIdAsync(
+                    organizationId.Value,
+                    cancellationToken);
+
+        try
+        {
+            var caseEntity = await caseService.ChangePriorityAsync(
+                id,
+                organizationId.Value,
+                request.NewPriority,
+                cancellationToken,
+                authorizedStaffMemberId);
+
+            if (caseEntity is null)
+                return NotFound();
+
+            return Ok(new
+            {
+                caseEntity.Id,
+                caseEntity.ReferenceNumber,
+                caseEntity.Priority,
+                caseEntity.UpdatedAt
+            });
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new { error = "The requested priority is invalid." });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
     [HttpGet("{id:guid}/history")]
     public async Task<IActionResult> GetStatusHistory(
         Guid id,

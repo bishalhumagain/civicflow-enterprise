@@ -89,6 +89,7 @@ export function PlatformDashboard({
                                                 `${organization.organizationName}: ` +
                                                 `${organization.totalCases} cases, ` +
                                                 `${organization.openCases} open, ` +
+                                                `${organization.criticalPriorityCases} critical, ` +
                                                 `${organization.highPriorityCases} high priority`
                                             }
                                         >

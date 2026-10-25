@@ -19,7 +19,7 @@ import { Icon } from './Icon'
 import { StatCard } from './StatCard'
 import { StatusPill } from './StatusPill'
 
-const priorityOptions: CasePriority[] = ['High', 'Normal', 'Low']
+const priorityOptions: CasePriority[] = ['Critical', 'High', 'Normal', 'Low']
 
 const updateKindLabels: Record<CaseUpdateKind, string> = {
     PublicUpdate: 'Public update',
@@ -321,9 +321,9 @@ export function PlatformCases() {
                     tone="green"
                 />
                 <StatCard
-                    label="High priority"
-                    value={formatNumber(statistics?.highPriorityCases ?? 0)}
-                    detail="Across the platform"
+                    label="Critical priority"
+                    value={formatNumber(statistics?.criticalPriorityCases ?? 0)}
+                    detail="Requires immediate attention"
                     tone="purple"
                 />
             </section>

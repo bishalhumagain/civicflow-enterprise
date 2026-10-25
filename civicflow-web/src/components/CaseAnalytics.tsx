@@ -13,7 +13,7 @@ const statusColors: Record<string, string> = {
     Rejected: 'var(--chart-red)',
 }
 
-const priorityColors = ['var(--chart-red)', 'var(--chart-blue)', 'var(--chart-green)']
+const priorityColors = ['var(--chart-red)', 'var(--chart-orange)', 'var(--chart-blue)', 'var(--chart-green)']
 
 export function CaseAnalytics({statistics, scopeLabel = 'this organization'}: {
     statistics: CaseStatistics
@@ -35,9 +35,10 @@ export function CaseAnalytics({statistics, scopeLabel = 'this organization'}: {
         color: statusColors[status],
     }))
     const priorities = [
-        {label: 'High', value: statistics.highPriorityCases, color: priorityColors[0]},
-        {label: 'Normal', value: statistics.normalPriorityCases, color: priorityColors[1]},
-        {label: 'Low', value: statistics.lowPriorityCases, color: priorityColors[2]},
+        {label: 'Critical', value: statistics.criticalPriorityCases, color: priorityColors[0]},
+        {label: 'High', value: statistics.highPriorityCases, color: priorityColors[1]},
+        {label: 'Normal', value: statistics.normalPriorityCases, color: priorityColors[2]},
+        {label: 'Low', value: statistics.lowPriorityCases, color: priorityColors[3]},
     ]
     const priorityTotal = priorities.reduce((total, item) => total + item.value, 0)
     const activeCases = statistics.totalCases - statistics.resolvedCases - statistics.closedCases - statistics.rejectedCases

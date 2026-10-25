@@ -49,6 +49,7 @@ public static class AuditActions
     public const string CaseUpdated = "case.updated";
     public const string CaseDeleted = "case.deleted";
     public const string CaseStatusChanged = "case.status_changed";
+    public const string CasePriorityChanged = "case.priority_changed";
     public const string CaseAssigned = "case.assigned";
     public const string CaseDocumentUploaded = "case.document_uploaded";
     public const string CaseUpdatePublished = "case.update_published";

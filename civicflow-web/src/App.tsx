@@ -1262,6 +1262,38 @@ function App() {
         }
     }
 
+    async function changePriority(priority: CasePriority) {
+        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
+
+        const caseId = selectedCase.id
+
+        setActionLoading(true)
+        setError(null)
+
+        try {
+            const updated = await requestJson<{ id: string; priority: CasePriority; updatedAt: string }>(
+                `/api/cases/${caseId}/priority`,
+                {
+                    method: 'PATCH',
+                    body: JSON.stringify({ newPriority: priority }),
+                },
+            )
+
+            setCases((current) => current.map((item) => (
+                item.id === updated.id ? {...item, priority: updated.priority} : item
+            )))
+
+            setRetryVersion((version) => version + 1)
+            showToast('Priority updated.', 'success')
+        } catch (reason) {
+            const message = reason instanceof Error ? reason.message : 'Priority update failed. Your role may not permit this action.'
+            setError(message)
+            showToast(message, 'error')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
     async function addCaseUpdate(
         kind: CaseUpdateKind,
         message: string,
@@ -2168,6 +2200,7 @@ function App() {
                                                     }}
                                                 >
                                                     <option value="All">All priorities</option>
+                                                    <option value="Critical">Critical</option>
                                                     <option value="High">High</option>
                                                     <option value="Normal">Normal</option>
                                                     <option value="Low">Low</option>
@@ -2263,6 +2296,7 @@ function App() {
                                             canDeleteCase={activeOrganization?.role === 'OrganizationAdmin'}
                                             actionLoading={actionLoading}
                                             onStatusChange={changeStatus}
+                                            onPriorityChange={changePriority}
                                             onAddUpdate={addCaseUpdate}
                                             onUpdate={updateCaseDetails}
                                             onDelete={deleteCase}

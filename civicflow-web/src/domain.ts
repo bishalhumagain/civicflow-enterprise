@@ -1,5 +1,5 @@
 export type CaseStatus = 'Submitted' | 'UnderReview' | 'Assigned' | 'InProgress' | 'AwaitingInformation' | 'Resolved' | 'Closed' | 'Rejected'
-export type CasePriority = 'High' | 'Normal' | 'Low'
+export type CasePriority = 'Critical' | 'High' | 'Normal' | 'Low'
 export type WorkspaceView =
   | 'citizen-dashboard'
   | 'citizen'
@@ -208,6 +208,7 @@ export type CaseStatistics = {
   resolvedCases: number
   closedCases: number
   rejectedCases: number
+  criticalPriorityCases: number
   highPriorityCases: number
   normalPriorityCases: number
   lowPriorityCases: number
@@ -225,6 +226,7 @@ export type PlatformOrganizationCaseBreakdown = {
   totalCases: number
   openCases: number
   resolvedCases: number
+  criticalPriorityCases: number
   highPriorityCases: number
 }
 

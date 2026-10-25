@@ -11,6 +11,7 @@ public sealed class CaseStatistics
     public int ResolvedCases { get; set; }
     public int ClosedCases { get; set; }
     public int RejectedCases { get; set; }
+    public int CriticalPriorityCases { get; set; }
     public int HighPriorityCases { get; set; }
     public int NormalPriorityCases { get; set; }
     public int LowPriorityCases { get; set; }

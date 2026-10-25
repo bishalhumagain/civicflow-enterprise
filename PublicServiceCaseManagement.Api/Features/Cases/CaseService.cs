@@ -353,6 +353,55 @@ public sealed class CaseService(
         return caseEntity;
     }
 
+    public async Task<Case?> ChangePriorityAsync(
+        Guid caseId,
+        Guid organizationId,
+        CasePriority newPriority,
+        CancellationToken cancellationToken = default,
+        Guid? authorizedStaffMemberId = null)
+    {
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(c =>
+                c.Id == caseId &&
+                c.OrganizationId == organizationId &&
+                (authorizedStaffMemberId == null ||
+                 (c.AssignedToStaffMemberId == authorizedStaffMemberId &&
+                  c.AssignedRole == CaseAssignmentRole.CaseWorker)),
+                cancellationToken);
+
+        if (caseEntity is null)
+        {
+            return null;
+        }
+
+        if (caseEntity.Priority == newPriority)
+        {
+            return caseEntity;
+        }
+
+        var previousPriority = caseEntity.Priority;
+
+        caseEntity.ChangePriority(newPriority, DateTimeOffset.UtcNow);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CasePriorityChanged,
+                OrganizationId = caseEntity.OrganizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details =
+                    $"{caseEntity.ReferenceNumber} priority " +
+                    $"{previousPriority} -> {caseEntity.Priority}"
+            },
+            cancellationToken);
+
+        return caseEntity;
+    }
+
     public async Task<Case?> AssignAsync(
         Guid caseId,
         Guid organizationId,

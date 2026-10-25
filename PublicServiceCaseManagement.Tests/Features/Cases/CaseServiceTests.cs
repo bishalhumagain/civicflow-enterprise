@@ -164,6 +164,87 @@ public sealed class CaseServiceTests
     }
 
     [Fact]
+    public async Task ChangePriorityAsync_WhenPriorityChanges_UpdatesPriority()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        dbContext.Cases.Add(caseEntity);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+
+        var result = await service.ChangePriorityAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CasePriority.Critical);
+
+        Assert.NotNull(result);
+        Assert.Equal(CasePriority.Critical, result.Priority);
+    }
+
+    [Fact]
+    public async Task ChangePriorityAsync_WhenCaseIsOutsideOrganization_ReturnsNull()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        dbContext.Cases.Add(caseEntity);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+
+        var result = await service.ChangePriorityAsync(
+            caseEntity.Id,
+            OtherOrganizationId,
+            CasePriority.High);
+
+        Assert.Null(result);
+        Assert.Equal(CasePriority.Normal, caseEntity.Priority);
+    }
+
+    [Fact]
+    public async Task ChangePriorityAsync_WhenCaseWorkerIsNotAssigned_ReturnsNull()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        dbContext.Cases.Add(caseEntity);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+
+        var result = await service.ChangePriorityAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CasePriority.High,
+            authorizedStaffMemberId: Guid.NewGuid());
+
+        Assert.Null(result);
+        Assert.Equal(CasePriority.Normal, caseEntity.Priority);
+    }
+
+    [Fact]
+    public async Task ChangePriorityAsync_WhenPriorityIsUnchanged_ReturnsCase()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var caseEntity = CreateCase();
+        dbContext.Cases.Add(caseEntity);
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext);
+
+        var result = await service.ChangePriorityAsync(
+            caseEntity.Id,
+            OrganizationId,
+            CasePriority.Normal);
+
+        Assert.NotNull(result);
+        Assert.Equal(CasePriority.Normal, result.Priority);
+    }
+
+    [Fact]
     public async Task AssignAsync_WhenStaffMemberIsAssigned_SavesAssignmentAndHistory()
     {
         await using var dbContext = CreateDbContext();

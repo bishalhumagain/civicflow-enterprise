@@ -22,6 +22,7 @@ import {
   statusOptions,
   type AssignmentEntry,
   type CaseDocument,
+  type CasePriority,
   type CaseRecord,
   type CaseStatus,
   type CaseUpdate,
@@ -54,6 +55,7 @@ export function CaseDetails({
   canEditCase,
   actionLoading,
   onStatusChange,
+  onPriorityChange,
   onUpdate,
   canDeleteCase,
   onDelete,
@@ -76,6 +78,7 @@ export function CaseDetails({
     explanation?: string,
     explanationVisibleToCitizen?: boolean,
   ) => Promise<void>
+  onPriorityChange: (priority: CasePriority) => Promise<void>
   onUpdate: (title: string, description: string) => Promise<boolean>
   canDeleteCase: boolean
   onDelete: () => Promise<void>
@@ -146,6 +149,9 @@ export function CaseDetails({
       <div className="detail-title">
         <span className="case-reference">{caseRecord.referenceNumber}</span>
         <StatusPill status={caseRecord.status} />
+        <span className={`priority ${caseRecord.priority.toLowerCase()}`}>
+          <i aria-hidden="true" />{caseRecord.priority} priority
+        </span>
       </div>
 
       {canEditCase ? (
@@ -339,6 +345,21 @@ export function CaseDetails({
             <span>{actionLoading ? 'Updating…' : 'Apply status change'}</span>
           </button>
         </form>
+
+        <label>
+          Priority
+          <select
+            aria-label="Case priority"
+            disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
+            onChange={(event) => void onPriorityChange(event.target.value as CasePriority)}
+            value={caseRecord.priority}
+          >
+            <option value="Critical">Critical</option>
+            <option value="High">High</option>
+            <option value="Normal">Normal</option>
+            <option value="Low">Low</option>
+          </select>
+        </label>
 
         {canAssignCases && (
           <>

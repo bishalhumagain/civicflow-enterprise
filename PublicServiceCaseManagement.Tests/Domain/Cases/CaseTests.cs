@@ -88,6 +88,18 @@ public sealed class CaseTests
     }
 
     [Fact]
+    public void ChangePriority_ToCritical_UpdatesPriority()
+    {
+        var newCase = CreateCase();
+        var updatedAt = Now.AddMinutes(5);
+
+        newCase.ChangePriority(CasePriority.Critical, updatedAt);
+
+        Assert.Equal(CasePriority.Critical, newCase.Priority);
+        Assert.Equal(updatedAt, newCase.UpdatedAt);
+    }
+
+    [Fact]
     public void Create_WithBlankTitle_Throws()
     {
         Assert.Throws<ArgumentException>(

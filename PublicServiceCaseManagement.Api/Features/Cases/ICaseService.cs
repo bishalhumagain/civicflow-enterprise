@@ -50,6 +50,13 @@ public interface ICaseService
         string? explanation = null,
         bool explanationVisibleToCitizen = false);
 
+    Task<Case?> ChangePriorityAsync(
+        Guid caseId,
+        Guid organizationId,
+        CasePriority newPriority,
+        CancellationToken cancellationToken = default,
+        Guid? authorizedStaffMemberId = null);
+
     Task<CaseUpdate?> AddUpdateAsync(
         Guid caseId,
         Guid organizationId,

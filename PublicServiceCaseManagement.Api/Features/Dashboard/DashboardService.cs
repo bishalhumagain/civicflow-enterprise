@@ -62,6 +62,7 @@ public sealed class DashboardService(
                     organizationCases.Count(c => IsOpen(c.Status)),
                     organizationCases.Count(c =>
                         c.Status is CaseStatus.Resolved or CaseStatus.Closed),
+                    organizationCases.Count(c => c.Priority == CasePriority.Critical),
                     organizationCases.Count(c => c.Priority == CasePriority.High));
             })
             .ToList();
@@ -96,6 +97,7 @@ public sealed class DashboardService(
             ResolvedCases = cases.Count(c => c.Status == CaseStatus.Resolved),
             ClosedCases = cases.Count(c => c.Status == CaseStatus.Closed),
             RejectedCases = cases.Count(c => c.Status == CaseStatus.Rejected),
+            CriticalPriorityCases = cases.Count(c => c.Priority == CasePriority.Critical),
             HighPriorityCases = cases.Count(c => c.Priority == CasePriority.High),
             NormalPriorityCases = cases.Count(c => c.Priority == CasePriority.Normal),
             LowPriorityCases = cases.Count(c => c.Priority == CasePriority.Low),

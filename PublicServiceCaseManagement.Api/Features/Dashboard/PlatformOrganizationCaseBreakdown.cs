@@ -11,4 +11,5 @@ public sealed record PlatformOrganizationCaseBreakdown(
     int TotalCases,
     int OpenCases,
     int ResolvedCases,
+    int CriticalPriorityCases,
     int HighPriorityCases);

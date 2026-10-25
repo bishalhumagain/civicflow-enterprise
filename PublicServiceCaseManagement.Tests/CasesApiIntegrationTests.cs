@@ -248,6 +248,78 @@ public class CasesApiIntegrationTests
 
 
     [Fact]
+    public async Task ChangePriority_UpdatesCaseAndReturnsNewPriority()
+    {
+        await using var factory = new CivicFlowApiFactory(OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Priority change test",
+                description = "Verify that case priority can be updated."
+            });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(
+            "Normal",
+            createdJson.RootElement.GetProperty("priority").GetString());
+
+        var changeResponse = await client.PatchAsJsonAsync(
+            $"/api/cases/{caseId}/priority",
+            new { newPriority = "Critical" });
+
+        Assert.Equal(HttpStatusCode.OK, changeResponse.StatusCode);
+
+        using var changedJson = JsonDocument.Parse(
+            await changeResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "Critical",
+            changedJson.RootElement.GetProperty("priority").GetString());
+
+        var getCaseResponse = await client.GetAsync($"/api/cases/{caseId}");
+        Assert.Equal(HttpStatusCode.OK, getCaseResponse.StatusCode);
+
+        using var caseJson = JsonDocument.Parse(
+            await getCaseResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "Critical",
+            caseJson.RootElement.GetProperty("priority").GetString());
+    }
+
+    [Fact]
+    public async Task ChangePriority_WithInvalidPriority_ReturnsBadRequest()
+    {
+        await using var factory = new CivicFlowApiFactory(OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Invalid priority test",
+                description = "Verify that unknown priorities are rejected."
+            });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var changeResponse = await client.PatchAsJsonAsync(
+            $"/api/cases/{caseId}/priority",
+            new { newPriority = "Urgent" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, changeResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GetCase_WhenOrganizationHeaderDoesNotMatchMembership_ReturnsForbid()
     {
         await using var factory = new CivicFlowApiFactory(
