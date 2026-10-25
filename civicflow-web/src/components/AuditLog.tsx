@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { AuditEvent } from '../domain'
 import { auditCategories } from '../domain'
-import { emptyAuditFilters, type AuditFilters } from './audit-utils'
+import { emptyAuditFilters, type AuditFilters } from '../utils/audit'
 import { Icon } from './Icon'
 import { formatDateTime } from '../utils/format'
 

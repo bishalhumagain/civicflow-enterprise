@@ -6,6 +6,7 @@ using PublicServiceCaseManagement.Api.Features.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 using PublicServiceCaseManagement.Tests.Infrastructure;
+using PublicServiceCaseManagement.Api.Features.Organizations.Services;
 
 namespace PublicServiceCaseManagement.Tests.Features.Organizations;
 

@@ -5,6 +5,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
+using PublicServiceCaseManagement.Tests.Support;
+
 namespace PublicServiceCaseManagement.Tests;
 
 /// <summary>

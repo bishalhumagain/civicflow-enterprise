@@ -3,6 +3,8 @@ using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Features.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
+using PublicServiceCaseManagement.Api.Features.Audit.Services;
+using PublicServiceCaseManagement.Api.Features.Audit.Contracts;
 
 namespace PublicServiceCaseManagement.Tests.Features.Audit;
 

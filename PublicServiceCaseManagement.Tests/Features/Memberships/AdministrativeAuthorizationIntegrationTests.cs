@@ -7,6 +7,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
+using PublicServiceCaseManagement.Tests.Support;
+
 namespace PublicServiceCaseManagement.Tests.Features.Memberships;
 
 public sealed class AdministrativeAuthorizationIntegrationTests

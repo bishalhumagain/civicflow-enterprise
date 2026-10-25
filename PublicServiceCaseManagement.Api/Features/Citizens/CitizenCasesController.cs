@@ -11,6 +11,11 @@ using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Api.Infrastructure.Validation;
+using PublicServiceCaseManagement.Api.Features.Cases.Contracts;
+using PublicServiceCaseManagement.Api.Features.Cases.Services;
+using PublicServiceCaseManagement.Api.Features.Organizations.Services;
+
+using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
 

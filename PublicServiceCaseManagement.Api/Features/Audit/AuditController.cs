@@ -6,6 +6,8 @@ using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Features.Audit.Contracts;
+using PublicServiceCaseManagement.Api.Features.Audit.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Audit;
 

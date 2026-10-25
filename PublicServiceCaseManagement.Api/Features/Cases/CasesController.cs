@@ -9,6 +9,8 @@ using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Features.Cases.Contracts;
+using PublicServiceCaseManagement.Api.Features.Cases.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 

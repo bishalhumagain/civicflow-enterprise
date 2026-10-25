@@ -22,6 +22,10 @@
 - Added SuperAdmin-only `OrganizationTypesController` at `/api/platform/organization-types` (GET/GET-by-id/POST/PUT/PATCH deactivate/reactivate/DELETE). `OrganizationTypeService` enforces unique codes, refuses deletion when any organization still references the type, and hard-blocks delete or deactivate on the seeded `Uncategorized` type. Five audit actions (`OrganizationTypeCreated/Updated/Activated/Deactivated/Deleted`) record every change.
 - Frontend: removed the top-level *Organization types* navigation entry and restructured the *Organizations* view into three inner tabs — *Organization types* (catalogue CRUD with a protected `Uncategorized` row), *Organizations* (organization CRUD with a Type dropdown), and *Members & invitations* (organization-type + organization filter with Apply/Reset for platform admins, direct access for organization admins). The tab strip follows the design already used by the Platform directory. `OrganizationTypeAdministration.tsx` was merged into `OrganizationAdministration.tsx` and deleted.
 
+### Changed
+
+- Repository layout cleanup without behaviour changes. Each backend feature now keeps controllers at its root and groups contracts under `Contracts/` with services and their interfaces under `Services/`; namespaces follow the folders. Shared domain helpers moved to `Domain/Common`, tests are split into `Integration/` and `Support/`, and the frontend audit/invitation helpers moved to `utils/` while app configuration, toasts, and route/storage helpers were consolidated into cohesive modules. Endpoints and supported behaviour are unchanged.
+
 ### Removed
 
 - Repository audit cleanup. Deleted unused frontend assets (`hero.png`, `react.svg`, `vite.svg`, `public/icons.svg`). Removed API client wrappers that no view called (platform overview/users/staff/citizens, organization/membership/invitation helpers, citizen self-profile, and password change), the unused `ServerConfiguration` binding and its `Server` template block, and the corresponding unused template keys. Backend endpoints and supported behaviour are unchanged.

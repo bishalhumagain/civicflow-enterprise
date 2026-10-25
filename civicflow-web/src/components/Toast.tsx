@@ -1,6 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ToastContext, type ToastType } from './toast-context'
+/* eslint-disable react-refresh/only-export-components */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Icon } from './Icon'
+
+export type ToastType = 'success' | 'error' | 'info' | 'warning'
+
+export type ToastContextValue = {
+  showToast: (message: string, type?: ToastType) => void
+}
+
+export const ToastContext = createContext<ToastContextValue | undefined>(undefined)
+
+export function useToast(): ToastContextValue {
+  const context = useContext(ToastContext)
+  if (!context) throw new Error('useToast must be used within a ToastProvider')
+  return context
+}
 
 type Toast = {
   id: number
@@ -10,7 +32,7 @@ type Toast = {
 
 let toastId = 0
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {

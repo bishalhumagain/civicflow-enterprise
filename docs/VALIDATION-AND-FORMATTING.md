@@ -6,7 +6,7 @@ This document describes the input rules, normalization behavior, database constr
 
 The API is authoritative. Every request is validated again on the server, regardless of what the browser already checked. Client-side validation exists only to give fast, accessible feedback and to avoid pointless round trips.
 
-- Backend shared helpers: `PublicServiceCaseManagement.Api/Domain/TextNormalization.cs`, `Domain/PhoneNumbers.cs`, and `Infrastructure/Validation/ValidationAttributes.cs`.
+- Backend shared helpers: `PublicServiceCaseManagement.Api/Domain/Common/TextNormalization.cs`, `Domain/Common/PhoneNumbers.cs`, and `Infrastructure/Validation/ValidationAttributes.cs`.
 - Backend request contracts use DataAnnotations and `[ApiController]` automatic model validation. Domain factories add invariants that must hold even when a request bypasses the controller (for example tests, jobs, or future endpoints).
 - PostgreSQL enforces the same critical bounds with CHECK constraints added by the `AddValidationConstraints` migration.
 - Frontend shared helpers: `civicflow-web/src/utils/validation.ts` and `civicflow-web/src/utils/format.ts`. Forms must not re-implement these rules locally.

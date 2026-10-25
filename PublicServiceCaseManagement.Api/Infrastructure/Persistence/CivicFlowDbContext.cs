@@ -12,6 +12,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Domain.Users;
 
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 public sealed class CivicFlowDbContext(

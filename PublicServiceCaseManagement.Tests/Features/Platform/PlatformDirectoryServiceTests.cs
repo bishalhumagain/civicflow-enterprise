@@ -7,6 +7,7 @@ using PublicServiceCaseManagement.Api.Features.Platform;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
 using Xunit;
+using PublicServiceCaseManagement.Api.Features.Platform.Services;
 
 namespace PublicServiceCaseManagement.Tests.Features.Platform;
 

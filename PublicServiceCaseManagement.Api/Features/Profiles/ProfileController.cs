@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Features.Profiles.Contracts;
+using PublicServiceCaseManagement.Api.Features.Profiles.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Profiles;
 

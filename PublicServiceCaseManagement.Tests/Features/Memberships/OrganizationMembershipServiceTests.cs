@@ -5,6 +5,7 @@ using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
+using PublicServiceCaseManagement.Api.Features.Memberships.Services;
 
 namespace PublicServiceCaseManagement.Tests.Features.Memberships;
 

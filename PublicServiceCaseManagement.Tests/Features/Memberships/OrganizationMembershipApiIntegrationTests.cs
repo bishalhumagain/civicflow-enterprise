@@ -10,6 +10,9 @@ using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests;
+using PublicServiceCaseManagement.Api.Features.Memberships.Contracts;
+
+using PublicServiceCaseManagement.Tests.Support;
 
 namespace PublicServiceCaseManagement.Tests.Features.Memberships;
 

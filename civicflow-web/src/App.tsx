@@ -2,7 +2,6 @@ import {useEffect, useMemo, useState, type FormEvent} from 'react'
 import {apiRequest} from './api'
 import {
     AuthApiError,
-    allowedPortals,
     canUsePortal,
     getCurrentUser,
     login as loginRequest,
@@ -63,7 +62,7 @@ import {StaffDirectory} from './components/StaffDirectory'
 import {OrganizationAdministration} from './components/OrganizationAdministration'
 import {PlatformDirectory} from './components/PlatformDirectory'
 import {AuditLog} from './components/AuditLog'
-import {emptyAuditFilters, type AuditFilters} from './components/audit-utils'
+import {emptyAuditFilters, type AuditFilters} from './utils/audit'
 import {CitizenIntake} from './components/CitizenIntake'
 import {CitizenDashboard} from './components/CitizenDashboard'
 import {PlatformDashboard} from './components/PlatformDashboard'
@@ -84,151 +83,26 @@ import {VerifyEmailPage} from './pages/VerifyEmailPage'
 import {ForgotPasswordPage} from './pages/ForgotPasswordPage'
 import {ResetPasswordPage} from './pages/ResetPasswordPage'
 import ProfilePage from './pages/ProfilePage'
-import {useToast} from './components/use-toast'
+import {useToast} from './components/Toast'
 import type {LoginCredentials} from './components/LoginForm'
 import {useAppConfig} from './app-config'
-
-const STAFF_LOGIN_PATH = '/admin'
-const PLATFORM_ADMIN_LOGIN_PATH = '/super-platform-admin'
-const SETUP_PASSWORD_PATH = '/setup-password'
-const CITIZEN_LOGIN_PATH = '/citizen/login'
-const CITIZEN_REGISTER_PATH = '/citizen/register'
-const VERIFY_EMAIL_PATH = '/citizen/verify-email'
-const FORGOT_PASSWORD_PATH = '/forgot-password'
-const RESET_PASSWORD_PATH = '/reset-password'
-const WORKSPACE_PATH = '/workspace'
-
-type AppRoute =
-    | 'landing'
-    | 'staff-login'
-    | 'platform-admin-login'
-    | 'setup-password'
-    | 'citizen-login'
-    | 'citizen-register'
-    | 'verify-email'
-    | 'forgot-password'
-    | 'reset-password'
-    | 'workspace'
-
-function resolveRoute(pathname: string): AppRoute {
-    const path = pathname.replace(/\/+$/, '').toLowerCase()
-
-    if (path === STAFF_LOGIN_PATH) return 'staff-login'
-    if (path === PLATFORM_ADMIN_LOGIN_PATH) return 'platform-admin-login'
-    if (path === SETUP_PASSWORD_PATH) return 'setup-password'
-    if (path === CITIZEN_LOGIN_PATH) return 'citizen-login'
-    if (path === CITIZEN_REGISTER_PATH) return 'citizen-register'
-    if (path === VERIFY_EMAIL_PATH) return 'verify-email'
-    if (path === FORGOT_PASSWORD_PATH) return 'forgot-password'
-    if (path === RESET_PASSWORD_PATH) return 'reset-password'
-    if (path === WORKSPACE_PATH) return 'workspace'
-
-    return 'landing'
-}
-
-function navigateTo(path: string) {
-    if (window.location.pathname !== path) {
-        window.history.pushState({}, document.title, path)
-    }
-}
-
-const PORTAL_STORAGE_KEY = 'civicflow.portal'
-
-/**
- * The portal the account last signed in through. It is only a UI preference
- * (never a credential), and it is always validated against the roles the API
- * reports before it is used.
- */
-function readRememberedPortal(): SignInPortal | null {
-    try {
-        const stored = window.sessionStorage.getItem(PORTAL_STORAGE_KEY)
-        return stored === 'citizen' ||
-        stored === 'organization' ||
-        stored === 'platform-admin'
-            ? stored
-            : null
-    } catch {
-        return null
-    }
-}
-
-function rememberPortal(portal: SignInPortal): void {
-    try {
-        window.sessionStorage.setItem(PORTAL_STORAGE_KEY, portal)
-    } catch {
-        // Storage can be unavailable in private browsing modes. The portal is
-        // then derived from the account roles on the next load.
-    }
-}
-
-function forgetPortal(): void {
-    try {
-        window.sessionStorage.removeItem(PORTAL_STORAGE_KEY)
-    } catch {
-        // Ignore storage failures; the portal is derived from roles anyway.
-    }
-}
-
-const WORKSPACE_VIEW_STORAGE_KEY = 'civicflow.workspaceView'
-
-const workspaceViews: WorkspaceView[] = [
-    'citizen-dashboard',
-    'citizen',
-    'profile',
-    'cases',
-    'staff',
-    'activity',
-    'organization-dashboard',
-    'organizations',
-    'platform-dashboard',
-    'platform-cases',
-    'platform-directory',
-    'platform-audit',
-    'platform-errors',
-    'platform-jobs',
-]
-
-function readRememberedWorkspaceView(): WorkspaceView | null {
-    try {
-        const stored = window.localStorage.getItem(WORKSPACE_VIEW_STORAGE_KEY)
-        return stored && workspaceViews.includes(stored as WorkspaceView)
-            ? stored as WorkspaceView
-            : null
-    } catch {
-        return null
-    }
-}
-
-function rememberWorkspaceView(view: WorkspaceView): void {
-    try {
-        window.localStorage.setItem(WORKSPACE_VIEW_STORAGE_KEY, view)
-    } catch {
-        // Storage can be unavailable; the in-memory tab still works.
-    }
-}
-
-function forgetWorkspaceView(): void {
-    try {
-        window.localStorage.removeItem(WORKSPACE_VIEW_STORAGE_KEY)
-    } catch {
-        // Ignore storage failures; the default tab is still available.
-    }
-}
-
-/**
- * Picks the portal a restored session belongs to. The remembered choice only
- * wins when the account's roles actually allow that portal.
- */
-function resolveSessionPortal(user: AuthUser): SignInPortal {
-    const portals = allowedPortals(user)
-    const remembered = readRememberedPortal()
-
-    if (remembered && portals.includes(remembered)) return remembered
-
-    if (portals.includes('platform-admin')) return 'platform-admin'
-    if (portals.includes('citizen')) return 'citizen'
-    return 'organization'
-}
+import {
+    FORGOT_PASSWORD_PATH,
+    STAFF_LOGIN_PATH,
+    VERIFY_EMAIL_PATH,
+    WORKSPACE_PATH,
+    CITIZEN_LOGIN_PATH,
+    CITIZEN_REGISTER_PATH,
+    forgetPortal,
+    forgetWorkspaceView,
+    navigateTo,
+    readRememberedWorkspaceView,
+    rememberPortal,
+    rememberWorkspaceView,
+    resolveRoute,
+    resolveSessionPortal,
+    type AppRoute,
+} from './routing'
 
 function App() {
     const {showToast} = useToast()

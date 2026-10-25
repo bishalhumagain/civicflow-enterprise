@@ -170,8 +170,8 @@ The platform is built around three core principles:
 ├── PublicServiceCaseManagement.Api/         # ASP.NET Core Web API
 │   ├── Program.cs                           # Startup configuration
 │   ├── appsettings.template.json           # Configuration template (copy to appsettings.json)
-│   ├── Domain/                              # Entities (Case, Organization, ApplicationUser, etc.)
-│   ├── Features/                            # Controllers + services + contracts
+│   ├── Domain/                              # Entities and shared helpers (Common/)
+│   ├── Features/                            # Controllers + Contracts/ + Services/ per feature
 │   │   ├── Auth/                            #   Authentication, PATs, invitations
 │   │   ├── Cases/                           #   Case CRUD, documents, history
 │   │   ├── Citizens/                        #   Citizen self-service profile
@@ -191,18 +191,21 @@ The platform is built around three core principles:
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
 │   └── Migrations/                         # 28 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (492 tests; 3 opt-in PostgreSQL RLS)
+├── PublicServiceCaseManagement.Tests/       # xUnit tests: Features/, Domain/, Integration/, Support/
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── e2e/                                # Playwright browser journeys + disposable DB seeding
 │   ├── playwright.config.ts                # Serial Chromium E2E runner (API + Vite)
 │   ├── src/
-│   │   ├── App.tsx                         # Session, routing, workspace
+│   │   ├── App.tsx                         # Session and workspace state
+│   │   ├── routing.ts                     # Routes, navigation, persisted UI preferences
+│   │   ├── app-config.tsx                 # Public configuration context and provider
 │   │   ├── auth.ts                        # authFetch, CSRF, login flows
 │   │   ├── api.ts                         # API request wrapper (org header)
 │   │   ├── api-client.ts                  # JSON request helper
 │   │   ├── domain.ts                       # TypeScript types
 │   │   ├── pages/                          # Page components
-│   │   ├── components/                    # Shared components
+│   │   ├── components/                    # Shared components, including Toast
+│   │   ├── utils/                         # Formatting, validation, audit, and invitation helpers
 │   │   └── api/                            # API modules (citizens, profile)
 │   └── .env.example
 ├── docs/                                   # Supplementary documentation
@@ -227,7 +230,7 @@ The backend follows a **feature-based** organization with clear layering:
 | Folder | Responsibility |
 |---|---|
 | `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `CaseUpdate` (`PublicUpdate`, `InformationRequest`, `InternalNote`, `CitizenResponse`), `Organization`, `OrganizationType`, `WellKnownOrganizationTypes`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
-| `Features/` | Controllers + service contracts + service implementations, organized by feature area |
+| `Features/` | One folder per feature: controllers at the root, contracts in `Contracts/`, and service interfaces and implementations in `Services/` |
 | `Infrastructure/` | Cross-cutting: `Identity/` (roles, PAT auth handler, anti-forgery, security headers, seeder, email sender, audit logger), `Organizations/` (context, resolvers, middleware), `Persistence/` (DbContext, factory), `Files/` (local storage), `Errors/` (global handler, error logger), `Audit/` (audit trail writer), `Authorization/` (business endpoint gate) |
 | `Migrations/` | EF Core migrations, including persistent background jobs and notifications |
 
@@ -302,7 +305,7 @@ The organization workspace obtains active memberships from `GET /api/organizatio
 
 ### Validation, Normalization & Display Conventions
 
-The same rules are applied at every layer. Request DTOs carry DataAnnotations, domain factories enforce invariants, and PostgreSQL CHECK constraints added by `AddValidationConstraints` protect the critical bounds from direct writes. `Domain/TextNormalization.cs`, `Domain/PhoneNumbers.cs`, and `Infrastructure/Validation/ValidationAttributes.cs` are the backend source of truth; `utils/validation.ts` and `utils/format.ts` mirror them for immediate, accessible form feedback. The server always revalidates, so client normalization is never treated as a security control. Display formatting uses the explicit `en-GB` locale and `Asia/Kathmandu` time zone, binary file-size units, upper-case references, and the `—` fallback for missing values. Full field limits, upload signature rules, and the change checklist live in [Validation & Formatting](docs/VALIDATION-AND-FORMATTING.md).
+The same rules are applied at every layer. Request DTOs carry DataAnnotations, domain factories enforce invariants, and PostgreSQL CHECK constraints added by `AddValidationConstraints` protect the critical bounds from direct writes. `Domain/Common/TextNormalization.cs`, `Domain/Common/PhoneNumbers.cs`, and `Infrastructure/Validation/ValidationAttributes.cs` are the backend source of truth; `utils/validation.ts` and `utils/format.ts` mirror them for immediate, accessible form feedback. The server always revalidates, so client normalization is never treated as a security control. Display formatting uses the explicit `en-GB` locale and `Asia/Kathmandu` time zone, binary file-size units, upper-case references, and the `—` fallback for missing values. Full field limits, upload signature rules, and the change checklist live in [Validation & Formatting](docs/VALIDATION-AND-FORMATTING.md).
 
 ### Authentication & Authorization
 

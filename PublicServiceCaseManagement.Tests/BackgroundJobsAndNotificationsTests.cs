@@ -9,6 +9,9 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
+using PublicServiceCaseManagement.Api.Features.Notifications.Services;
+
+using PublicServiceCaseManagement.Tests.Support;
 
 namespace PublicServiceCaseManagement.Tests;
 

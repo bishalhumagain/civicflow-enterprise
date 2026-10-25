@@ -9,6 +9,8 @@ using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Notifications;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
+using PublicServiceCaseManagement.Api.Features.Cases.Services;
+using PublicServiceCaseManagement.Api.Features.Notifications.Services;
 
 namespace PublicServiceCaseManagement.Tests.Features.Cases;
 

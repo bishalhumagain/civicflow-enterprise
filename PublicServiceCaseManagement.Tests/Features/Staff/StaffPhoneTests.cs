@@ -4,6 +4,7 @@ using PublicServiceCaseManagement.Api.Features.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Tests.Infrastructure;
 using Xunit;
+using PublicServiceCaseManagement.Api.Features.Staff.Services;
 
 namespace PublicServiceCaseManagement.Tests.Features.Staff;
 

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Domain.Users;
 
 /// <summary>

@@ -5,6 +5,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
+using PublicServiceCaseManagement.Api.Features.Memberships.Contracts;
+using PublicServiceCaseManagement.Api.Features.Memberships.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 

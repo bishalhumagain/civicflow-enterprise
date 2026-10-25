@@ -5,7 +5,7 @@ import {
   canRevoke,
   invitationRoles,
   invitationStatus,
-} from './invitation-utils'
+} from '../utils/invitations'
 import { formatDateTime } from '../utils/format'
 import {
   MAX_EMAIL_LENGTH,

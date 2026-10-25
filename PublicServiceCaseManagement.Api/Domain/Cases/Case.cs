@@ -1,4 +1,6 @@
 
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Domain.Cases;
 
 public sealed class Case

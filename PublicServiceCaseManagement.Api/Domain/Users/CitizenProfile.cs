@@ -1,5 +1,7 @@
 using PublicServiceCaseManagement.Api.Domain;
 
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Domain.Users;
 
 public sealed class CitizenProfile

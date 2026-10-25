@@ -1,3 +1,5 @@
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Domain.Staff;
 
 public sealed class StaffMember

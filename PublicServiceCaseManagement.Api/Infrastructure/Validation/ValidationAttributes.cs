@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain;
 
+using PublicServiceCaseManagement.Api.Domain.Common;
+
 namespace PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 /// <summary>

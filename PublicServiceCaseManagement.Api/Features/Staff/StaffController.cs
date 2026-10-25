@@ -4,6 +4,8 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Features.Staff.Contracts;
+using PublicServiceCaseManagement.Api.Features.Staff.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 

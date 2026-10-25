@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Features.Citizens.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
 

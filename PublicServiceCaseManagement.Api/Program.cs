@@ -30,6 +30,19 @@ using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Features.Audit.Services;
+using PublicServiceCaseManagement.Api.Features.Auth.Services;
+using PublicServiceCaseManagement.Api.Features.BackgroundJobs.Services;
+using PublicServiceCaseManagement.Api.Features.Cases.Services;
+using PublicServiceCaseManagement.Api.Features.Citizens.Services;
+using PublicServiceCaseManagement.Api.Features.Dashboard.Services;
+using PublicServiceCaseManagement.Api.Features.Invitations.Services;
+using PublicServiceCaseManagement.Api.Features.Memberships.Services;
+using PublicServiceCaseManagement.Api.Features.Notifications.Services;
+using PublicServiceCaseManagement.Api.Features.Organizations.Services;
+using PublicServiceCaseManagement.Api.Features.Platform.Services;
+using PublicServiceCaseManagement.Api.Features.Profiles.Services;
+using PublicServiceCaseManagement.Api.Features.Staff.Services;
 
 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")) &&
     string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")))

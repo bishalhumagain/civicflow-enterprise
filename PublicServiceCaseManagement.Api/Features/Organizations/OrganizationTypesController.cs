@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Features.Organizations.Contracts;
+using PublicServiceCaseManagement.Api.Features.Organizations.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 

@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react"
 import { MAX_EMAIL_LENGTH, normalizeEmail, validateEmail } from "../utils/validation"
-import { useToast } from "./use-toast"
+import { useToast } from "./Toast"
 
 export type LoginCredentials = { email: string; password: string }
 
