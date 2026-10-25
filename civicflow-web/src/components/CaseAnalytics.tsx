@@ -15,7 +15,10 @@ const statusColors: Record<string, string> = {
 
 const priorityColors = ['var(--chart-red)', 'var(--chart-blue)', 'var(--chart-green)']
 
-export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
+export function CaseAnalytics({statistics, scopeLabel = 'this organization'}: {
+    statistics: CaseStatistics
+    scopeLabel?: string
+}) {
     const statusCounts: Record<CaseStatus, number> = {
         Submitted: statistics.submittedCases,
         UnderReview: statistics.underReviewCases,
@@ -48,13 +51,13 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
     return (
         <>
             <div className="stat-grid dashboard-stat-grid">
-                <SummaryCard label="Total cases" value={statistics.totalCases} detail="Across this reporting scope"/>
+                <SummaryCard label="Total cases" value={statistics.totalCases} detail={`Across ${scopeLabel}`}/>
                 <SummaryCard label="Active cases" value={Math.max(0, activeCases)}
                              detail="Not yet resolved, closed, or rejected"/>
                 <SummaryCard label="Resolved this month" value={statistics.casesResolvedThisMonth}
-                             detail="Reported by the case service"/>
+                             detail="Current calendar month"/>
                 <SummaryCard label="Created this month" value={statistics.casesCreatedThisMonth}
-                             detail="Reported by the case service"/>
+                             detail="Current calendar month"/>
             </div>
 
             <section className="analytics-grid" aria-label="Case analytics">
@@ -96,7 +99,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                     <header className="analytics-heading">
                         <div>
                             <h2>Priority mix</h2>
-                            <p className="muted">Cases grouped by reported priority</p>
+                            <p className="muted">Cases grouped by priority</p>
                         </div>
                     </header>
                     {priorityTotal === 0 ? (
@@ -150,7 +153,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                     <header className="analytics-heading">
                         <div>
                             <h2>Recent case activity</h2>
-                            <p className="muted">Counts reported for the current week and month</p>
+                            <p className="muted">Created and resolved cases for the current week and month</p>
                         </div>
                     </header>
                     <div className="activity-bars" role="list" aria-label="Case creation and resolution activity">

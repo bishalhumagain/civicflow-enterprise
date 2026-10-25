@@ -21,11 +21,10 @@ export function StaffLoginPage({
       <PublicHeader />
       <main className="landing-main">
         <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <h2 style={{ marginTop: 0 }}>Organization &amp; Platform Sign In</h2>
+          <h2 style={{ marginTop: 0 }}>Organization Sign In</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            Staff and Organization Administrators sign in here. Platform
-            administrators use the dedicated platform administration portal,
-            and citizens use the citizen portal.
+            Staff and Organization Administrators sign in here to manage their
+            organization's cases and team.
           </p>
           <LoginForm
             onSubmit={onSubmit}

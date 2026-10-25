@@ -1160,3 +1160,24 @@ select:not([multiple]) {
   .case-card-header{flex-direction:column}
   .success-message .secondary-button{margin-left:0}
 }
+
+/* Platform case directory and cross-organization dashboard. */
+.platform-organization-chart{margin:0 0 16px}
+.platform-organization-chart .status-chart-row{grid-template-columns:minmax(140px,220px) minmax(60px,1fr) 52px}
+.platform-case-layout{grid-template-columns:minmax(0,1fr) minmax(320px,360px);align-items:start}
+.platform-case-toolbar{align-items:flex-end;flex-wrap:wrap}
+.platform-case-toolbar .search{flex:1 1 100%}
+.platform-filter{display:grid;gap:5px;flex:1 1 150px;color:var(--color-text-muted);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.platform-filter select{width:100%;min-width:0;text-transform:none;letter-spacing:0;font-weight:500}
+.platform-case-count{padding:16px 18px 0}
+.platform-case-organization strong,.platform-case-organization span{display:block}
+.platform-case-organization span{margin-top:3px;color:var(--color-text-muted);font-size:11px}
+.platform-case-detail{max-height:calc(100dvh - 120px);overflow:auto}
+@media(max-width:1050px){
+  .platform-case-layout{grid-template-columns:minmax(0,1fr)}
+  .platform-case-detail{max-height:none}
+}
+@media(max-width:640px){
+  .platform-filter{flex-basis:100%}
+  .platform-organization-chart .status-chart-row{grid-template-columns:minmax(96px,120px) minmax(30px,1fr) 40px;gap:8px}
+}

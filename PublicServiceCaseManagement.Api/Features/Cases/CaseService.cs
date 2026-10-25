@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Notifications;
@@ -176,7 +177,10 @@ public sealed class CaseService(
         int page,
         int pageSize,
         CancellationToken cancellationToken,
-        Guid? assignedToStaffMemberId = null)
+        Guid? assignedToStaffMemberId = null,
+        CaseStatus? status = null,
+        CasePriority? priority = null,
+        string? search = null)
     {
         page = Math.Clamp(page, 1, 1_000_000);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -186,6 +190,28 @@ public sealed class CaseService(
             .Where(c => c.OrganizationId == organizationId &&
                         (assignedToStaffMemberId == null ||
                          c.AssignedToStaffMemberId == assignedToStaffMemberId));
+
+        if (status.HasValue)
+        {
+            query = query.Where(c => c.Status == status.Value);
+        }
+
+        if (priority.HasValue)
+        {
+            query = query.Where(c => c.Priority == priority.Value);
+        }
+
+        var term = TextNormalization
+            .CollapseWhitespace(search)
+            .ToLowerInvariant();
+
+        if (term.Length > 0)
+        {
+            query = query.Where(c =>
+                c.ReferenceNumber.ToLower().Contains(term) ||
+                c.Title.ToLower().Contains(term) ||
+                c.Description.ToLower().Contains(term));
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 

@@ -5,6 +5,9 @@ import {
   E2E_CITIZEN_TWO,
   E2E_ORGANIZATION_CODE,
   E2E_ORGANIZATION_NAME,
+  E2E_PLATFORM_ADMIN,
+  E2E_SECOND_ORGANIZATION_CODE,
+  E2E_SECOND_ORGANIZATION_NAME,
   E2E_STAFF_ADMIN,
 } from './test-data'
 
@@ -26,7 +29,8 @@ type SeedUser = {
   phoneNumber: string
   nidNumber: string
   citizenshipNumber: string
-  role: 'citizen' | 'staff'
+  role: 'citizen' | 'staff' | 'superadmin'
+  platformRole: 'None' | 'SuperAdmin'
 }
 
 const users: SeedUser[] = [
@@ -37,6 +41,7 @@ const users: SeedUser[] = [
     nidNumber: 'E2E-NID-1',
     citizenshipNumber: 'E2E-CIT-1',
     role: 'citizen',
+    platformRole: 'None',
   },
   {
     email: E2E_CITIZEN_TWO,
@@ -45,6 +50,7 @@ const users: SeedUser[] = [
     nidNumber: 'E2E-NID-2',
     citizenshipNumber: 'E2E-CIT-2',
     role: 'citizen',
+    platformRole: 'None',
   },
   {
     email: E2E_STAFF_ADMIN,
@@ -53,6 +59,16 @@ const users: SeedUser[] = [
     nidNumber: 'E2E-NID-3',
     citizenshipNumber: 'E2E-CIT-3',
     role: 'staff',
+    platformRole: 'None',
+  },
+  {
+    email: E2E_PLATFORM_ADMIN,
+    fullName: 'E2E Platform Admin',
+    phoneNumber: '9800000004',
+    nidNumber: 'E2E-NID-4',
+    citizenshipNumber: 'E2E-CIT-4',
+    role: 'superadmin',
+    platformRole: 'SuperAdmin',
   },
 ]
 
@@ -116,7 +132,7 @@ async function seedUser(client: Client, seed: SeedUser): Promise<string> {
       "NormalizedUserName", "PasswordHash", "PhoneNumber",
       "PhoneNumberConfirmed", "SecurityStamp", "TwoFactorEnabled", "UserName")
     values (
-      $1, $2, $3, $4, 'None', now(), now(), true, 0, $5, true, false, null,
+      $1, $2, $3, $4, $9, now(), now(), true, 0, $5, true, false, null,
       $4, $6, $7, false, $8, false, $3)
     on conflict ("NormalizedEmail") do update set
       "FullName" = excluded."FullName",
@@ -143,35 +159,38 @@ async function seedUser(client: Client, seed: SeedUser): Promise<string> {
       passwordHash,
       seed.phoneNumber,
       randomUUID(),
+      seed.platformRole,
     ],
   )
 
   const userId = result.rows[0].Id
 
-  await client.query(
-    `
-    insert into citizen_profiles (
-      "Id", "ApplicationUserId", "FullName", "Email", "PhoneNumber",
-      "NIDNumber", "CitizenshipNumber", "CreatedAt", "UpdatedAt")
-    values (
-      gen_random_uuid(), $1, $2, $3, $4, $5, $6, now(), now())
-    on conflict ("ApplicationUserId") do update set
-      "FullName" = excluded."FullName",
-      "Email" = excluded."Email",
-      "PhoneNumber" = excluded."PhoneNumber",
-      "NIDNumber" = excluded."NIDNumber",
-      "CitizenshipNumber" = excluded."CitizenshipNumber",
-      "UpdatedAt" = now()
-    `,
-    [
-      userId,
-      seed.fullName,
-      seed.email,
-      seed.phoneNumber,
-      seed.nidNumber,
-      seed.citizenshipNumber,
-    ],
-  )
+  if (seed.role !== 'superadmin') {
+    await client.query(
+      `
+      insert into citizen_profiles (
+        "Id", "ApplicationUserId", "FullName", "Email", "PhoneNumber",
+        "NIDNumber", "CitizenshipNumber", "CreatedAt", "UpdatedAt")
+      values (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, now(), now())
+      on conflict ("ApplicationUserId") do update set
+        "FullName" = excluded."FullName",
+        "Email" = excluded."Email",
+        "PhoneNumber" = excluded."PhoneNumber",
+        "NIDNumber" = excluded."NIDNumber",
+        "CitizenshipNumber" = excluded."CitizenshipNumber",
+        "UpdatedAt" = now()
+      `,
+      [
+        userId,
+        seed.fullName,
+        seed.email,
+        seed.phoneNumber,
+        seed.nidNumber,
+        seed.citizenshipNumber,
+      ],
+    )
+  }
 
   const roleResult = await client.query<{ Id: string }>(
     `
@@ -233,6 +252,25 @@ export default async function globalSetup(): Promise<void> {
     )
 
     const organizationId = organization.rows[0].Id
+
+    await client.query(
+      `
+      insert into organizations (
+        "Id", "Name", "Code", "IsActive", "CreatedAt", "UpdatedAt",
+        "OrganizationTypeId")
+      values (gen_random_uuid(), $1, $2, true, now(), now(), $3)
+      on conflict ("Code") do update set
+        "Name" = excluded."Name",
+        "IsActive" = true,
+        "UpdatedAt" = now()
+      `,
+      [
+        E2E_SECOND_ORGANIZATION_NAME,
+        E2E_SECOND_ORGANIZATION_CODE,
+        organizationTypeId,
+      ],
+    )
+
     const userIds = new Map<string, string>()
 
     for (const user of users) {

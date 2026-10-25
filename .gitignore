@@ -27,6 +27,7 @@ appsettings.json
 # Local agent/tool configuration
 .vtcode/
 vtcode.toml
+skills/
 
 # Stakpak session files
 .stakpak/session*

@@ -11,6 +11,7 @@ export type WorkspaceView =
   | 'platform-directory'
   | 'platform-audit'
   | 'platform-dashboard'
+  | 'platform-cases'
   | 'organization-dashboard'
   | 'platform-errors'
   | 'platform-jobs'
@@ -214,6 +215,116 @@ export type CaseStatistics = {
   casesCreatedThisMonth: number
   casesResolvedThisWeek: number
   casesResolvedThisMonth: number
+}
+
+export type PlatformOrganizationCaseBreakdown = {
+  organizationId: string
+  organizationName: string
+  organizationCode: string
+  isActive: boolean
+  totalCases: number
+  openCases: number
+  resolvedCases: number
+  highPriorityCases: number
+}
+
+export type PlatformCaseSummary = {
+  id: string
+  referenceNumber: string
+  title: string
+  description: string
+  status: CaseStatus
+  priority: CasePriority
+  organizationId: string
+  organizationName: string
+  organizationCode: string
+  assignedToStaffMemberId: string | null
+  assignedToName: string | null
+  assignedRole: 'CaseWorker' | 'Viewer' | null
+  submittedByUserId: string | null
+  submittedByName: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformCasePage = {
+  items: PlatformCaseSummary[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+}
+
+export type PlatformCasePerson = {
+  userId: string
+  fullName: string
+  email: string
+  phoneNumber: string | null
+}
+
+export type PlatformCaseStaffPerson = {
+  staffMemberId: string
+  fullName: string
+  email: string
+  phoneNumber: string | null
+  isActive: boolean
+}
+
+export type PlatformCaseStatusEntry = {
+  id: string
+  previousStatus: CaseStatus
+  newStatus: CaseStatus
+  changedAt: string
+  changedByUserId: string | null
+  changedByEmail: string | null
+  explanation: string | null
+  isVisibleToCitizen: boolean
+}
+
+export type PlatformCaseUpdateEntry = {
+  id: string
+  kind: CaseUpdateKind
+  message: string
+  isVisibleToCitizen: boolean
+  authorUserId: string
+  authorEmail: string | null
+  createdAt: string
+}
+
+export type PlatformCaseAssignmentEntry = {
+  id: string
+  previousStaffMemberId: string | null
+  previousStaffMemberName: string | null
+  newStaffMemberId: string
+  newStaffMemberName: string | null
+  previousRole: 'CaseWorker' | 'Viewer' | null
+  newRole: 'CaseWorker' | 'Viewer'
+  assignedAt: string
+  assignedByUserId: string | null
+  assignedByEmail: string | null
+}
+
+export type PlatformCaseDocumentEntry = {
+  id: string
+  caseId: string
+  originalFileName: string
+  contentType: string
+  sizeBytes: number
+  sha256Hash: string
+  uploadedAt: string
+  uploadedByUserId: string | null
+  uploadedByEmail: string | null
+  isVisibleToCitizen: boolean
+}
+
+export type PlatformCaseDetail = {
+  case: PlatformCaseSummary
+  submittedBy: PlatformCasePerson | null
+  assignedTo: PlatformCaseStaffPerson | null
+  statusHistory: PlatformCaseStatusEntry[]
+  updates: PlatformCaseUpdateEntry[]
+  assignmentHistory: PlatformCaseAssignmentEntry[]
+  documents: PlatformCaseDocumentEntry[]
 }
 
 export type ApplicationError = {

@@ -238,6 +238,9 @@ public sealed class CasesController(
     public async Task<ActionResult<PagedCasesResponse>> GetAll(
         [FromQuery, Range(1, 1_000_000)] int page = 1,
         [FromQuery, Range(1, 100)] int pageSize = 20,
+        [FromQuery] CaseStatus? status = null,
+        [FromQuery] CasePriority? priority = null,
+        [FromQuery, StringLength(200)] string? search = null,
         CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
@@ -271,7 +274,10 @@ public sealed class CasesController(
             page,
             pageSize,
             cancellationToken,
-            staffMemberId);
+            staffMemberId,
+            status,
+            priority,
+            search);
 
         var response = new PagedCasesResponse(
             result.Items.Select(c => new CreateCaseResponse(

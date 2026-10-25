@@ -99,8 +99,8 @@ export function fallbackApiErrorMessage(status: number): string {
   }
 
   if (status >= 500) {
-    return 'The server could not complete the request. Try again shortly.'
+    return 'The request could not be completed. Try again shortly.'
   }
 
-  return `The request failed (HTTP ${status}).`
+  return 'The request could not be completed. Try again.'
 }

@@ -53,8 +53,7 @@ export function LoginForm({
     <form className="case-card create-form" noValidate onSubmit={handleSubmit}>
       <h2>Sign In</h2>
       <p className="muted">
-        Sign in with your CivicFlow account. Authentication is enforced by the
-        CivicFlow API using a secure, HttpOnly session cookie.
+        Sign in with your CivicFlow account to continue.
       </p>
       {error !== null && (
         <div className="auth-error" role="alert">
@@ -120,10 +119,6 @@ export function LoginForm({
           {loading ? "Signing in…" : "Sign in"}
         </button>
       </div>
-      <small className="muted">
-        Sessions are validated server-side; no credentials or tokens are stored
-        in the browser.
-      </small>
     </form>
   )
 }

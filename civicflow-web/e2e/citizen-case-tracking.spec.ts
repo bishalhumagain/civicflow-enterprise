@@ -4,6 +4,8 @@ import {
   E2E_CITIZEN_TWO,
   E2E_ORGANIZATION_NAME,
   E2E_PASSWORD,
+  E2E_PLATFORM_ADMIN,
+  E2E_SECOND_ORGANIZATION_NAME,
   E2E_STAFF_ADMIN,
 } from './test-data'
 
@@ -41,7 +43,7 @@ test.describe.configure({ mode: 'serial' })
 
 async function signIn(
   page: Page,
-  path: '/citizen/login' | '/admin',
+  path: '/citizen/login' | '/admin' | '/super-platform-admin',
   email: string,
   heading: string | RegExp,
 ): Promise<void> {
@@ -191,7 +193,7 @@ test('staff records public updates, a confidential note, an information request,
       page,
       '/admin',
       E2E_STAFF_ADMIN,
-      'Organization & Platform Sign In',
+      'Organization Sign In',
     )
     await expect(
       page.getByRole('heading', { name: 'Case management' }),
@@ -538,4 +540,117 @@ test('mutations are rejected when the anti-forgery token is invalid', async ({
   expect(response.status()).toBe(400)
   const body = (await response.json()) as { code?: string }
   expect(body.code).toBe('antiforgery_invalid')
+})
+
+test('organization administrator filters every case in the organization', async ({
+  browser,
+}) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+
+  try {
+    await signIn(page, '/admin', E2E_STAFF_ADMIN, 'Organization Sign In')
+    await expect(
+      page.getByRole('heading', { name: 'Case management' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Cases', exact: true }),
+    ).toBeVisible()
+
+    const rows = page.getByRole('region', { name: 'Cases list' })
+    const filteredRow = rows.locator('tbody tr').filter({ hasText: title })
+
+    await page.getByLabel('Filter by status').selectOption('UnderReview')
+    await expect(filteredRow).toBeVisible()
+
+    await page.getByLabel('Filter by priority').selectOption('High')
+    await expect(
+      page.getByText('No cases match the current filter.'),
+    ).toBeVisible()
+
+    await page.getByLabel('Filter by priority').selectOption('Normal')
+    await expect(filteredRow).toBeVisible()
+
+    await page.getByLabel('Search cases').fill(runId)
+    await expect(filteredRow).toBeVisible()
+    await expect(
+      page.getByText(/Showing 1 of \d+/),
+    ).toBeVisible()
+  } finally {
+    await context.close()
+  }
+})
+
+test('platform administrator reviews all cases and can filter by organization', async ({
+  browser,
+}) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+
+  try {
+    await signIn(
+      page,
+      '/super-platform-admin',
+      E2E_PLATFORM_ADMIN,
+      'Platform Administrator Sign In',
+    )
+
+    await expect(
+      page.getByRole('heading', { name: 'Platform overview' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Cases by organization' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Cases by status' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Priority mix' }),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'All cases', exact: true }).click()
+    await expect(
+      page.getByRole('heading', { name: 'All cases' }),
+    ).toBeVisible()
+
+    const table = page.getByRole('region', { name: 'Platform cases list' })
+    const row = table.locator('tbody tr').filter({ hasText: title })
+
+    await page.getByLabel('Organization').selectOption({
+      label: E2E_SECOND_ORGANIZATION_NAME,
+    })
+    await expect(
+      page.getByText('No cases match the current filters.'),
+    ).toBeVisible()
+
+    await page.getByLabel('Organization').selectOption({
+      label: E2E_ORGANIZATION_NAME,
+    })
+    await expect(row).toBeVisible()
+
+    await page.getByLabel('Status').selectOption('UnderReview')
+    await expect(row).toBeVisible()
+
+    await page.getByLabel('Priority').selectOption('High')
+    await expect(
+      page.getByText('No cases match the current filters.'),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Reset', exact: true }).click()
+    await page.getByLabel('Search all platform cases').fill(title)
+    await expect(row).toBeVisible()
+
+    await row.getByRole('button').click()
+
+    const detail = page.locator('aside.platform-case-detail')
+    await expect(detail).toContainText(state.referenceNumber)
+    await expect(detail).toContainText(E2E_ORGANIZATION_NAME)
+    await expect(detail).toContainText(E2E_CITIZEN_ONE)
+    await expect(detail).toContainText(internalNote)
+    await expect(detail).toContainText(staffInternalDocumentName)
+    await expect(detail.getByText('Staff only')).toBeVisible()
+    await expect(detail.getByText('Internal', { exact: true })).toBeVisible()
+  } finally {
+    await context.close()
+  }
 })

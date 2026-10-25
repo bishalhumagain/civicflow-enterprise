@@ -237,7 +237,7 @@ export function CitizenDashboard({
     const visibleCount = pageData?.items.length ?? 0
 
     const statsDetail = useMemo(() => {
-        if (loading) return 'Loading from the API'
+        if (loading) return 'Loading your requests'
         if (filtersActive) return 'Matching the current filters'
         return 'All requests on your account'
     }, [filtersActive, loading])
@@ -376,7 +376,7 @@ export function CitizenDashboard({
                             <h4 id="citizen-updates-title">Updates and information requests</h4>
                             {selected.updates.length === 0 ? (
                                 <p className="muted">
-                                    No citizen-visible updates have been posted yet.
+                                    No updates have been posted yet.
                                 </p>
                             ) : (
                                 <ul className="citizen-update-list">

@@ -56,9 +56,8 @@ export function LandingPage({
                     <p className="landing-eyebrow">PUBLIC SERVICE CASE MANAGEMENT</p>
                     <h1>Manage public requests with clarity and accountability</h1>
                     <p className="landing-subtitle">
-                        CivicFlow helps government teams track, assign, and resolve cases while providing citizens a
-                        simple way to
-                        submit service requests. All access is validated server-side for security and compliance.
+                        CivicFlow helps government teams track, assign, and resolve cases while giving citizens a
+                        simple way to submit service requests.
                     </p>
                 </section>
                 <section className="landing-actions landing-actions-compact">
@@ -102,13 +101,6 @@ export function LandingPage({
                             </button>
                         }
                     />
-                </section>
-                <section className="landing-note">
-                    <p>
-                        Platform administration is available at a separate, dedicated sign-in URL. Authentication and
-                        role-based
-                        permissions are enforced by the CivicFlow API and remain authoritative.
-                    </p>
                 </section>
             </main>
             <PublicFooter />

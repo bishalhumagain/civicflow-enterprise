@@ -26,6 +26,16 @@ import {
 
 const genderOptions = ['Female', 'Male', 'Other', 'Prefer not to say']
 
+const roleLabels: Record<string, string> = {
+  citizen: 'Citizen',
+  staff: 'Organization staff',
+}
+
+function formatRoles(roles: string[]): string {
+  const labels = [...new Set(roles.map((role) => roleLabels[role] ?? 'Account holder'))]
+  return labels.length > 0 ? labels.join(', ') : '—'
+}
+
 type ProfileForm = {
   fullName: string
   phoneNumber: string
@@ -271,7 +281,7 @@ export default function ProfilePage() {
         <StatCard
           label="Account type"
           value={profile.accountType === 'Citizen' ? 'Citizen' : 'Organization staff'}
-          detail={profile.roles.join(', ') || 'No role assigned'}
+          detail={formatRoles(profile.roles)}
           tone="blue"
         />
         <StatCard
@@ -289,7 +299,7 @@ export default function ProfilePage() {
         <StatCard
           label="Last updated"
           value={formatDate(profile.updatedAt)}
-          detail={`User ${profile.userId.slice(0, 8)}`}
+          detail="Most recent change"
           tone="amber"
         />
       </div>
@@ -605,7 +615,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <dt>Roles</dt>
-              <dd>{profile.roles.join(', ') || '—'}</dd>
+              <dd>{formatRoles(profile.roles)}</dd>
             </div>
             <div>
               <dt>Organization</dt>

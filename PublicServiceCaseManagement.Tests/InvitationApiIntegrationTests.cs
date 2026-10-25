@@ -1019,6 +1019,10 @@ internal sealed class SpyOrganizationTransactionContext
         return Task.CompletedTask;
     }
 
+    public Task BeginPlatformReadAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     public Task CompleteAsync(
         bool succeeded,
         CancellationToken cancellationToken = default) =>

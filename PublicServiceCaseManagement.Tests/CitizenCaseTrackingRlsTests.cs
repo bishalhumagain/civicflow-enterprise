@@ -194,6 +194,106 @@ public sealed class CitizenCaseTrackingRlsTests
     }
 
     [PostgreSqlFact]
+    public async Task PlatformReadContextSeesAllTenantsButCannotWrite()
+    {
+        await EnsureSchemaAsync();
+        var seed = await SeedAsync();
+
+        await using var connection = new NpgsqlConnection(RuntimeConnectionString);
+        await connection.OpenAsync();
+        await AssertRoleIsSubjectToRlsAsync(connection);
+
+        // With no context the runtime role sees nothing.
+        Assert.Equal(0, await CountAsync(connection, null,
+            "select count(*) from cases"));
+
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SetConfigAsync(
+            connection,
+            transaction,
+            "civicflow.platform_read",
+            "on");
+
+        Assert.Equal(3, await CountAsync(connection, transaction,
+            """
+            select count(*) from cases
+            where "OrganizationId" in (@organizationA, @organizationB)
+            """,
+            ("organizationA", seed.OrganizationA),
+            ("organizationB", seed.OrganizationB)));
+        Assert.Equal(2, await CountAsync(connection, transaction,
+            """
+            select count(*) from case_status_history
+            where "OrganizationId" in (@organizationA, @organizationB)
+            """,
+            ("organizationA", seed.OrganizationA),
+            ("organizationB", seed.OrganizationB)));
+        Assert.Equal(6, await CountAsync(connection, transaction,
+            """
+            select count(*) from case_updates
+            where "OrganizationId" in (@organizationA, @organizationB)
+            """,
+            ("organizationA", seed.OrganizationA),
+            ("organizationB", seed.OrganizationB)));
+        Assert.Equal(3, await CountAsync(connection, transaction,
+            """
+            select count(*) from case_documents
+            where "OrganizationId" in (@organizationA, @organizationB)
+            """,
+            ("organizationA", seed.OrganizationA),
+            ("organizationB", seed.OrganizationB)));
+        Assert.Equal(2, await CountAsync(connection, transaction,
+            """
+            select count(*) from staff_members
+            where "OrganizationId" in (@organizationA, @organizationB)
+            """,
+            ("organizationA", seed.OrganizationA),
+            ("organizationB", seed.OrganizationB)));
+
+        // The platform policies are SELECT-only, so the existing tenant
+        // policies still govern every write path.
+        Assert.Equal(6, await CountAsync(
+            connection,
+            transaction,
+            """
+            select count(*) from pg_policies
+            where "policyname" like '%_platform_read'
+              and "cmd" = 'SELECT'
+            """));
+
+        Assert.Equal(0, await ExecuteAsync(
+            connection,
+            transaction,
+            "update cases set \"Title\" = 'Platform read must not write'"));
+        Assert.Equal(0, await ExecuteAsync(
+            connection,
+            transaction,
+            "delete from cases"));
+
+        var insert = await Assert.ThrowsAsync<PostgresException>(() =>
+            ExecuteAsync(
+                connection,
+                transaction,
+                """
+                insert into cases
+                    ("Id", "OrganizationId", "ReferenceNumber", "Title",
+                     "Description", "Status", "Priority", "CreatedAt",
+                     "UpdatedAt")
+                values
+                    (@id, @organizationId, @reference, 'Platform read insert',
+                     'A write attempt from the platform read context.',
+                     'Submitted', 'Normal', now(), now())
+                """,
+                ("id", Guid.NewGuid()),
+                ("organizationId", seed.OrganizationA),
+                ("reference", $"CF-PLATFORM-{Guid.NewGuid():N}")));
+
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, insert.SqlState);
+
+        await transaction.RollbackAsync();
+    }
+
+    [PostgreSqlFact]
     public async Task TrackingTablesForceRlsAndTrackingMigrationIsApplied()
     {
         await EnsureSchemaAsync();
@@ -256,6 +356,13 @@ public sealed class CitizenCaseTrackingRlsTests
             """
             select count(*) from "__EFMigrationsHistory"
             where "MigrationId" = '20261025070100_AddCitizenTrackingRls'
+            """));
+        Assert.Equal(1, await CountAsync(
+            connection,
+            null,
+            """
+            select count(*) from "__EFMigrationsHistory"
+            where "MigrationId" = '20261025150000_AddPlatformReadRls'
             """));
     }
 
@@ -375,6 +482,39 @@ public sealed class CitizenCaseTrackingRlsTests
         command.Parameters.AddWithValue("value", value.ToString());
 
         await command.ExecuteScalarAsync();
+    }
+
+    private static async Task SetConfigAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string key,
+        string value)
+    {
+        await using var command = new NpgsqlCommand(
+            "select set_config(@key, @value, true)",
+            connection,
+            transaction);
+        command.Parameters.AddWithValue("key", key);
+        command.Parameters.AddWithValue("value", value);
+
+        await command.ExecuteScalarAsync();
+    }
+
+    private static async Task<int> ExecuteAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string sql,
+        params (string Name, object Value)[] parameters)
+    {
+        await using var command = new NpgsqlCommand(
+            sql,
+            connection,
+            transaction);
+
+        foreach (var (name, value) in parameters)
+            command.Parameters.AddWithValue(name, value);
+
+        return await command.ExecuteNonQueryAsync();
     }
 
     private static async Task<long> CountAsync(

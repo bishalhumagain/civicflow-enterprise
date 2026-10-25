@@ -44,7 +44,7 @@ export function ForgotPasswordPage() {
       await forgotPassword(address)
       setMessage(
         `If ${address} is registered, a password recovery email has been sent. ` +
-          'Check your inbox and spam folder. If nothing arrives, the address may not be registered.',
+          'Check your inbox and spam folder.',
       )
     } catch (reason) {
       showFailure(reason, 'Password recovery failed. Please try again.')
@@ -69,7 +69,7 @@ export function ForgotPasswordPage() {
       await resendVerification(address)
       setMessage(
         `If ${address} needs verification, a verification email has been sent. ` +
-          'Check your inbox and spam folder. If nothing arrives, the address may not be registered or may already be verified.',
+          'Check your inbox and spam folder.',
       )
     } catch (reason) {
       showFailure(

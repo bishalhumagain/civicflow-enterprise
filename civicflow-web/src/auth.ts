@@ -117,7 +117,7 @@ export async function fetchCsrfToken(force = false): Promise<string> {
 
     if (!response.ok) {
       throw new AuthApiError(
-        `Unable to obtain a security token (HTTP ${response.status}).`,
+        'Your request could not be completed. Refresh the page and try again.',
         response.status,
       )
     }
@@ -125,7 +125,10 @@ export async function fetchCsrfToken(force = false): Promise<string> {
     const payload = (await response.json()) as { token?: string }
 
     if (!payload.token) {
-      throw new AuthApiError('The security token response was malformed.', 500)
+      throw new AuthApiError(
+        'Your request could not be completed. Refresh the page and try again.',
+        500,
+      )
     }
 
     csrfToken = payload.token
@@ -237,7 +240,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const { message } = await readApiErrorDetails(response)
 
     throw new AuthApiError(
-      message ?? `Unable to load the current session (HTTP ${response.status}).`,
+      message ?? 'Unable to load your account. Refresh the page and try again.',
       response.status,
     )
   }

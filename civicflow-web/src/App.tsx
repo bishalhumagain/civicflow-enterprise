@@ -36,6 +36,7 @@ import {
     type CaseDocumentsData,
     type CaseHistoryData,
     type CasePage,
+    type CasePriority,
     type CaseRecord,
     type CaseStatistics,
     type CaseStatus,
@@ -48,6 +49,7 @@ import {
     type Organization,
     type OrganizationWorkspaceOption,
     type PlatformOverview,
+    type PlatformOrganizationCaseBreakdown,
     type PlatformCitizen,
     type PlatformUser,
     type StaffMember,
@@ -65,6 +67,7 @@ import {emptyAuditFilters, type AuditFilters} from './components/audit-utils'
 import {CitizenIntake} from './components/CitizenIntake'
 import {CitizenDashboard} from './components/CitizenDashboard'
 import {PlatformDashboard} from './components/PlatformDashboard'
+import {PlatformCases} from './components/PlatformCases'
 import {OrganizationDashboard} from './components/OrganizationDashboard'
 import {PlatformErrors} from './components/PlatformErrors'
 import {NotificationCenter} from './components/NotificationCenter'
@@ -178,6 +181,7 @@ const workspaceViews: WorkspaceView[] = [
     'organization-dashboard',
     'organizations',
     'platform-dashboard',
+    'platform-cases',
     'platform-directory',
     'platform-audit',
     'platform-errors',
@@ -250,7 +254,9 @@ function App() {
     } | null>(null)
     const [selectedOrganizationId, setSelectedOrganizationId] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<'All' | CaseStatus>('All')
+    const [selectedPriority, setSelectedPriority] = useState<'All' | CasePriority>('All')
     const [search, setSearch] = useState('')
+    const [caseSearchInput, setCaseSearchInput] = useState('')
     const [loading, setLoading] = useState(false)
     const [retryVersion, setRetryVersion] = useState(0)
     const [organizationRetryVersion, setOrganizationRetryVersion] = useState(0)
@@ -281,6 +287,8 @@ function App() {
     const [directoryLoading, setDirectoryLoading] = useState(false)
 
     const [platformStatistics, setPlatformStatistics] = useState<CaseStatistics | null>(null)
+    const [platformOrganizationBreakdown, setPlatformOrganizationBreakdown] =
+        useState<PlatformOrganizationCaseBreakdown[]>([])
     const [organizationStatistics, setOrganizationStatistics] = useState<CaseStatistics | null>(null)
     const [dashboardLoading, setDashboardLoading] = useState(false)
 
@@ -333,7 +341,7 @@ function App() {
         }
 
         if (platformAdminAccess) {
-            views.push('platform-dashboard', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors', 'platform-jobs')
+            views.push('platform-dashboard', 'platform-cases', 'organizations', 'platform-directory', 'platform-audit', 'platform-errors', 'platform-jobs')
         }
 
         if (organizationAccess) {
@@ -377,6 +385,7 @@ function App() {
 
         if (platformAdminAccess) {
             items.push({view: 'platform-dashboard', label: 'Dashboard', icon: 'dashboard'})
+            items.push({view: 'platform-cases', label: 'All cases', icon: 'cases'})
             items.push({view: 'organizations', label: 'Organizations', icon: 'building'})
             items.push({view: 'platform-directory', label: 'Directory', icon: 'directory'})
             items.push({view: 'platform-audit', label: 'Audit log', icon: 'activity'})
@@ -411,12 +420,14 @@ function App() {
             ? invitationsData.items
             : []
 
-    const visibleCases = useMemo(() => cases.filter((item) => {
-        const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus
-        const query = search.trim().toLowerCase()
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setSearch(caseSearchInput.trim())
+            setCasePage(1)
+        }, 300)
 
-        return matchesStatus && (!query || `${item.referenceNumber} ${item.title}`.toLowerCase().includes(query))
-    }), [cases, search, selectedStatus])
+        return () => window.clearTimeout(timer)
+    }, [caseSearchInput])
 
     useEffect(() => {
         const handlePopState = () => setRoute(resolveRoute(window.location.pathname))
@@ -480,6 +491,12 @@ function App() {
         setStaff([])
         setSelectedCaseId(null)
         setCasePage(1)
+        setTotalPages(1)
+        setCaseTotalCount(0)
+        setSelectedStatus('All')
+        setSelectedPriority('All')
+        setSearch('')
+        setCaseSearchInput('')
         setInvitationsData(null)
         setError(null)
     }
@@ -521,9 +538,18 @@ function App() {
             setLoading(true)
             setError(null)
 
+            const caseQuery = new URLSearchParams({
+                page: String(casePage),
+                pageSize: '20',
+            })
+
+            if (selectedStatus !== 'All') caseQuery.set('status', selectedStatus)
+            if (selectedPriority !== 'All') caseQuery.set('priority', selectedPriority)
+            if (search) caseQuery.set('search', search)
+
             try {
                 const [caseResult, staffMembers] = await Promise.all([
-                    requestJson<CasePage>(`/api/cases?page=${casePage}&pageSize=20`),
+                    requestJson<CasePage>(`/api/cases?${caseQuery.toString()}`),
                     requestJson<StaffMember[]>('/api/staff'),
                 ])
 
@@ -542,7 +568,7 @@ function App() {
                 })
             } catch (reason) {
                 if (mounted) {
-                    setError(reason instanceof Error ? reason.message : 'The CivicFlow API could not be reached.')
+                    setError(reason instanceof Error ? reason.message : 'CivicFlow could not be reached. Check your connection and try again.')
                 }
             } finally {
                 if (mounted) setLoading(false)
@@ -554,7 +580,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, organizationAccess, organizationId, casePage, retryVersion])
+    }, [currentUser, organizationAccess, organizationId, casePage, selectedStatus, selectedPriority, search, retryVersion])
 
     useEffect(() => {
         if (!currentUser || !organizationAccess || !selectedCase || selectedCase.id.startsWith('demo-')) return
@@ -725,18 +751,21 @@ function App() {
         async function loadPlatformStatistics() {
             setDashboardLoading(true)
             setPlatformStatistics(null)
+            setPlatformOrganizationBreakdown([])
             setError(null)
 
             try {
-                const [statistics, overview] = await Promise.all([
+                const [statistics, overview, organizationBreakdown] = await Promise.all([
                     requestJson<CaseStatistics>('/api/dashboard/platform'),
                     requestJson<PlatformOverview>('/api/platform/overview'),
+                    requestJson<PlatformOrganizationCaseBreakdown[]>('/api/dashboard/platform/organizations'),
                 ])
 
                 if (!mounted) return
 
                 setPlatformStatistics(statistics)
                 setPlatformOverview(overview)
+                setPlatformOrganizationBreakdown(organizationBreakdown)
             } catch (reason) {
                 if (mounted) {
                     setError(
@@ -759,7 +788,8 @@ function App() {
 
     // Load organization dashboard statistics
     useEffect(() => {
-        if (!currentUser || !organizationAccess || activeView !== 'organization-dashboard' || !organizationId) return
+        if (!currentUser || !organizationAccess || !organizationId) return
+        if (activeView !== 'organization-dashboard' && activeView !== 'cases') return
 
         let mounted = true
 
@@ -1078,7 +1108,7 @@ function App() {
             portal === 'citizen'
                 ? 'citizen-dashboard'
                 : portal === 'platform-admin'
-                    ? 'organizations'
+                    ? 'platform-dashboard'
                     : 'cases',
         )
         setLoginError(null)
@@ -1680,17 +1710,23 @@ function App() {
         )
     }
 
+    const casesFiltered = selectedStatus !== 'All' || selectedPriority !== 'All' || search.length > 0
     const caseEmptyMessage = !organizationId
         ? 'Loading your organization workspace.'
-        : cases.length === 0
-            ? 'No cases are available in this organization.'
-            : 'No cases match the current filter.'
+        : casesFiltered
+            ? 'No cases match the current filter.'
+            : 'No cases are available in this organization.'
 
-    const dataSourceLabel = loading
-        ? 'Loading from API'
-        : !organizationId
-            ? 'Resolving organization membership'
-            : 'Live organization data'
+    const summaryTotalCases = organizationStatistics?.totalCases ?? caseTotalCount
+    const summaryNeedsReview = organizationStatistics
+        ? organizationStatistics.submittedCases + organizationStatistics.underReviewCases
+        : cases.filter((item) => item.status === 'Submitted' || item.status === 'UnderReview').length
+    const summaryInProgress = organizationStatistics
+        ? organizationStatistics.inProgressCases
+        : cases.filter((item) => item.status === 'InProgress').length
+    const summaryResolved = organizationStatistics
+        ? organizationStatistics.resolvedCases + organizationStatistics.closedCases
+        : cases.filter((item) => item.status === 'Resolved' || item.status === 'Closed').length
 
     const workspaceLabel = activePortal === 'citizen'
         ? 'Citizen portal'
@@ -1712,6 +1748,7 @@ function App() {
         'organization-dashboard': 'Dashboard',
         organizations: 'Organizations',
         'platform-dashboard': 'Dashboard',
+        'platform-cases': 'All cases',
         'platform-directory': 'Directory',
         'platform-audit': 'Audit log',
         'platform-errors': 'Errors',
@@ -1901,8 +1938,11 @@ function App() {
                                 <PlatformDashboard
                                     statistics={platformStatistics}
                                     overview={platformOverview}
+                                    organizationBreakdown={platformOrganizationBreakdown}
                                     loading={dashboardLoading}
                                 />
+                            ) : activeView === 'platform-cases' && platformAdminAccess ? (
+                                <PlatformCases/>
                             ) : activeView === 'organization-dashboard' && organizationAccess ? (
                                 <OrganizationDashboard
                                     statistics={organizationStatistics}
@@ -1941,7 +1981,7 @@ function App() {
                             ) : activeView === 'platform-audit' && platformAdminAccess ? (
                                 <AuditLog
                                     title="Platform audit trail"
-                                    description="Every audited change recorded across the platform, including organization, staff, invitation, access-token and authentication events."
+                                    description="Every audited change recorded across the platform, including organization, staff, invitation, access, and authentication events."
                                     loading={auditLoading}
                                     events={auditEvents}
                                     filters={auditFilters}
@@ -2057,26 +2097,26 @@ function App() {
 
                                     <div className="stat-grid">
                                         <StatCard
-                                            label="Visible cases"
-                                            value={formatNumber(visibleCases.length)}
-                                            detail={dataSourceLabel}
+                                            label="Total cases"
+                                            value={formatNumber(summaryTotalCases)}
+                                            detail="Across this organization"
                                             tone="blue"
                                         />
                                         <StatCard
                                             label="Needs review"
-                                            value={formatNumber(cases.filter((item) => item.status === 'Submitted' || item.status === 'UnderReview').length)}
+                                            value={formatNumber(summaryNeedsReview)}
                                             detail="Submitted or under review"
                                             tone="amber"
                                         />
                                         <StatCard
                                             label="In progress"
-                                            value={formatNumber(cases.filter((item) => item.status === 'InProgress').length)}
+                                            value={formatNumber(summaryInProgress)}
                                             detail="Active workflow"
                                             tone="purple"
                                         />
                                         <StatCard
                                             label="Resolved"
-                                            value={formatNumber(cases.filter((item) => item.status === 'Resolved' || item.status === 'Closed').length)}
+                                            value={formatNumber(summaryResolved)}
                                             detail="Resolved or closed"
                                             tone="green"
                                         />
@@ -2086,7 +2126,7 @@ function App() {
                                         <div>
                                             <h2>Cases</h2>
                                             <span
-                                                className="muted">Showing {formatNumber(visibleCases.length)} of {formatNumber(cases.length)}</span>
+                                                className="muted">Showing {formatNumber(cases.length)} of {formatNumber(caseTotalCount)}</span>
                                         </div>
                                     </div>
 
@@ -2099,15 +2139,18 @@ function App() {
                                                         aria-label="Search cases"
                                                         maxLength={200}
                                                         placeholder="Search cases…"
-                                                        value={search}
-                                                        onChange={(event) => setSearch(event.target.value)}
+                                                        value={caseSearchInput}
+                                                        onChange={(event) => setCaseSearchInput(event.target.value)}
                                                     />
                                                 </div>
 
                                                 <select
                                                     aria-label="Filter by status"
                                                     value={selectedStatus}
-                                                    onChange={(event) => setSelectedStatus(event.target.value as 'All' | CaseStatus)}
+                                                    onChange={(event) => {
+                                                        setSelectedStatus(event.target.value as 'All' | CaseStatus)
+                                                        setCasePage(1)
+                                                    }}
                                                 >
                                                     <option value="All">All statuses</option>
                                                     {statusOptions.map((status) => (
@@ -2115,11 +2158,25 @@ function App() {
                                                                 value={status}>{statusLabels[status]}</option>
                                                     ))}
                                                 </select>
+
+                                                <select
+                                                    aria-label="Filter by priority"
+                                                    value={selectedPriority}
+                                                    onChange={(event) => {
+                                                        setSelectedPriority(event.target.value as 'All' | CasePriority)
+                                                        setCasePage(1)
+                                                    }}
+                                                >
+                                                    <option value="All">All priorities</option>
+                                                    <option value="High">High</option>
+                                                    <option value="Normal">Normal</option>
+                                                    <option value="Low">Low</option>
+                                                </select>
                                             </div>
 
                                             {loading ? (
                                                 <p className="muted empty-state">Loading cases…</p>
-                                            ) : visibleCases.length === 0 ? (
+                                            ) : cases.length === 0 ? (
                                                 <p className="muted empty-state">{caseEmptyMessage}</p>
                                             ) : (
                                                 <div aria-label="Cases list" className="table-wrap" role="region"
@@ -2134,7 +2191,7 @@ function App() {
                                                         </tr>
                                                         </thead>
                                                         <tbody>
-                                                        {visibleCases.map((item) => (
+                                                        {cases.map((item) => (
                                                             <tr
                                                                 className={selectedCase?.id === item.id ? 'selected-row' : ''}
                                                                 key={item.id}

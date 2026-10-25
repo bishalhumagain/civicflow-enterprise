@@ -326,6 +326,7 @@ builder.Services.AddScoped<IAuditTrailWriter, AuditTrailWriter>();
 builder.Services.AddScoped<ICurrentActorResolver, CurrentActorResolver>();
 builder.Services.AddScoped<IAuditQueryService, AuditQueryService>();
 builder.Services.AddScoped<IPlatformDirectoryService, PlatformDirectoryService>();
+builder.Services.AddScoped<IPlatformCaseService, PlatformCaseService>();
 
 // Error logging
 builder.Services.AddScoped<IErrorLogger, ErrorLogger>();

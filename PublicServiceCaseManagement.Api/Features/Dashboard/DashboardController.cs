@@ -22,8 +22,25 @@ public sealed class DashboardController(
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
             return Forbid();
 
-        var statistics = await dashboardService.GetPlatformStatisticsAsync();
+        var statistics = await dashboardService.GetPlatformStatisticsAsync(
+            cancellationToken);
         return Ok(statistics);
+    }
+
+    [HttpGet("platform/organizations")]
+    public async Task<ActionResult<
+        IReadOnlyList<PlatformOrganizationCaseBreakdown>>>
+        GetPlatformOrganizationBreakdown(
+            CancellationToken cancellationToken)
+    {
+        if (!await IsPlatformSuperAdminAsync(cancellationToken))
+            return Forbid();
+
+        var breakdown =
+            await dashboardService.GetPlatformOrganizationBreakdownAsync(
+                cancellationToken);
+
+        return Ok(breakdown);
     }
 
     [HttpGet("organization")]
@@ -42,7 +59,8 @@ public sealed class DashboardController(
         }
 
         var statistics = await dashboardService.GetOrganizationStatisticsAsync(
-            authorizedOrganizationId.Value);
+            authorizedOrganizationId.Value,
+            cancellationToken);
 
         return Ok(statistics);
     }

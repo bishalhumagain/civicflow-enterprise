@@ -9,6 +9,11 @@ export const E2E_PASSWORD = 'CivicFlow-E2E!2026'
 export const E2E_CITIZEN_ONE = 'e2e.citizen.one@example.test'
 export const E2E_CITIZEN_TWO = 'e2e.citizen.two@example.test'
 export const E2E_STAFF_ADMIN = 'e2e.staff.admin@example.test'
+export const E2E_PLATFORM_ADMIN = 'e2e.platform.admin@example.test'
+
+/** Secondary organization used to prove cross-organization case filtering. */
+export const E2E_SECOND_ORGANIZATION_NAME = 'CivicFlow E2E Second Organization'
+export const E2E_SECOND_ORGANIZATION_CODE = 'CIVICFLOW-E2E-2'
 
 export const E2E_ORGANIZATION_NAME = 'CivicFlow Development Organization'
 export const E2E_ORGANIZATION_CODE = 'CIVICFLOW-DEV'

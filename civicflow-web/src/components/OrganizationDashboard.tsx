@@ -32,10 +32,6 @@ export function OrganizationDashboard({
                     <p className="muted">Live case statistics for the active organization.</p>
                 </div>
             </div>
-            <p className="info-banner dashboard-scope-note">
-                Metrics are scoped to this organization. Review the Cases workspace for case assignments; individual
-                staff workload is not available in these statistics.
-            </p>
             <CaseAnalytics statistics={statistics}/>
         </>
     )

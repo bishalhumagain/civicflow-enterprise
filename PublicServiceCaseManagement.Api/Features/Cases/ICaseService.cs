@@ -35,7 +35,10 @@ public interface ICaseService
         int page,
         int pageSize,
         CancellationToken cancellationToken,
-        Guid? assignedToStaffMemberId = null);
+        Guid? assignedToStaffMemberId = null,
+        CaseStatus? status = null,
+        CasePriority? priority = null,
+        string? search = null);
 
     Task<Case?> ChangeStatusAsync(
         Guid caseId,

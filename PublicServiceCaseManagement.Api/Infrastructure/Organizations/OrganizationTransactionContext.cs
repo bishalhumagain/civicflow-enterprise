@@ -9,6 +9,7 @@ public sealed class OrganizationTransactionContext(
 {
     private IDbContextTransaction? transaction;
     private Guid? organizationId;
+    private bool isPlatformRead;
 
     public bool IsActive => transaction is not null;
 
@@ -21,6 +22,12 @@ public sealed class OrganizationTransactionContext(
             throw new ArgumentException(
                 "A valid organization is required.",
                 nameof(requestedOrganizationId));
+        }
+
+        if (isPlatformRead)
+        {
+            throw new InvalidOperationException(
+                "A request cannot switch to an organization context after a platform read context has started.");
         }
 
         if (organizationId.HasValue && organizationId != requestedOrganizationId)
@@ -67,10 +74,10 @@ public sealed class OrganizationTransactionContext(
                 nameof(userId));
         }
 
-        if (transaction is not null || organizationId.HasValue)
+        if (transaction is not null || organizationId.HasValue || isPlatformRead)
         {
             throw new InvalidOperationException(
-                "A request cannot switch to a citizen identity context after an organization context has been resolved.");
+                "A request cannot switch to a citizen identity context after another context has been resolved.");
         }
 
         if (!dbContext.Database.IsNpgsql())
@@ -86,12 +93,38 @@ public sealed class OrganizationTransactionContext(
             cancellationToken);
     }
 
+    public async Task BeginPlatformReadAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (transaction is not null || organizationId.HasValue || isPlatformRead)
+        {
+            throw new InvalidOperationException(
+                "A request cannot switch to a platform read context after another context has been resolved.");
+        }
+
+        if (!dbContext.Database.IsNpgsql())
+        {
+            isPlatformRead = true;
+            return;
+        }
+
+        transaction = await dbContext.Database.BeginTransactionAsync(
+            cancellationToken);
+
+        isPlatformRead = true;
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "select set_config('civicflow.platform_read', 'on', true)",
+            cancellationToken);
+    }
+
     public async Task CompleteAsync(
         bool succeeded,
         CancellationToken cancellationToken = default)
     {
         if (transaction is null)
         {
+            isPlatformRead = false;
             return;
         }
 
@@ -111,6 +144,7 @@ public sealed class OrganizationTransactionContext(
             await transaction.DisposeAsync();
             transaction = null;
             organizationId = null;
+            isPlatformRead = false;
         }
     }
 }

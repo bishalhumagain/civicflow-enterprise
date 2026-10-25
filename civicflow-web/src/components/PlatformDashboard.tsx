@@ -1,4 +1,4 @@
-import type {CaseStatistics, PlatformOverview} from '../domain'
+import type {CaseStatistics, PlatformOverview, PlatformOrganizationCaseBreakdown} from '../domain'
 import { formatNumber } from '../utils/format'
 import {CaseAnalytics} from './CaseAnalytics'
 import {StatCard} from './StatCard'
@@ -6,10 +6,12 @@ import {StatCard} from './StatCard'
 export function PlatformDashboard({
                                       statistics,
                                       overview,
+                                      organizationBreakdown,
                                       loading,
                                   }: {
     statistics: CaseStatistics | null
     overview: PlatformOverview | null
+    organizationBreakdown: PlatformOrganizationCaseBreakdown[]
     loading: boolean
 }) {
     if (loading) {
@@ -24,6 +26,11 @@ export function PlatformDashboard({
             </section>
         )
     }
+
+    const largestOrganization = Math.max(
+        1,
+        ...organizationBreakdown.map((organization) => organization.totalCases),
+    )
 
     return (
         <>
@@ -48,7 +55,57 @@ export function PlatformDashboard({
                 </section>
             )}
 
-            <CaseAnalytics statistics={statistics}/>
+            {organizationBreakdown.length > 0 && (
+                <section className="case-card analytics-card platform-organization-chart"
+                         aria-label="Cases by organization">
+                    <header className="analytics-heading">
+                        <div>
+                            <h2>Cases by organization</h2>
+                            <p className="muted">
+                                Case volume per organization · {formatNumber(statistics.totalCases)} total cases
+                            </p>
+                        </div>
+                    </header>
+                    <div className="status-chart" role="list" aria-label="Cases by organization">
+                        {[...organizationBreakdown]
+                            .sort((first, second) =>
+                                second.totalCases - first.totalCases ||
+                                first.organizationName.localeCompare(second.organizationName))
+                            .map((organization) => {
+                                const percentage = Math.round(
+                                    (organization.totalCases / largestOrganization) * 100,
+                                )
+
+                                return (
+                                    <div className="status-chart-row" key={organization.organizationId}
+                                         role="listitem">
+                                        <span title={organization.organizationName}>
+                                            {organization.organizationName}
+                                        </span>
+                                        <div
+                                            className="status-chart-track"
+                                            role="img"
+                                            aria-label={
+                                                `${organization.organizationName}: ` +
+                                                `${organization.totalCases} cases, ` +
+                                                `${organization.openCases} open, ` +
+                                                `${organization.highPriorityCases} high priority`
+                                            }
+                                        >
+                                            <span style={{
+                                                width: `${percentage}%`,
+                                                background: 'var(--chart-blue)',
+                                            }}/>
+                                        </div>
+                                        <strong>{formatNumber(organization.totalCases)}</strong>
+                                    </div>
+                                )
+                            })}
+                    </div>
+                </section>
+            )}
+
+            <CaseAnalytics scopeLabel="all organizations" statistics={statistics}/>
         </>
     )
 }

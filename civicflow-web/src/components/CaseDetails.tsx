@@ -534,7 +534,7 @@ export function CaseDetails({
                 </small>
                 <p className="muted form-hint">
                   {updateKind === 'InternalNote'
-                    ? 'Internal notes never appear in the citizen timeline or API responses.'
+                    ? 'Internal notes stay within the organization and never appear in the citizen timeline.'
                     : updateKind === 'InformationRequest'
                       ? 'The case moves to Awaiting information and the citizen can reply.'
                       : 'The citizen is notified and the update becomes part of the visible timeline.'}
