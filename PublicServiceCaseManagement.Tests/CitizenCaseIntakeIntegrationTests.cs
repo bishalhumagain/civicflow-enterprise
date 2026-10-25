@@ -52,13 +52,15 @@ public sealed class CitizenCaseIntakeIntegrationTests
         var submitted = await response.Content
             .ReadFromJsonAsync<CitizenCaseResponse>();
         Assert.NotNull(submitted);
-        Assert.Equal("evidence.custom", submitted!.AdditionalDocument!.FileName);
+        Assert.Equal("evidence.custom", submitted!.AdditionalDocument!.OriginalFileName);
+        Assert.True(submitted.AdditionalDocument.IsVisibleToCitizen);
 
         var listResponse = await client.GetAsync("/api/citizens/cases");
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
         var listed = await listResponse.Content
-            .ReadFromJsonAsync<IReadOnlyList<CitizenCaseSummaryResponse>>();
-        Assert.Contains(listed!, candidate => candidate.Id == submitted.Id);
+            .ReadFromJsonAsync<CitizenCasePageResponse>();
+        Assert.Contains(listed!.Items, candidate => candidate.Id == submitted.Id);
+        Assert.Equal(1, listed.TotalCount);
 
         var detailResponse = await client.GetAsync(
             $"/api/citizens/cases/{submitted.Id}");
@@ -68,6 +70,9 @@ public sealed class CitizenCaseIntakeIntegrationTests
         Assert.NotNull(detail);
         Assert.Equal("Broken streetlight", detail!.Title);
         Assert.Equal(submitted.Status, detail.Status);
+        Assert.Contains(
+            detail.Documents,
+            document => document.OriginalFileName == "evidence.custom");
 
         using (var scope = factory.Services.CreateScope())
         {
@@ -146,11 +151,20 @@ public sealed class CitizenCaseIntakeIntegrationTests
         DateTimeOffset CreatedAt,
         CitizenDocumentResponse? AdditionalDocument);
 
+    private sealed record CitizenCasePageResponse(
+        IReadOnlyList<CitizenCaseSummaryResponse> Items,
+        int Page,
+        int PageSize,
+        int TotalCount,
+        int TotalPages);
+
     private sealed record CitizenCaseSummaryResponse(
         Guid Id,
         string ReferenceNumber,
         string Title,
         string Status,
+        Guid OrganizationId,
+        string OrganizationName,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt);
 
@@ -160,14 +174,38 @@ public sealed class CitizenCaseIntakeIntegrationTests
         string Title,
         string Description,
         string Status,
+        Guid OrganizationId,
+        string OrganizationName,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt,
-        IReadOnlyList<CitizenStatusHistoryResponse> StatusHistory);
+        bool CanRespond,
+        bool AwaitingInformation,
+        IReadOnlyList<CitizenStatusHistoryResponse> StatusHistory,
+        IReadOnlyList<CitizenUpdateResponse> Updates,
+        IReadOnlyList<CitizenDocumentDetailResponse> Documents);
 
     private sealed record CitizenStatusHistoryResponse(
         string? PreviousStatus,
         string NewStatus,
-        DateTimeOffset ChangedAt);
+        DateTimeOffset ChangedAt,
+        string? Explanation);
 
-    private sealed record CitizenDocumentResponse(Guid Id, string FileName);
+    private sealed record CitizenUpdateResponse(
+        Guid Id,
+        string Kind,
+        string Message,
+        DateTimeOffset CreatedAt);
+
+    private sealed record CitizenDocumentDetailResponse(
+        Guid Id,
+        string OriginalFileName,
+        string ContentType,
+        long SizeBytes,
+        string Sha256Hash,
+        DateTimeOffset UploadedAt);
+
+    private sealed record CitizenDocumentResponse(
+        Guid Id,
+        string OriginalFileName,
+        bool IsVisibleToCitizen);
 }

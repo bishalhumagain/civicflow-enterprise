@@ -64,9 +64,11 @@ Additional boundaries:
 - Citizens may submit to any organization returned by the active public intake
   directory. The authenticated user ID is assigned server-side; the request
   cannot set a creator ID.
-- There is no case notes/activity-write API, bulk operation, export API, or
-  general file-storage API in the current route inventory. Case history and
-  audit routes are read-only.
+- Case updates are available through `POST/GET /api/cases/{id}/updates`, and
+  citizen responses through `POST /api/citizens/cases/{id}/responses`. Both are
+  append-only: there is no update-edit/delete API, bulk operation, export API,
+  or general file-storage API. Case history, assignment history, update-list,
+  and audit routes are read-only.
 
 ## Endpoint Inventory
 
@@ -118,9 +120,12 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `POST /api/citizens/me` | Citizen; `CreateCitizenProfileRequest` | `201` on create, `200` if the profile already exists and is updated; `400` invalid data, `409` duplicate identity data. User ID comes from session. |
 | `PUT /api/citizens/me` | Citizen; `UpdateCitizenProfileRequest` | `200` updated profile; `400` invalid data, `404` if absent, `409` duplicate identity data. |
 | `GET /api/citizens/organizations` | Citizen; no parameters | `200 CitizenOrganizationOption[]`; active organizations eligible for public intake only. |
-| `GET /api/citizens/cases` | Citizen; no parameters | `200 CitizenCaseSummary[]`; only cases submitted by the authenticated citizen, newest first. |
-| `GET /api/citizens/cases/{id:guid}` | Citizen; case ID | `200 CitizenCaseDetails` with status history; `404` when the case is absent or not submitted by the authenticated citizen. |
-| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and optional attachment, then routes the case to an organization administrator for triage. |
+| `GET /api/citizens/cases?page={n}&pageSize={n}&search={text}&status={status}&sort={sort}` | Citizen; optional `page` (default 1, range 1–1,000,000), `pageSize` (default 20, range 1–100), `search` (reference/title), `status` (`CaseStatus`), `sort` (`updated_desc` default, `updated_asc`, `created_desc`, `created_asc`) | `200 CitizenCasePage` with caller-owned items, total count, and total pages; `400` invalid paging/sort. Rows never include another citizen's case. |
+| `GET /api/citizens/cases/{id:guid}` | Citizen; case ID | `200 CitizenCaseDetails` with description, organization, current status, `canRespond`, `awaitingInformation`, citizen-visible status history, updates, and documents; `404` when the case is absent or was not submitted by the authenticated citizen. Internal notes and non-visible documents/explanations are filtered in the database projection. |
+| `POST /api/citizens/cases` | Citizen; multipart `CitizenCreateCaseRequest` (`organizationId`, title, description, optional `additionalDocument`); max request body 11 MiB and document limit 10 MiB | `201 CitizenCaseSubmissionResponse`; `400` inactive/unknown organization or invalid case/file; creates a citizen-submitted case and a citizen-visible attachment, then routes the case to an organization administrator for triage. |
+| `POST /api/citizens/cases/{id:guid}/responses` | Citizen owner; `CitizenCaseResponseRequest` (message 1–4,000 characters) | `201 CitizenCaseUpdate`; `400` closed/rejected case or invalid message, `404` case absent or not owned. Adds a `CitizenResponse` update; when the case is `AwaitingInformation`, moves it to `UnderReview` with a citizen-visible history entry and notifies the assigned staff account. |
+| `GET /api/citizens/cases/{id:guid}/documents` | Citizen owner | `200 CitizenCaseDocument[]`; citizen-visible documents only; `404` case absent or not owned. |
+| `GET /api/citizens/cases/{id:guid}/documents/{documentId:guid}` | Citizen owner; document ID | `200` attachment stream with range support; `404` absent, not owned, not citizen-visible, or file missing. |
 | `GET /api/profile/me` | Citizen or staff; no parameters | `200 ProfileResponse`; `401` unresolved identity, `404` if profile is absent. |
 | `PUT /api/profile/me` | Citizen or staff; `UpdateProfileRequest` | `200 ProfileResponse`; updates only the authenticated user's permitted self-service fields. Account type and organization membership are server-derived. |
 
@@ -183,18 +188,29 @@ active staff record and assigned cases.
 | `GET /api/cases/{id:guid}` | OrganizationAdmin or assigned staff | `200 CreateCaseResponse`; `404` missing, cross-org, or unassigned case. |
 | `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details. |
 | `DELETE /api/cases/{id:guid}` | OrganizationAdmin; `ConfirmCaseDeletionRequest` must explicitly confirm | `204`; `400` missing confirmation, `403` unauthorized role, `404` inaccessible case; deletes case/history/document metadata and stored files and records an audit event. |
-| `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` | `200 ChangeCaseStatusResponse`; `400` invalid transition, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. |
-| `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries; `404` inaccessible case. |
+| `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` (`newStatus`, optional `explanation`, `explanationVisibleToCitizen`) | `200 ChangeCaseStatusResponse`; `400` invalid transition/explanation, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. The transition is always citizen-visible; the explanation is projected to the citizen timeline only when the visibility flag is true. |
+| `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries including explanation and `isVisibleToCitizen`; `404` inaccessible case. |
+| `POST /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned CaseWorker; `AddCaseUpdateRequest` (`kind`: `PublicUpdate`, `InformationRequest`, or `InternalNote`; message 1–4,000) | `201 CaseUpdateResponse`; `400` invalid kind/message or closed case, `403` Viewer/unassigned write, `404` inaccessible case; records audit and notifies the submitter for citizen-visible kinds. `InformationRequest` moves the case to `AwaitingInformation` with a citizen-visible history entry. `InternalNote` and non-visible entries never reach the citizen projection. |
+| `GET /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned staff | `200 CaseUpdateResponse[]`; staff see internal and citizen-visible entries with visibility and author IDs; `404` inaccessible case. |
 | `PATCH /api/cases/{id:guid}/assignment` | OrganizationAdmin; `AssignCaseRequest` (staff ID and assignment role) | `200` case assignment; `400` invalid role/target, `404` inaccessible case; target must be active staff in the same organization; records assignment history and audit. |
 | `GET /api/cases/{id:guid}/assignment-history` | OrganizationAdmin or assigned staff | `200` assignment-history entries; `404` inaccessible case. |
-| `POST /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned CaseWorker; multipart `file`, max request body 11 MiB/file 10 MiB | `201 CaseDocumentResponse`; `400` invalid upload, `403` Viewer/unassigned write, `404` inaccessible case; stores file and metadata and records audit. |
+| `POST /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned CaseWorker; multipart `file` and optional `visibleToCitizen` (default false), max request body 11 MiB/file 10 MiB | `201 CaseDocumentResponse`; `400` invalid upload, `403` Viewer/unassigned write, `404` inaccessible case; stores file and metadata and records audit. Only documents marked `visibleToCitizen` are listed or downloadable by the citizen owner. |
 | `GET /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned staff | `200 CaseDocumentResponse[]`; `404` inaccessible case. |
 | `GET /api/cases/{id:guid}/documents/{documentId:guid}` | OrganizationAdmin or assigned staff | `200` file stream with range support and attachment filename; `404` inaccessible case/document/file. |
 
 The case detail, history, assignment-history, upload, and download actions
 repeat organization/assignment checks; the query predicates and PostgreSQL RLS
 provide additional tenant isolation. A Viewer assignment cannot update status,
-details, or documents.
+details, documents, or updates.
+
+Citizen tracking is owner-scoped in the controller and in PostgreSQL RLS. The
+citizen transaction sets the transaction-local `civicflow.user_id`; the
+`case_updates`, `case_status_history`, `case_documents`, and assigned
+`staff_members` policies then add owner-scoped clauses on top of organization
+isolation. A citizen list or identifier lookup is constrained to
+`SubmittedByUserId = caller`; another citizen's case returns `404` without
+disclosing whether it exists. Citizen routes do not accept an organization
+selector.
 
 ### Notifications and background jobs
 
@@ -211,7 +227,7 @@ All notification endpoints require an authenticated user (cookie session or PAT)
 | `POST /api/platform/jobs/{id:guid}/cancel` | SuperAdmin only; rate-limited to 20 operations/minute per source IP | `204` queued/retry-scheduled job cancelled; `404` unknown job; `409` if job is running or terminal. Audited. |
 | `POST /api/platform/jobs/{id:guid}/retry` | SuperAdmin only; same rate limit | `204` failed job requeued; `404` unknown job; `409` unless failed. Audited; the attempt ceiling and attempt history remain bounded. |
 
-The worker accepts only the registered `notification.email` type and looks up the destination through the notification's recipient account. Case submission notifies its submitting user, assignment notifies the active account linked to the active same-organization staff record, and status changes notify the submitting user. These messages contain no private case text. Invitation emails remain on their existing synchronous email path because the single-use invitation secret is intentionally not persisted. Membership and organization administration currently produce no new notification events.
+The worker accepts only the registered `notification.email` type and looks up the destination through the notification's recipient account. Case submission notifies its submitting user, assignment notifies the active account linked to the active same-organization staff record, and status changes notify the submitting user and the assigned staff account (`CaseWorker` or `Viewer`). A citizen-visible public update or information request notifies the submitter; an internal note does not. A citizen response notifies the active account linked to the assigned staff record. These messages contain no private case text, internal notes, or document contents. Invitation emails remain on their existing synchronous email path because the single-use invitation secret is intentionally not persisted. Membership and organization administration currently produce no new notification events.
 
 ### Audit, platform administration, dashboard, and errors
 
@@ -263,8 +279,10 @@ The worker accepts only the registered `notification.email` type and looks up th
 - Error response envelopes are not fully normalized: framework validation
   uses MVC validation responses, feature errors often use `{error}`, and auth
   returns `{code,error}`. Clients should handle these documented shapes.
-- Staff case notes/activity write endpoints, export, bulk operations, and
-  general document deletion are not implemented.
+- Case updates are append-only through the API: staff cannot edit or delete a
+  published update, and there is no bulk operation, export, or general document
+  deletion endpoint. Citizens cannot edit a submitted case or add attachments
+  after submission.
 - The email sender is secure by default but requires SMTP configuration outside
   Development; see the README deployment settings. Development logs no message
   body or action token and fails explicitly when delivery is attempted.

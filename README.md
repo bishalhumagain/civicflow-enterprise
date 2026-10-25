@@ -41,7 +41,7 @@ CivicFlow Enterprise helps government and public-service organizations intake, t
 
 CivicFlow Enterprise is a public-service case management platform designed for government departments and public-service agencies. It provides three separate, secure portals:
 
-1. **Citizen Portal** — Citizens register, verify their email, maintain a civil-registry profile, submit public service requests, and track those requests with a detail view showing status and full status history.
+1. **Citizen Portal** — Citizens register, verify their email, maintain a civil-registry profile, submit public service requests, and track their own requests with search, filters, paging, a citizen-visible timeline, public updates, information requests and responses, and permitted documents.
 2. **Organization Portal** — Staff members manage cases within their organization: create cases, change status through a state machine, assign to staff, upload documents, manage staff directories, and send/revoke invitations.
 3. **Platform Administration** — Super administrators manage all organizations, view the platform directory, review the audit trail, track application errors, and monitor dashboard statistics.
 
@@ -88,9 +88,11 @@ The platform is built around three core principles:
 | **Case editing and deletion** | Assigned CaseWorkers and organization administrators can update editable case details; organization administrators alone can permanently delete a case after an explicit confirmation. |
 | **Status state machine** | Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected. Enforced in domain logic; closed/rejected cases are not editable. |
 | **Assignment** | Organization administrators assign cases to active staff in the same organization as CaseWorker or Viewer; assignment and role changes are audited. Viewers have read-only case access. A newly submitted citizen case is triaged to an organization administrator automatically (assigned to an admin staff member when one exists, otherwise every active admin is notified). |
-| **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. They can then track each request and open a detail view showing its current status and full status history. |
-| **Status & assignment history** | Full audit trail of every status change and assignment, with timestamps and actors. |
-| **Document upload/download** | Multipart uploads of any file type up to 10MB, SHA-256 hash verification, path-traversal protection, and attachment-only downloads. |
+| **Citizen intake** | Citizens choose an active organization and submit a case with an optional attachment of any file type up to 10 MB. The submitting identity is derived from the session, and the new case is routed to an organization administrator for triage. |
+| **Citizen tracking** | Owner-scoped, paged request list with search, status filtering, and sorting; detail with reference, organization, status, timestamps, citizen-visible status timeline, public updates, information requests and responses, and citizen-visible documents. Internal notes and internal-only documents are excluded server-side. |
+| **Citizen communication** | Staff can publish a public update, request additional information (moving the case to `AwaitingInformation`), or keep an internal note. A citizen response returns an `AwaitingInformation` case to `UnderReview`, records a visible timeline entry, and notifies the assigned staff member. Status explanations are citizen-visible only when staff mark them so. |
+| **Status & assignment history** | Full audit trail of every status change and assignment, with timestamps, actors, and per-entry citizen visibility. |
+| **Document upload/download** | Multipart uploads of any file type up to 10 MB, SHA-256 hash verification, path-traversal protection, attachment-only downloads, and an explicit `visibleToCitizen` flag that defaults to internal. |
 
 ### Organization Management
 
@@ -132,6 +134,7 @@ The platform is built around three core principles:
 | **Toast notifications** | Success/error/info/warning feedback for all actions. |
 | **Invitation management UI** | Send, resend, revoke, list (pending/accepted/expired/revoked). |
 | **Audit log UI** | Shared component with category/action/text/date-range filters and pagination. |
+| **Citizen tracking** | Searchable/filterable/sortable request list with paging, a detail view with a citizen-visible timeline, information-request responses, document downloads, and loading/error/retry/empty states. |
 | **Profile management** | Unified self-service profile for citizens and staff. |
 | **Theme and branding** | Complete light and dark themes with a persisted preference and system-theme fallback. The public and workspace headers use the configured application name, and every footer is generated from that same value. |
 
@@ -151,7 +154,7 @@ The platform is built around three core principles:
 | Frontend language | TypeScript | ~6.0.2 |
 | Frontend build | Vite | ^8.3.0 |
 | Frontend auth | First-party `fetch` + cookies (no third-party auth library) | — |
-| Testing | xUnit, ASP.NET Core TestHost, EF Core InMemory | 2.9.3, 10.0.0, 10.0.0 |
+| Testing | xUnit, ASP.NET Core TestHost, EF Core InMemory; Playwright + Chromium browser E2E; opt-in disposable PostgreSQL RLS tests | 2.9.3, 10.0.0, 10.0.0; 1.64.1; Npgsql 10.0.0 |
 | Code coverage | coverlet | 6.0.4 |
 | CI | GitHub Actions (.NET 10, Node 20) | — |
 | Containerization | Docker Compose (PostgreSQL) | — |
@@ -186,9 +189,11 @@ The platform is built around three core principles:
 │   │   ├── Identity/                        #   Roles, anti-forgery, security headers, seeder, PAT auth handler
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
-│   └── Migrations/                         # 24 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (365 tests)
+│   └── Migrations/                         # 26 EF Core migrations
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (383 tests; 3 opt-in PostgreSQL RLS)
 ├── civicflow-web/                           # React + Vite frontend
+│   ├── e2e/                                # Playwright browser journeys + disposable DB seeding
+│   ├── playwright.config.ts                # Serial Chromium E2E runner (API + Vite)
 │   ├── src/
 │   │   ├── App.tsx                         # Session, routing, workspace
 │   │   ├── auth.ts                        # authFetch, CSRF, login flows
@@ -220,7 +225,7 @@ The backend follows a **feature-based** organization with clear layering:
 
 | Folder | Responsibility |
 |---|---|
-| `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `Organization`, `OrganizationType`, `WellKnownOrganizationTypes`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
+| `Domain/` | Entities and domain logic: `Case` (state machine, editability), `CaseStatus`, `CasePriority`, `CaseStatusHistory`, `CaseAssignmentHistory`, `CaseDocument`, `CaseUpdate` (`PublicUpdate`, `InformationRequest`, `InternalNote`, `CitizenResponse`), `Organization`, `OrganizationType`, `WellKnownOrganizationTypes`, `OrganizationMembership`, `OrganizationRole`, `AccountInvitation`, `ApplicationUser`, `CitizenProfile`, `PersonalAccessToken`, `PlatformRole`, `StaffMember`, `AuditEvent`, `ApplicationError`, `CaseStatistics`, `PhoneNumbers` |
 | `Features/` | Controllers + service contracts + service implementations, organized by feature area |
 | `Infrastructure/` | Cross-cutting: `Identity/` (roles, PAT auth handler, anti-forgery, security headers, seeder, email sender, audit logger), `Organizations/` (context, resolvers, middleware), `Persistence/` (DbContext, factory), `Files/` (local storage), `Errors/` (global handler, error logger), `Audit/` (audit trail writer), `Authorization/` (business endpoint gate) |
 | `Migrations/` | EF Core migrations, including persistent background jobs and notifications |
@@ -354,7 +359,7 @@ No administrator ever handles another person's password:
 - `civicflow_migrator` — CREATE privilege (for EF Core migrations only)
 - `civicflow_runtime` — DML only (no DDL), used by the running API
 
-**Tables** (18 application + 6 identity):
+**Tables** (19 application + 6 identity):
 
 | Table | Purpose | RLS? |
 |---|---|---|
@@ -362,6 +367,7 @@ No administrator ever handles another person's password:
 | `case_status_history` | Status change audit trail | Yes |
 | `case_assignment_history` | Assignment audit trail | Yes |
 | `case_documents` | Uploaded case documents | Yes |
+| `case_updates` | Public updates, information requests, internal notes, and citizen responses | Yes |
 | `staff_members` | Organization staff | Yes |
 | `organizations` | Tenant organizations | No |
 | `organization_types` | Shared organization-type catalogue (SuperAdmin-managed) | No |
@@ -375,7 +381,7 @@ No administrator ever handles another person's password:
 
 **Row-Level Security** (see [RLS-DESIGN.md](docs/RLS-DESIGN.md)):
 
-RLS is enabled and forced on `cases`, `case_status_history`, `case_assignment_history`, `case_documents`, and `staff_members`. The runtime role cannot bypass it. The policy reads the transaction-local `civicflow.organization_id` setting:
+RLS is enabled and forced on `cases`, `case_status_history`, `case_assignment_history`, `case_documents`, `case_updates`, and `staff_members`. The runtime role cannot bypass it. Staff requests read the transaction-local `civicflow.organization_id` setting; citizen tracking requests additionally set `civicflow.user_id`, which gates visible updates, history, documents, and the assigned staff row to the submitting citizen's own case:
 
 ```sql
 CREATE POLICY cases_organization_isolation ON cases
@@ -383,7 +389,7 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-**Migrations**: 24 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications`, `AddBackgroundJobConcurrencyVersion`, and `AddOrganizationTypes` for the durable queue, notification outbox, attempt history, job concurrency protection, and the platform-owned organization-type catalogue.
+**Migrations**: 26 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications`, `AddBackgroundJobConcurrencyVersion`, `AddOrganizationTypes`, `AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, and `AddCitizenTrackingRls` for the durable queue, notification outbox, attempt history, job concurrency protection, the platform-owned organization-type catalogue, and the citizen update/timeline privacy and ownership policies.
 
 ### Security Model
 
@@ -400,6 +406,7 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | **CORS** | Restricted to configured origins with credentials |
 | **PAT storage** | SHA-256 hash only; plaintext shown once; constant-time comparison; max 25 per user |
 | **Invitation tokens** | SHA-256 hash of 256-bit random token; single-use; expiring |
+| **Citizen tracking ownership** | Citizen routes derive the user from the validated session and constrain every query to `SubmittedByUserId`. PostgreSQL owner-scoped RLS clauses additionally restrict visible updates, status history, documents, and assigned-staff resolution to the citizen's own case; cross-citizen identifiers return `404`. |
 | **Secrets** | `appsettings.json` gitignored; `appsettings.template.json` documents keys; seed admin via environment/user-secrets |
 | **Audit logging** | All auth, account, invitation, membership, organization, staff, case, and token events persisted asynchronously and fail-safe |
 | **Error tracking** | Unhandled exceptions persisted with full context; reviewable by super admins |
@@ -413,7 +420,7 @@ CivicFlow uses EF Core and PostgreSQL as its durable queue and transactional out
 
 The hosted `BackgroundJobWorker` claims work with a PostgreSQL `FOR UPDATE SKIP LOCKED` update and a time-limited lease. Only the registered `notification.email` job is accepted; its payload contains a notification ID, never an address, password, bearer token, invitation secret, or arbitrary executable data. Job states are `Queued → Running → Succeeded`, `RetryScheduled`, or `Failed`; queued and retry-scheduled work can also be `Cancelled`. A lease-expired job is recovered on a later poll. Transient email failures use exponential delay (default base 30 seconds, capped at one hour) with 0.75–1.25 jitter and a default maximum of five attempts (clamped to 1–20). Failed work remains inspectable until retention cleanup. A SuperAdmin retry is audited, retains monotonic attempt history, and can extend the total attempt ceiling only up to 20.
 
-Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), and case status changes (to the case submitter and to the staff member currently assigned to the case, whether `CaseWorker` or read-only `Viewer`). A newly submitted citizen case is also triaged to an organization administrator: when an active admin has a matching staff record the case is assigned to the earliest such admin (notifying them through the case-assignment event), and otherwise every active `OrganizationAdmin` receives a triage notification while the case stays unassigned. Messages are generic and do not reveal case details. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
+Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), case status changes (to the case submitter and to the staff member currently assigned to the case, whether `CaseWorker` or read-only `Viewer`), citizen-visible public updates and information requests (to the submitter; internal notes notify nobody), and citizen responses (to the active account linked to the assigned staff record). A newly submitted citizen case is also triaged to an organization administrator: when an active admin has a matching staff record the case is assigned to the earliest such admin (notifying them through the case-assignment event), and otherwise every active `OrganizationAdmin` receives a triage notification while the case stays unassigned. Messages are generic and do not reveal case details, internal notes, or document contents. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
 
 Authenticated users can list their own notifications with `GET /api/notifications?page=1&pageSize=20&unreadOnly=false`, read their unread count at `GET /api/notifications/unread-count`, mark one read with `PATCH /api/notifications/{id}/read`, or mark their own unread notifications read with `POST /api/notifications/read`. All reads and writes are recipient-scoped. The notification panel in the workspace refreshes the count every 60 seconds.
 
@@ -480,28 +487,35 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 | POST | `/api/cases` | Active CaseWorker or OrganizationAdmin membership | Create a case in the selected organization |
 | GET | `/api/cases` | Active organization membership | Organization admins list all cases in their organization; staff list only cases assigned to themselves (paged) |
 | GET | `/api/cases/{id}` | Active organization membership | Organization admins read any case in their organization; staff read only cases assigned to them |
-| PATCH | `/api/cases/{id}/status` | OrganizationAdmin, or assigned CaseWorker | Change status only for a case the caller may edit; Viewer assignments are read-only |
+| PATCH | `/api/cases/{id}/status` | OrganizationAdmin, or assigned CaseWorker | Change status only for a case the caller may edit; optionally add an explanation and mark it citizen-visible. Viewer assignments are read-only |
 | PUT | `/api/cases/{id}` | OrganizationAdmin, or assigned CaseWorker | Update title and description of an editable case |
 | DELETE | `/api/cases/{id}` | OrganizationAdmin | Permanently delete a case only with `{ "confirmed": true }`; attached document metadata and files are removed |
-| GET | `/api/cases/{id}/history` | Active organization membership | Read history for an accessible case |
+| GET | `/api/cases/{id}/history` | Active organization membership | Read history for an accessible case, including explanation and citizen-visibility flags |
+| POST | `/api/cases/{id}/updates` | OrganizationAdmin, or assigned CaseWorker | Add a `PublicUpdate`, `InformationRequest`, or `InternalNote` (1–4,000 characters). Information requests move the case to `AwaitingInformation`; public kinds notify the submitter; internal notes never reach the citizen |
+| GET | `/api/cases/{id}/updates` | Active organization membership | List all staff-visible updates for an accessible case, including internal notes |
 | PATCH | `/api/cases/{id}/assignment` | OrganizationAdmin | Assign to active staff in the selected organization; specify case role `CaseWorker` or `Viewer` |
 | GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an accessible case |
-| POST | `/api/cases/{id}/documents` | OrganizationAdmin, or assigned CaseWorker | Upload a document (multipart, 10 MB); Viewer assignments are read-only |
+| POST | `/api/cases/{id}/documents` | OrganizationAdmin, or assigned CaseWorker | Upload a document (multipart, 10 MB) with optional `visibleToCitizen` (default false); Viewer assignments are read-only |
 | GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an accessible case |
 | GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download documents for an accessible case |
 
-Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. A citizen-submitted case is routed to an organization administrator for triage: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned until an admin assigns it. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, and documents; Viewer assignees may read cases and history only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
+Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. A citizen-submitted case is routed to an organization administrator for triage: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned until an admin assigns it. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, documents, and updates; Viewer assignees may read cases, history, and updates only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
 
-### Citizen Intake (`/api/citizens`)
+Staff communication is intentionally split by visibility: a public update and the fact of a status change are citizen-visible, an internal note is not, and an explanation is citizen-visible only when staff explicitly request it. Documents are internal unless uploaded with `visibleToCitizen=true`. An information request moves the case to `AwaitingInformation` and notifies the submitter; the citizen's response adds a `CitizenResponse` entry, returns the case to `UnderReview` with a visible history entry, and notifies the assigned staff account.
+
+### Citizen Intake and Tracking (`/api/citizens`)
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
 | GET | `/api/citizens/organizations` | CitizenClient | List active organizations available for case submission |
-| GET | `/api/citizens/cases` | CitizenClient | List the authenticated citizen's submitted cases |
-| GET | `/api/citizens/cases/{id}` | CitizenClient | Read one submitted case and its status history |
+| GET | `/api/citizens/cases` | CitizenClient | List the caller's cases with `page`, `pageSize`, `search`, `status`, and `sort` (`updated_desc`, `updated_asc`, `created_desc`, `created_asc`) |
+| GET | `/api/citizens/cases/{id}` | CitizenClient | Read one owned case with citizen-visible status history, updates, documents, `canRespond`, and `awaitingInformation` |
 | POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title`, `description`, and optional `additionalDocument` (any file type, max 10 MB) |
+| POST | `/api/citizens/cases/{id}/responses` | CitizenClient | Respond to an information request (message 1–4,000 characters); returns an `AwaitingInformation` case to `UnderReview` |
+| GET | `/api/citizens/cases/{id}/documents` | CitizenClient | List the case's citizen-visible documents |
+| GET | `/api/citizens/cases/{id}/documents/{documentId}` | CitizenClient | Download a citizen-visible document; non-visible or other-citizen documents return `404` |
 
-The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, persists an optional document as a case attachment, and routes the new case to an organization administrator for triage. Citizens can list and read only the cases they submitted, opening a detail view with the full description and status history; the client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided. Citizen self-service routes remain available when `BusinessEndpoints:Enabled` is false.
+The API obtains the citizen identity from the authenticated session, verifies the selected organization is active, stores the submitter ID, persists an optional document as a citizen-visible attachment, and routes the new case to an organization administrator for triage. Citizens can list, search, filter, sort, and page only their own cases and open a detail view with the full description and citizen-visible timeline. Internal notes, explanations marked internal, and internal-only documents are filtered in the database query and never reach a citizen response; another citizen's case is indistinguishable from a missing case (`404`). The client cannot choose an inactive or unknown organization. Uploads are size/name validated and downloaded as attachments; malware scanning is not currently provided. Citizen self-service and tracking routes remain available when `BusinessEndpoints:Enabled` is false.
 
 ### Staff (`/api/staff`)
 
@@ -721,7 +735,7 @@ Verification, password-reset, and invitation messages are sent through `IEmailSe
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**365 tests** covering:
+**383 tests** (380 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
 
 | Category | What's tested |
 |---|---|
@@ -734,7 +748,9 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 | **Platform administration** | Org deletion (`204`/`404`/`409`/`403`), platform directory/overview, scoped organization listing, audit endpoints, staff account and phone update |
 | **Cases** | CRUD, status changes, assignments, paging, routing a submitted case to an organization admin, and status notifications to the assigned staff member (`CaseWorker` and `Viewer`) |
 | **Case documents** | Upload, download |
+| **Citizen tracking** | Owner-scoped paging/search/filter/sort, detail privacy projection, public updates vs. internal notes, information request and response transitions, visible vs. internal documents, cross-citizen `404`, closed-case rejection, notification fan-out |
 | **Citizens** | Profile auth, create/update, duplicates, intake, own-case list/detail with status history, administrator triage routing, business-gate exemption |
+| **PostgreSQL RLS (opt-in)** | Real migrations applied, forced RLS on tenant and tracking tables, citizen owner visibility/write restrictions, organization-wide view, runtime-role restrictions |
 | **Staff** | CRUD, platform staff, phone update |
 | **Organizations** | CRUD, delete rules |
 | **Memberships** | CRUD, role changes |
@@ -746,9 +762,24 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 
 ```bash
 cd civicflow-web
-npm run lint       # ESLint
-npm run build      # TypeScript compilation + Vite build
+npm run lint            # ESLint
+npm run build           # TypeScript compilation + Vite build
+npm run typecheck:e2e   # TypeScript check for the Playwright suite
 ```
+
+### Browser E2E Tests
+
+The Playwright suite runs five serial Chromium journeys against a disposable PostgreSQL database. It seeds confirmed citizen/staff accounts, an organization, and staff membership, then exercises real cookie and anti-forgery sessions:
+
+```bash
+cd civicflow-web
+npm ci
+npx playwright install chromium chromium-headless-shell
+export CIVICFLOW_TEST_POSTGRES_ADMIN='Host=127.0.0.1;Port=55433;Database=civicflow;Username=<admin>;Password=<local-admin-password>'
+npm run test:e2e
+```
+
+`CIVICFLOW_E2E_DATABASE_URL` may replace the admin connection string with a PostgreSQL URL. `CIVICFLOW_E2E_API_URL` and `CIVICFLOW_E2E_WEB_URL` override the default `http://localhost:5001` / `http://localhost:5173` endpoints. The API must run with the runtime database role, `BusinessEndpoints__Enabled=true`, `Security__RequireAntiforgery=true`, and a writable `FileStorage__RootPath`. Outside CI, the runner reuses an already-running API and Vite server when available. Reports and failure traces are gitignored. See [Integration Verification](docs/INTEGRATION-VERIFICATION.md#browser-end-to-end-verification) for the journey and result details.
 
 ---
 
@@ -826,40 +857,41 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 ### Implemented and Verified
 
-- Backend API with EF Core/PostgreSQL and 24 migrations
+- Backend API with EF Core/PostgreSQL and 26 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
 - Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
 - CSRF protection on all unsafe `/api/*` methods
 - Rate limiting on auth/password endpoints
 - Security headers middleware
-- Organization scoping with PostgreSQL RLS on 5 tenant-owned tables
-- Cases: create, list (paged/searchable/filterable), detail, status state machine, assignment, history, documents
+- Organization scoping with PostgreSQL RLS on 6 tenant-owned tables, including citizen owner-scoped tracking reads and writes
+- Cases: create, list (paged/searchable/filterable), detail, status state machine with citizen-visible explanations, assignment, history, public updates, internal notes, information requests, and documents with explicit citizen visibility
 - Staff: CRUD, platform-wide listing, phone numbers, activation/deactivation
 - Organizations: CRUD, delete with case-check, memberships, roles
 - Invitation-based onboarding (single-use, expiring, SHA-256 hashed, resend/revoke)
-- Citizens: self-registration, profile with duplicate detection, submitted-case tracking with a detail view and status history, and administrator triage routing on submission
+- Citizens: self-registration, profile with duplicate detection, owner-scoped paged/searchable/sortable tracking, detail view with citizen-visible timeline and documents, information-request responses, and administrator triage routing on submission
 - Unified self-service profile for citizens and staff
 - Audit trail (platform-wide and org-scoped, filterable, paged, fail-safe)
 - Platform directory (overview counters, Citizens, Staff, and All Users sections)
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 365 automated tests (unit + integration)
+- 383 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
+- 5 Playwright browser end-to-end journeys (verified against disposable PostgreSQL)
 - CI pipeline (GitHub Actions)
 
 ### Implemented but Limited
 
-- Frontend has no browser-level end-to-end test run (verified via TypeScript compilation, lint, build, and over-HTTP API tests)
+- The Playwright E2E suite and the opt-in PostgreSQL RLS tests are not yet wired into CI; both require a disposable PostgreSQL fixture
 - Local file storage only (no object storage, malware scanning, or retention policy)
-- Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow
-- Live PostgreSQL checks are manual probes, not CI integration tests
+- Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow, and the tracking browser suite runs against real PostgreSQL
+- PostgreSQL tenant-boundary coverage is opt-in and skipped by the default test run when no disposable database is configured
 - Development does not deliver email. It writes one-time links (including sensitive tokens) to the API console automatically; use this only in a private Development environment. Use TLS-enabled SMTP for delivery outside Development.
 - Citizen case intake supports active-organization selection and optional arbitrary-file attachments; submitted cases are routed to an organization administrator for triage, and citizens can track each request's status and open its full detail with status history
 
 ### Not Started
 
-- Repeatable PostgreSQL RLS/privilege integration tests
+- CI wiring for the opt-in PostgreSQL RLS and Playwright browser suites
 - Production-grade object storage and malware scanning
 - Production deployment, backups, observability, and operational recovery
 
@@ -886,4 +918,4 @@ No license file is currently published. The project owner (Bishal Humagain) reta
 
 ---
 
-*This README reflects the verified code state as of 2026-10-23. Items marked as limited or not started require runtime/config validation before production use.*
+*This README reflects the verified code state as of 2026-10-25. Items marked as limited or not started require runtime/config validation before production use.*

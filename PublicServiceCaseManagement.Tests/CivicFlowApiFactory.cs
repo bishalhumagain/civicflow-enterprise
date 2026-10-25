@@ -427,4 +427,31 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
 
         return organization.Id;
     }
+
+    /// <summary>
+    /// Creates an additional citizen identity that callers can impersonate by
+    /// passing its id through the test authentication header. This is used by
+    /// cross-citizen ownership tests that must prove one citizen cannot read
+    /// another citizen's tracked case.
+    /// </summary>
+    public async Task<Guid> SeedCitizenAsync(
+        string fullName = "Integration Test Citizen")
+    {
+        using var scope = Services.CreateScope();
+
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+
+        await EnsureDatabaseAsync(dbContext);
+
+        var user = ApplicationUser.Create(
+            fullName,
+            $"citizen-{Guid.NewGuid():N}@example.test",
+            DateTimeOffset.UtcNow);
+
+        dbContext.ApplicationUsers.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        return user.Id;
+    }
 }

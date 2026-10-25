@@ -463,6 +463,9 @@ namespace PublicServiceCaseManagement.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("IsVisibleToCitizen")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
@@ -517,6 +520,13 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.Property<Guid?>("ChangedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Explanation")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsVisibleToCitizen")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("NewStatus")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -537,6 +547,46 @@ namespace PublicServiceCaseManagement.Api.Migrations
                     b.HasIndex("OrganizationId", "CaseId", "ChangedAt");
 
                     b.ToTable("case_status_history", (string)null);
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseUpdate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsVisibleToCitizen")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("OrganizationId", "CaseId", "CreatedAt");
+
+                    b.ToTable("case_updates", (string)null);
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Errors.ApplicationError", b =>
@@ -1235,6 +1285,21 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 });
 
             modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseStatusHistory", b =>
+                {
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicServiceCaseManagement.Api.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PublicServiceCaseManagement.Api.Domain.Cases.CaseUpdate", b =>
                 {
                     b.HasOne("PublicServiceCaseManagement.Api.Domain.Cases.Case", null)
                         .WithMany()

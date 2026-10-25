@@ -65,7 +65,7 @@ export function LandingPage({
                     <Card
                         icon={<span>C</span>}
                         title="Citizen Portal"
-                        description="Submit service requests and manage your citizen profile. Case tracking is not yet available."
+                        description="Submit service requests and follow each case from submission to resolution, including public updates and information requests."
                         actions={
                             <>
                                 <button

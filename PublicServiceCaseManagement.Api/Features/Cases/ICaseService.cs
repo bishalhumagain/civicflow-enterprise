@@ -43,7 +43,29 @@ public interface ICaseService
         CaseStatus newStatus,
         Guid? changedByUserId = null,
         Guid? authorizedStaffMemberId = null,
+        CancellationToken cancellationToken = default,
+        string? explanation = null,
+        bool explanationVisibleToCitizen = false);
+
+    Task<CaseUpdate?> AddUpdateAsync(
+        Guid caseId,
+        Guid organizationId,
+        CaseUpdateKind kind,
+        string message,
+        Guid authorUserId,
+        Guid? authorizedStaffMemberId = null,
         CancellationToken cancellationToken = default);
+
+    Task<CaseUpdate?> AddCitizenResponseAsync(
+        Guid caseId,
+        Guid citizenUserId,
+        string message,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CaseUpdate>> GetUpdatesAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(
         Guid caseId,

@@ -51,6 +51,10 @@ public static class AuditActions
     public const string CaseStatusChanged = "case.status_changed";
     public const string CaseAssigned = "case.assigned";
     public const string CaseDocumentUploaded = "case.document_uploaded";
+    public const string CaseUpdatePublished = "case.update_published";
+    public const string CaseInformationRequested = "case.information_requested";
+    public const string CaseNoteAdded = "case.note_added";
+    public const string CaseCitizenResponded = "case.citizen_responded";
 
     public const string AccessTokenCreated = "access_token.created";
     public const string AccessTokenRevoked = "access_token.revoked";

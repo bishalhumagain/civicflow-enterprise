@@ -1076,3 +1076,87 @@ select:not([multiple]) {
 .profile-theme-option:hover{background:var(--color-surface-subtle)}
 .profile-theme-option[aria-pressed=true]{border-color:var(--color-primary);background:var(--color-primary-soft);color:var(--color-primary)}
 @media(max-width:720px){.profile-menu-copy{display:none}.profile-menu-trigger{padding-right:7px}.page-actions{width:100%;justify-content:flex-start}.page-heading{align-items:flex-start;gap:14px;flex-direction:column}.list-toolbar{flex-direction:column;align-items:flex-start}.page-filter select{min-width:0;width:100%}}
+
+/* Citizen case tracking. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.case-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.case-card-header h3{min-width:0;margin:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.case-card-header .status-pill{flex:none}
+.success-message{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--color-success) 34%,var(--color-border));border-radius:var(--radius-sm);background:var(--color-success-soft);color:var(--color-success);font-size:12px;line-height:1.5}
+.success-message p{margin:0}
+.success-message .secondary-button{min-height:34px;margin-left:auto;border-color:color-mix(in srgb,var(--color-success) 44%,var(--color-border));background:transparent;color:var(--color-success)}
+.citizen-success{margin:0}
+.citizen-case-detail{display:grid;gap:18px;padding:22px}
+.citizen-case-detail-description{margin:0;color:var(--color-text-muted);font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.citizen-case-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0;padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface-subtle)}
+.citizen-case-facts div{min-width:0}
+.citizen-case-facts dt{margin:0 0 4px;color:var(--color-text-muted);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.citizen-case-facts dd{margin:0;color:var(--color-text);font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.citizen-detail-section{display:grid;gap:10px;padding-top:16px;border-top:1px solid var(--color-border)}
+.citizen-detail-section h4{margin:0;color:var(--color-text);font-size:13px}
+.citizen-status-timeline{display:grid;gap:14px;margin:0;padding:0;list-style:none}
+.citizen-status-timeline li{position:relative;display:flex;gap:10px}
+.citizen-status-timeline li:not(:last-child)::before{position:absolute;top:13px;bottom:-16px;left:4px;width:1px;background:var(--color-border);content:""}
+.citizen-timeline-dot{flex:none;width:9px;height:9px;margin-top:4px;border-radius:50%;background:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft)}
+.citizen-status-timeline li>div{display:grid;gap:3px;min-width:0}
+.citizen-status-timeline strong{color:var(--color-text);font-size:12px}
+.citizen-status-timeline p{margin:2px 0;color:var(--color-text-muted);font-size:12px;line-height:1.55}
+.citizen-status-timeline time{color:var(--color-text-subtle);font-size:11px;font-variant-numeric:tabular-nums}
+.citizen-update-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.citizen-update{padding:12px 14px;border:1px solid var(--color-border);border-left:3px solid var(--color-primary);border-radius:var(--radius-sm);background:var(--color-surface-subtle)}
+.citizen-update-informationrequest{border-left-color:var(--color-warning)}
+.citizen-update-citizenresponse{border-left-color:var(--color-success)}
+.citizen-update strong{display:block;color:var(--color-text);font-size:12px}
+.citizen-update p{margin:5px 0;color:var(--color-text-muted);font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.citizen-update time{color:var(--color-text-subtle);font-size:11px;font-variant-numeric:tabular-nums}
+.citizen-document-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.citizen-document-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm)}
+.citizen-document-list li>div{display:grid;gap:2px;min-width:0}
+.citizen-document-list strong{color:var(--color-text);font-size:12px;overflow-wrap:anywhere}
+.citizen-document-list span{color:var(--color-text-subtle);font-size:11px}
+.citizen-document-list .secondary-button{flex:none;min-height:34px}
+.citizen-response-form{display:grid;gap:10px;padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface-subtle)}
+.citizen-response-form label{color:var(--color-text-muted);font-size:11px;font-weight:700}
+.citizen-response-form textarea{width:100%;padding:10px;resize:vertical}
+.citizen-response-form .primary-button{justify-self:start}
+.citizen-response-form .error-banner{margin:0}
+.citizen-request-list{overflow:hidden}
+.citizen-request-list .case-toolbar{padding:14px}
+.citizen-request-grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;padding:16px}
+.citizen-request-grid .citizen-action-card{min-height:0;padding:18px}
+.citizen-filter{flex:none;min-width:150px}
+.citizen-filter select{width:100%}
+.citizen-empty-state{display:grid;justify-items:center;gap:14px;padding:36px 20px}
+.citizen-empty-state p{margin:0}
+
+/* Staff status transitions, updates, and visibility labels. */
+.status-change-form,.case-update-form{display:grid;gap:12px;margin:0 0 16px;padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface-subtle)}
+.status-change-form label,.case-update-form label{display:grid;gap:6px;color:var(--color-text-muted);font-size:11px;font-weight:700}
+.status-change-form select,.case-update-form select{width:100%;margin-bottom:0}
+.status-change-form textarea,.case-update-form textarea{width:100%;padding:10px;resize:vertical;font:inherit}
+.status-change-form .secondary-button,.case-update-form .secondary-button{justify-self:start}
+.detail-section label.checkbox-control{display:flex;align-items:center;gap:8px;color:var(--color-text-muted);font-size:11px;font-weight:600;cursor:pointer}
+.detail-section label.checkbox-control input{flex:none;width:16px;min-height:16px;margin:0;accent-color:var(--color-primary)}
+.form-hint{margin:0;font-size:11px;line-height:1.5}
+.visibility-badge{display:inline-flex;align-items:center;min-height:20px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;vertical-align:middle}
+.visibility-badge.visible{background:var(--color-success-soft);color:var(--color-success)}
+.visibility-badge.internal{background:var(--color-warning-soft);color:var(--color-warning)}
+.timeline .timeline-explanation{display:block;margin-top:6px;padding:7px 9px;border-left:2px solid var(--color-border-strong);border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--color-surface-subtle);color:var(--color-text-muted);font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.timeline .timeline-explanation .visibility-badge{margin-left:5px}
+.detail-section .case-update-list{display:grid;gap:10px;margin:8px 0 0;padding:0;list-style:none}
+.detail-section .case-update{display:block;padding:12px;border:1px solid var(--color-border);border-left:3px solid var(--color-primary);border-radius:var(--radius-sm);background:var(--color-surface-subtle);color:var(--color-text)}
+.detail-section .case-update.internal{border-left-color:var(--color-warning)}
+.case-update-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.case-update-header strong{color:var(--color-text);font-size:12px}
+.detail-section .case-update p{margin:6px 0;color:var(--color-text-muted);font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.detail-section .case-update small{color:var(--color-text-subtle);font-size:10px;font-variant-numeric:tabular-nums}
+
+@media(max-width:720px){
+  .citizen-case-detail{padding:16px}
+  .citizen-case-facts{grid-template-columns:1fr;gap:10px}
+  .citizen-request-grid{grid-template-columns:1fr;padding:12px}
+  .citizen-document-list li{flex-direction:column;align-items:flex-start}
+  .citizen-document-list .secondary-button{width:100%}
+  .case-card-header{flex-direction:column}
+  .success-message .secondary-button{margin-left:0}
+}

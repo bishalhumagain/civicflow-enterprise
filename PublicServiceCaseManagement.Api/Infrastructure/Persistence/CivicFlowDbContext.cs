@@ -23,6 +23,7 @@ public sealed class CivicFlowDbContext(
         Set<CaseStatusHistory>();
     public DbSet<CaseDocument> CaseDocuments =>
         Set<CaseDocument>();
+    public DbSet<CaseUpdate> CaseUpdates => Set<CaseUpdate>();
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CaseAssignmentHistory> CaseAssignmentHistories =>
         Set<CaseAssignmentHistory>();
@@ -146,6 +147,12 @@ public sealed class CivicFlowDbContext(
             entity.Property(h => h.ChangedAt)
                 .IsRequired();
 
+            entity.Property(h => h.Explanation)
+                .HasMaxLength(CaseStatusHistory.MaximumExplanationLength);
+
+            entity.Property(h => h.IsVisibleToCitizen)
+                .IsRequired();
+
             entity.HasOne<Case>()
                 .WithMany()
                 .HasForeignKey(h => h.CaseId)
@@ -195,6 +202,9 @@ public sealed class CivicFlowDbContext(
             entity.Property(document => document.UploadedAt)
                 .IsRequired();
 
+            entity.Property(document => document.IsVisibleToCitizen)
+                .IsRequired();
+
             entity.HasOne<Case>()
                 .WithMany()
                 .HasForeignKey(document => document.CaseId)
@@ -214,6 +224,51 @@ public sealed class CivicFlowDbContext(
 
             entity.HasIndex(document => document.StorageKey)
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<CaseUpdate>(entity =>
+        {
+            entity.ToTable("case_updates");
+
+            entity.HasKey(update => update.Id);
+
+            entity.Property(update => update.OrganizationId)
+                .IsRequired();
+
+            entity.Property(update => update.Kind)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(update => update.Message)
+                .HasMaxLength(CaseUpdate.MaximumMessageLength)
+                .IsRequired();
+
+            entity.Property(update => update.IsVisibleToCitizen)
+                .IsRequired();
+
+            entity.Property(update => update.AuthorUserId)
+                .IsRequired();
+
+            entity.Property(update => update.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne<Case>()
+                .WithMany()
+                .HasForeignKey(update => update.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(update => update.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(update => new
+            {
+                update.OrganizationId,
+                update.CaseId,
+                update.CreatedAt
+            });
         });
 
         modelBuilder.Entity<StaffMember>(entity =>

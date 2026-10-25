@@ -28,6 +28,9 @@ import {
     type CaseRecord,
     type CaseStatistics,
     type CaseStatus,
+    type CaseUpdate,
+    type CaseUpdateKind,
+    type CaseUpdatesData,
     type HistoryEntry,
     type Membership,
     type MembershipsData,
@@ -221,6 +224,7 @@ function App() {
     const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
 
     const [caseHistoryData, setCaseHistoryData] = useState<CaseHistoryData | null>(null)
+    const [caseUpdatesData, setCaseUpdatesData] = useState<CaseUpdatesData | null>(null)
     const [assignmentHistoryData, setAssignmentHistoryData] = useState<AssignmentHistoryData | null>(null)
     const [caseDocumentsData, setCaseDocumentsData] = useState<CaseDocumentsData | null>(null)
 
@@ -249,6 +253,7 @@ function App() {
     )
     const [activePortal, setActivePortal] = useState<SignInPortal | null>(null)
     const [citizenCasesVersion, setCitizenCasesVersion] = useState(0)
+    const [citizenInitialCaseId, setCitizenInitialCaseId] = useState<string | null>(null)
     const [casePage, setCasePage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [caseTotalCount, setCaseTotalCount] = useState(0)
@@ -372,6 +377,10 @@ function App() {
 
     const history = caseHistoryData && caseHistoryData.caseId === selectedCase?.id
         ? caseHistoryData.items
+        : []
+
+    const caseUpdates = caseUpdatesData && caseUpdatesData.caseId === selectedCase?.id
+        ? caseUpdatesData.items
         : []
 
     const assignmentHistory = assignmentHistoryData && assignmentHistoryData.caseId === selectedCase?.id
@@ -549,6 +558,16 @@ function App() {
             })
             .catch((reason: unknown) => {
                 if (mounted) setError(reason instanceof Error ? reason.message : 'Case history could not be loaded.')
+            })
+
+        void requestJson<CaseUpdate[]>(`/api/cases/${caseId}/updates`)
+            .then((result) => {
+                if (mounted) {
+                    setCaseUpdatesData({caseId, items: result})
+                }
+            })
+            .catch((reason: unknown) => {
+                if (mounted) setError(reason instanceof Error ? reason.message : 'Case updates could not be loaded.')
             })
 
         void requestJson<AssignmentEntry[]>(`/api/cases/${caseId}/assignment-history`)
@@ -1053,6 +1072,7 @@ function App() {
         setLoginError(null)
         setLoginErrorCode(null)
         setError(null)
+        setCitizenInitialCaseId(null)
         rememberPortal(portal)
         navigateTo(WORKSPACE_PATH)
         setRoute('workspace')
@@ -1103,6 +1123,7 @@ function App() {
         setStaff([])
         setOrganizations([])
         setActivePortal(null)
+        setCitizenInitialCaseId(null)
         forgetPortal()
         forgetWorkspaceView()
         navigateTo('/')
@@ -1144,7 +1165,11 @@ function App() {
         }
     }
 
-    async function changeStatus(status: CaseStatus) {
+    async function changeStatus(
+        status: CaseStatus,
+        explanation?: string,
+        explanationVisibleToCitizen = false,
+    ) {
         if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
         const caseId = selectedCase.id
@@ -1157,7 +1182,11 @@ function App() {
                 `/api/cases/${caseId}/status`,
                 {
                     method: 'PATCH',
-                    body: JSON.stringify({newStatus: status}),
+                    body: JSON.stringify({
+                        newStatus: status,
+                        explanation: explanation?.trim() || null,
+                        explanationVisibleToCitizen,
+                    }),
                 },
             )
 
@@ -1176,6 +1205,53 @@ function App() {
             const message = reason instanceof Error ? reason.message : 'Status update failed. Your role may not permit this action.'
             setError(message)
             showToast(message, 'error')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    async function addCaseUpdate(
+        kind: CaseUpdateKind,
+        message: string,
+    ): Promise<boolean> {
+        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return false
+
+        const caseId = selectedCase.id
+        setActionLoading(true)
+        setError(null)
+
+        try {
+            const created = await requestJson<CaseUpdate>(
+                `/api/cases/${caseId}/updates`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify({kind, message}),
+                },
+            )
+
+            setCaseUpdatesData((current) => ({
+                caseId,
+                items: current?.caseId === caseId
+                    ? [...current.items, created]
+                    : [created],
+            }))
+            setRetryVersion((version) => version + 1)
+            showToast(
+                kind === 'InternalNote'
+                    ? 'Internal note added.'
+                    : kind === 'InformationRequest'
+                        ? 'Information request sent.'
+                        : 'Update published.',
+                'success',
+            )
+            return true
+        } catch (reason) {
+            const messageText = reason instanceof Error
+                ? reason.message
+                : 'The case update could not be saved.'
+            setError(messageText)
+            showToast(messageText, 'error')
+            return false
         } finally {
             setActionLoading(false)
         }
@@ -1265,7 +1341,7 @@ function App() {
         }
     }
 
-    async function uploadDocument(file: File) {
+    async function uploadDocument(file: File, visibleToCitizen: boolean) {
         if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
 
         const caseId = selectedCase.id
@@ -1275,6 +1351,7 @@ function App() {
 
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('visibleToCitizen', String(visibleToCitizen))
 
         try {
             const uploaded = await requestJson<CaseDocument>(
@@ -1700,7 +1777,13 @@ function App() {
                                     setViewSelection('cases')
                                     setSelectedCaseId(caseId)
                                 }
-                                : undefined}
+                                : citizenAccess
+                                    ? (caseId) => {
+                                        setCitizenInitialCaseId(caseId)
+                                        setCitizenCasesVersion((version) => version + 1)
+                                        setViewSelection('citizen-dashboard')
+                                    }
+                                    : undefined}
                         />
                         <ProfileMenu
                             email={currentUser.email}
@@ -1742,10 +1825,17 @@ function App() {
                                     emailConfirmed={currentUser.emailConfirmed}
                                     onOpenIntake={() => setViewSelection('citizen')}
                                     onOpenProfile={() => setViewSelection('profile')}
+                                    initialCaseId={citizenInitialCaseId}
+                                    onInitialCaseOpened={() => setCitizenInitialCaseId(null)}
                                 />
                             ) : activeView === 'citizen' ? (
                                 <CitizenIntake
                                     onSubmitted={() => setCitizenCasesVersion((version) => version + 1)}
+                                    onTrackCase={(caseId) => {
+                                        setCitizenInitialCaseId(caseId)
+                                        setCitizenCasesVersion((version) => version + 1)
+                                        setViewSelection('citizen-dashboard')
+                                    }}
                                 />
                             ) : activeView === 'profile' ? (
                                 <ProfilePage/>
@@ -2053,6 +2143,7 @@ function App() {
                                         <CaseDetails
                                             caseRecord={selectedCase}
                                             history={history}
+                                            updates={caseUpdates}
                                             assignmentHistory={assignmentHistory}
                                             documents={documents}
                                             staff={staff}
@@ -2070,6 +2161,7 @@ function App() {
                                             canDeleteCase={activeOrganization?.role === 'OrganizationAdmin'}
                                             actionLoading={actionLoading}
                                             onStatusChange={changeStatus}
+                                            onAddUpdate={addCaseUpdate}
                                             onUpdate={updateCaseDetails}
                                             onDelete={deleteCase}
                                             onAssignmentChange={assignCase}
@@ -2086,6 +2178,8 @@ function App() {
                                     emailConfirmed={currentUser.emailConfirmed}
                                     onOpenIntake={() => setViewSelection('citizen')}
                                     onOpenProfile={() => setViewSelection('profile')}
+                                    initialCaseId={citizenInitialCaseId}
+                                    onInitialCaseOpened={() => setCitizenInitialCaseId(null)}
                                 />
                             )}
                         </>

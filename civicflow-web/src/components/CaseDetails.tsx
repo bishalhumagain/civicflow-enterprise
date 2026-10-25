@@ -8,15 +8,31 @@ import {
   type CaseDocument,
   type CaseRecord,
   type CaseStatus,
+  type CaseUpdate,
+  type CaseUpdateKind,
   type HistoryEntry,
   type StaffMember,
 } from '../domain'
+
+const updateKindLabels: Record<CaseUpdateKind, string> = {
+  PublicUpdate: 'Public update',
+  InformationRequest: 'Information request',
+  InternalNote: 'Internal note',
+  CitizenResponse: 'Citizen response',
+}
+
+const staffUpdateKinds: CaseUpdateKind[] = [
+  'PublicUpdate',
+  'InformationRequest',
+  'InternalNote',
+]
 
 export function CaseDetails({
   caseRecord,
   history,
   assignmentHistory,
   documents,
+  updates,
   staff,
   canAssignCases,
   canEditCase,
@@ -28,16 +44,22 @@ export function CaseDetails({
   onAssignmentChange,
   onUpload,
   onDownload,
+  onAddUpdate,
 }: {
   caseRecord: CaseRecord | null
   history: HistoryEntry[]
   assignmentHistory: AssignmentEntry[]
   documents: CaseDocument[]
+  updates: CaseUpdate[]
   staff: StaffMember[]
   canAssignCases: boolean
   canEditCase: boolean
   actionLoading: boolean
-  onStatusChange: (status: CaseStatus) => Promise<void>
+  onStatusChange: (
+    status: CaseStatus,
+    explanation?: string,
+    explanationVisibleToCitizen?: boolean,
+  ) => Promise<void>
   onUpdate: (title: string, description: string) => Promise<boolean>
   canDeleteCase: boolean
   onDelete: () => Promise<void>
@@ -45,8 +67,9 @@ export function CaseDetails({
     staffMemberId: string,
     role: 'CaseWorker' | 'Viewer',
   ) => Promise<void>
-  onUpload: (file: File) => Promise<void>
+  onUpload: (file: File, visibleToCitizen: boolean) => Promise<void>
   onDownload: (document: CaseDocument) => Promise<void>
+  onAddUpdate: (kind: CaseUpdateKind, message: string) => Promise<boolean>
 }) {
   const [assignmentRole, setAssignmentRole] =
     useState<'CaseWorker' | 'Viewer'>('CaseWorker')
@@ -57,6 +80,18 @@ export function CaseDetails({
   } | null>(null)
   const [deleteConfirmationCaseId, setDeleteConfirmationCaseId] =
     useState<string | null>(null)
+  const [pendingStatus, setPendingStatus] = useState<{
+    caseId: string
+    status: CaseStatus
+  } | null>(null)
+  const [statusExplanation, setStatusExplanation] = useState('')
+  const [statusExplanationVisible, setStatusExplanationVisible] =
+    useState(false)
+  const [documentVisible, setDocumentVisible] = useState(false)
+  const [updateKind, setUpdateKind] =
+    useState<CaseUpdateKind>('PublicUpdate')
+  const [updateMessage, setUpdateMessage] = useState('')
+  const [sendingUpdate, setSendingUpdate] = useState(false)
 
   if (!caseRecord) {
     return (
@@ -73,6 +108,10 @@ export function CaseDetails({
     ? caseDraft.description
     : caseRecord.description
   const deleteConfirmationOpen = deleteConfirmationCaseId === caseRecord.id
+  const selectedStatus = pendingStatus?.caseId === caseRecord.id
+    ? pendingStatus.status
+    : caseRecord.status
+  const statusChanged = selectedStatus !== caseRecord.status
 
   return (
     <aside className="detail-card">
@@ -152,18 +191,77 @@ export function CaseDetails({
 
       <div className="detail-section">
         <h3>Workflow</h3>
-        <label>
-          Status
-          <select
-            disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
-            value={caseRecord.status}
-            onChange={(event) => void onStatusChange(event.target.value as CaseStatus)}
+        <form
+          className="status-change-form"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault()
+            if (!statusChanged) return
+            void onStatusChange(
+              selectedStatus,
+              statusExplanation.trim() || undefined,
+              statusExplanation.trim().length > 0 && statusExplanationVisible,
+            ).then(() => {
+              setPendingStatus(null)
+              setStatusExplanation('')
+              setStatusExplanationVisible(false)
+            })
+          }}
+        >
+          <label>
+            Status
+            <select
+              disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
+              onChange={(event) => setPendingStatus({
+                caseId: caseRecord.id,
+                status: event.target.value as CaseStatus,
+              })}
+              value={selectedStatus}
+            >
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>{statusLabels[status]}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Explanation <small className="muted">(optional)</small>
+            <textarea
+              disabled={actionLoading || !canEditCase}
+              maxLength={2000}
+              onChange={(event) => setStatusExplanation(event.target.value)}
+              placeholder="Record why the case is moving to this status."
+              rows={3}
+              value={statusExplanation}
+            />
+          </label>
+          <label className="checkbox-control">
+            <input
+              checked={statusExplanationVisible}
+              disabled={
+                actionLoading ||
+                !canEditCase ||
+                statusExplanation.trim().length === 0
+              }
+              onChange={(event) =>
+                setStatusExplanationVisible(event.target.checked)
+              }
+              type="checkbox"
+            />
+            <span>Include this explanation in the citizen timeline</span>
+          </label>
+          <button
+            className="secondary-button"
+            disabled={
+              actionLoading ||
+              !canEditCase ||
+              !statusChanged ||
+              caseRecord.id.startsWith('demo-')
+            }
+            type="submit"
           >
-            {statusOptions.map((status) => (
-              <option key={status} value={status}>{statusLabels[status]}</option>
-            ))}
-          </select>
-        </label>
+            <Icon className="button-icon" name="save" />
+            <span>{actionLoading ? 'Updating…' : 'Apply status change'}</span>
+          </button>
+        </form>
 
         {canAssignCases && (
           <>
@@ -211,6 +309,15 @@ export function CaseDetails({
           <p className="muted">Documents are available for live cases.</p>
         ) : (
           <>
+            <label className="checkbox-control">
+              <input
+                checked={documentVisible}
+                disabled={actionLoading || !canEditCase}
+                onChange={(event) => setDocumentVisible(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Share new documents with the citizen</span>
+            </label>
             <label className="upload-control">
               Attach supporting document
               <input
@@ -218,7 +325,7 @@ export function CaseDetails({
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0]
-                  if (file) void onUpload(file)
+                  if (file) void onUpload(file, documentVisible)
                   event.currentTarget.value = ''
                 }}
               />
@@ -238,7 +345,127 @@ export function CaseDetails({
                     >
                       {document.originalFileName}
                     </button>{' '}
-                    <small>{Math.ceil(document.sizeBytes / 1024)} KB</small>
+                    <small>{Math.ceil(document.sizeBytes / 1024)} KB</small>{' '}
+                    <span
+                      className={
+                        document.isVisibleToCitizen
+                          ? 'visibility-badge visible'
+                          : 'visibility-badge internal'
+                      }
+                    >
+                      {document.isVisibleToCitizen
+                        ? 'Shared with citizen'
+                        : 'Internal'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="detail-section">
+        <h3>Citizen communication</h3>
+        {caseRecord.id.startsWith('demo-') ? (
+          <p className="muted">Updates are available for live cases.</p>
+        ) : (
+          <>
+            {canEditCase && (
+              <form
+                className="case-update-form"
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault()
+                  const message = updateMessage.trim()
+                  if (!message) return
+                  setSendingUpdate(true)
+                  void onAddUpdate(updateKind, message)
+                    .then((saved) => {
+                      if (saved) setUpdateMessage('')
+                    })
+                    .finally(() => setSendingUpdate(false))
+                }}
+              >
+                <label>
+                  Update type
+                  <select
+                    disabled={sendingUpdate}
+                    onChange={(event) =>
+                      setUpdateKind(event.target.value as CaseUpdateKind)
+                    }
+                    value={updateKind}
+                  >
+                    {staffUpdateKinds.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {updateKindLabels[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Message
+                  <textarea
+                    disabled={sendingUpdate}
+                    maxLength={4000}
+                    minLength={1}
+                    onChange={(event) => setUpdateMessage(event.target.value)}
+                    placeholder={
+                      updateKind === 'InternalNote'
+                        ? 'Only organization staff can read this note.'
+                        : 'This message will appear in the citizen timeline.'
+                    }
+                    required
+                    rows={4}
+                    value={updateMessage}
+                  />
+                </label>
+                <p className="muted form-hint">
+                  {updateKind === 'InternalNote'
+                    ? 'Internal notes never appear in the citizen timeline or API responses.'
+                    : updateKind === 'InformationRequest'
+                      ? 'The case moves to Awaiting information and the citizen can reply.'
+                      : 'The citizen is notified and the update becomes part of the visible timeline.'}
+                </p>
+                <button
+                  className="secondary-button"
+                  disabled={sendingUpdate || updateMessage.trim().length === 0}
+                  type="submit"
+                >
+                  <Icon className="button-icon" name="save" />
+                  <span>{sendingUpdate ? 'Publishing…' : 'Publish update'}</span>
+                </button>
+              </form>
+            )}
+
+            {updates.length === 0 ? (
+              <p className="muted">No updates recorded yet.</p>
+            ) : (
+              <ul className="case-update-list">
+                {updates.map((update) => (
+                  <li
+                    className={
+                      update.isVisibleToCitizen
+                        ? 'case-update visible'
+                        : 'case-update internal'
+                    }
+                    key={update.id}
+                  >
+                    <div className="case-update-header">
+                      <strong>{updateKindLabels[update.kind]}</strong>
+                      <span
+                        className={
+                          update.isVisibleToCitizen
+                            ? 'visibility-badge visible'
+                            : 'visibility-badge internal'
+                        }
+                      >
+                        {update.isVisibleToCitizen
+                          ? 'Visible to citizen'
+                          : 'Staff only'}
+                      </span>
+                    </div>
+                    <p>{update.message}</p>
+                    <small>{new Date(update.createdAt).toLocaleString()}</small>
                   </li>
                 ))}
               </ul>
@@ -258,6 +485,22 @@ export function CaseDetails({
               <span>
                 <strong>{statusLabels[item.previousStatus]} → {statusLabels[item.newStatus]}</strong>
                 <small>{new Date(item.changedAt).toLocaleString()}</small>
+                {item.explanation && (
+                  <span className="timeline-explanation">
+                    {item.explanation}{' '}
+                    <span
+                      className={
+                        item.isVisibleToCitizen
+                          ? 'visibility-badge visible'
+                          : 'visibility-badge internal'
+                      }
+                    >
+                      {item.isVisibleToCitizen
+                        ? 'Visible to citizen'
+                        : 'Staff only'}
+                    </span>
+                  </span>
+                )}
               </span>
             </p>
           ))

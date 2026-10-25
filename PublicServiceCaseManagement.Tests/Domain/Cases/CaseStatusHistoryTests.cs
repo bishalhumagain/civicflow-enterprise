@@ -68,4 +68,52 @@ public sealed class CaseStatusHistoryTests
                 CaseStatus.Submitted,
                 ChangedAt));
     }
+
+    [Fact]
+    public void Create_WithExplanationAndVisibility_StoresBoth()
+    {
+        var history = CaseStatusHistory.Create(
+            CaseId,
+            OrganizationId,
+            CaseStatus.Submitted,
+            CaseStatus.UnderReview,
+            ChangedAt,
+            changedByUserId: null,
+            explanation: "  Review started.  ",
+            isVisibleToCitizen: true);
+
+        Assert.Equal("Review started.", history.Explanation);
+        Assert.True(history.IsVisibleToCitizen);
+    }
+
+    [Fact]
+    public void Create_WithExplanationThatIsNotVisible_HidesItFromCitizens()
+    {
+        var history = CaseStatusHistory.Create(
+            CaseId,
+            OrganizationId,
+            CaseStatus.Submitted,
+            CaseStatus.UnderReview,
+            ChangedAt,
+            explanation: "Internal rationale.",
+            isVisibleToCitizen: false);
+
+        Assert.Equal("Internal rationale.", history.Explanation);
+        Assert.False(history.IsVisibleToCitizen);
+    }
+
+    [Fact]
+    public void Create_WithTooLongExplanation_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => CaseStatusHistory.Create(
+            CaseId,
+            OrganizationId,
+            CaseStatus.Submitted,
+            CaseStatus.UnderReview,
+            ChangedAt,
+            explanation: new string(
+                'x',
+                CaseStatusHistory.MaximumExplanationLength + 1),
+            isVisibleToCitizen: true));
+    }
 }

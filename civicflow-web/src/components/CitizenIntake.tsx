@@ -2,13 +2,18 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { requestJson } from '../api-client'
 
 type CitizenOrganization = { id: string; name: string; code: string }
-type CitizenCaseSubmission = { referenceNumber: string; additionalDocument: { fileName: string } | null }
+type CitizenCaseSubmission = {
+  id: string
+  referenceNumber: string
+  additionalDocument: { originalFileName: string } | null
+}
 
 export type CitizenIntakeProps = {
   onSubmitted?: (submission: CitizenCaseSubmission) => void
+  onTrackCase?: (caseId: string) => void
 }
 
-export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
+export function CitizenIntake({ onSubmitted, onTrackCase }: CitizenIntakeProps = {}) {
   const [organizations, setOrganizations] = useState<CitizenOrganization[]>([])
   const [organizationId, setOrganizationId] = useState('')
   const [title, setTitle] = useState('')
@@ -18,6 +23,7 @@ export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [submittedCaseId, setSubmittedCaseId] = useState<string | null>(null)
   const [retryVersion, setRetryVersion] = useState(0)
 
   useEffect(() => {
@@ -70,6 +76,7 @@ export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
     setSubmitting(true)
     setError(null)
     setSuccess(null)
+    setSubmittedCaseId(null)
 
     try {
       const result = await requestJson<CitizenCaseSubmission>(
@@ -80,9 +87,10 @@ export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
       setSuccess(
         `Request ${result.referenceNumber} was submitted successfully` +
         (result.additionalDocument
-          ? ` with ${result.additionalDocument.fileName}.`
+          ? ` with ${result.additionalDocument.originalFileName}.`
           : '.'),
       )
+      setSubmittedCaseId(result.id)
       setTitle('')
       setDescription('')
       setDocument(null)
@@ -170,7 +178,20 @@ export function CitizenIntake({ onSubmitted }: CitizenIntakeProps = {}) {
               </button>
             </div>
           )}
-          {success && <p className="success-message" role="status">{success}</p>}
+          {success && (
+            <div className="success-message citizen-success" role="status">
+              <p>{success}</p>
+              {submittedCaseId && onTrackCase && (
+                <button
+                  className="secondary-button"
+                  onClick={() => onTrackCase(submittedCaseId)}
+                  type="button"
+                >
+                  Track this request
+                </button>
+              )}
+            </div>
+          )}
           {organizations.length === 0 && !loadingOrganizations && !error && (
             <p className="muted">No active organizations are accepting requests.</p>
           )}

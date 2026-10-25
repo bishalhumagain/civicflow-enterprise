@@ -4,7 +4,7 @@
 
 **Audience:** Citizens, Government Officers (Staff), Organization Administrators, and Platform Super Administrators
 
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-25
 
 ---
 
@@ -34,8 +34,8 @@ This manual describes how to use the currently implemented features of CivicFlow
 | Status | Features |
 |---|---|
 | **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, optional staff/invitation phone numbers, persisted in-app notifications, and a PostgreSQL-backed email job queue |
-| **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload, plus citizen case tracking (each submitted request's status and a detail view with full status history) |
-| **Not Fully Verified** | Live browser + database end-to-end runs (code paths are covered by automated integration tests) |
+| **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload, plus full citizen case tracking: searchable/filterable/sortable own-case list, detail view with citizen-visible timeline, public updates, information requests and responses, and citizen-visible documents |
+| **Verified** | Browser-level end-to-end journeys against a disposable PostgreSQL database (citizen submission and tracking, staff updates and information requests, cross-citizen isolation, session expiry, and CSRF rejection), in addition to automated integration tests |
 | **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require SMTP outside Development |
 
 ### Supported Environment
@@ -154,7 +154,7 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 
 | Navigation entry | Description |
 |---|---|
-| **Dashboard** | Citizen dashboard with account status and available actions (default view) |
+| **Dashboard** | Citizen dashboard with account status, available actions, and the **My requests** tracking list (default view) |
 | **Public intake** | Submit a public service request |
 | **My profile** | Create or update your own citizen profile |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
@@ -279,14 +279,15 @@ The Organizations view is split into three inner tabs for platform administrator
 
 ### Citizen User
 
-**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, public case submission, their own profile, and access tokens. Case lists, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, and they can track each submitted request from the **My requests** list — opening its full detail with the current status and complete status history.
+**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, public case submission, their own profile, and access tokens. Case lists for other people, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, then follow each request from **My requests** with search, status filtering, sorting, and paging.
 
 **Citizen Dashboard workflow:**
 1. Sign in through the **Citizen Portal**
 2. The dashboard opens and shows your account status, the portal you are signed in to, and the available actions
 3. Use the action cards to open **Public intake**, **My profile**, or **Access tokens**
-4. Review the **My requests** list, which shows each submitted request with its current status and reference
-5. Select **View details** on a request to open its full description and status-history timeline, then **Back to my requests** to return
+4. Review **My requests**, which shows only requests you submitted, with reference number, title, organization, current status, and last update time
+5. Search by reference or title, filter by status, change the sort order (recently updated, oldest update, newest, oldest), and page through longer lists
+6. Select **View details** on a request to open its full description and citizen-visible timeline, then **Back to my requests** to return
 
 **Submit a case:** Open **Public intake**, select the responsible active organization, enter a title and description, and optionally attach a supporting file. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission, the request is routed to an organization administrator for triage, and you can track it from **My requests**. Staff-created cases instead derive their organization from the signed-in staff membership.
 
@@ -406,9 +407,25 @@ Citizens and organization members are distinct: an account appears in the Citize
 4. Use **Recent case activity** to compare the weekly and monthly created/resolved counts returned by the API. The dashboard does not estimate daily trends.
 5. Individual staff workload is not included in the current statistics API. Use **Cases** to review assignments.
 
-Citizen accounts can submit service requests, but case tracking and status updates are not available in the citizen portal yet. The dashboard explains this limitation rather than showing invented case counts.
+Citizen accounts have their own dashboard rather than the organization/platform statistics dashboard. Citizens submit requests from **Public intake** and follow them from **My requests**; see [5.11 Tracking a Citizen Request](#511-tracking-a-citizen-request).
 
-### 5.11 Tracking Application Errors
+### 5.11 Tracking a Citizen Request
+
+Citizens track their own requests from **My requests** on the citizen dashboard. The list is always limited to the signed-in account; it never shows another citizen's request, and the API returns `404` for a case the signed-in citizen did not submit.
+
+1. Sign in through the **Citizen Portal** and open the dashboard
+2. In **My requests**, search by reference number or title, filter by status, sort by last update or creation date, and page through the results
+3. Select **View details** to open the request. The detail shows the reference number, title, description, responsible organization, current status, and submission/update timestamps
+4. Read the **timeline**. Every status transition is listed with its previous and new status and timestamp. Staff explanations appear only when the staff member chose to make them citizen-visible; internal staff notes and internal-only documents are never included
+5. Download a listed attachment. Only documents that staff explicitly marked as visible to the citizen are listed and downloadable
+6. If the case is **Awaiting information**, the detail explains what is needed and shows a response form. Enter your answer and submit it; the response is added to the timeline and the case returns to **Under review**. The assigned staff member is notified
+7. Use **Back to my requests** to return to the list
+
+The detail view shows a loading state while data is fetched and an error message with a **Retry** control if the request fails. An empty list means no request matches the current search or filter. Closed and rejected cases remain readable but cannot receive a response.
+
+**Limits:** After submission, citizens cannot edit the original title or description, attach additional documents, or delete a request. Status changes are made only by authorized staff, except for the automatic return to **Under review** when a citizen responds to an information request.
+
+### 5.12 Tracking Application Errors
 
 1. Sign in as a platform administrator and open **Errors**
 2. Review the list of application errors, filtered by status:
@@ -425,7 +442,7 @@ Citizen accounts can submit service requests, but case tracking and status updat
    - When it occurred
 4. Mark an error as **Handled** once investigated and resolved
 
-### 5.12 Managing Your Citizen Profile
+### 5.13 Managing Your Citizen Profile
 
 1. Sign in through the **Citizen Portal**
 2. Navigate to **My profile** (from the dashboard action card or the sidebar)
@@ -436,7 +453,7 @@ Citizen accounts can submit service requests, but case tracking and status updat
 
 **Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected.
 
-### 5.13 Updating Your Unified Profile
+### 5.14 Updating Your Unified Profile
 
 The **Profile** page is a unified self-service profile available to both citizens and staff:
 
@@ -449,7 +466,7 @@ The **Profile** page is a unified self-service profile available to both citizen
 
 **Note:** Super administrators do not have access to the Profile page (they use the platform administration surfaces only).
 
-### 5.14 Managing Personal Access Tokens
+### 5.15 Managing Personal Access Tokens
 
 Personal access tokens let an automated client (a script, an integration, a mobile app) call the API without a browser session. A token acts on behalf of the user who created it and carries that user's permissions.
 
@@ -556,7 +573,8 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 |---|---|
 | **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development does not deliver email; it prints sensitive, one-time links to the API console automatically. Use only in a private local run and never share or retain the logs. |
 | **Notifications** | Notification count is polled once per minute; push/WebSocket delivery and SMS are not implemented. Invitation lifecycle events use the existing invitation email flow, not the job queue. |
-| **Citizen portal scope** | Citizens may submit cases to active organizations, attach an optional arbitrary file up to 10 MB, and track their own submitted cases (current status plus a detail view with full status history). Citizens have no access to the staff case workspace, staff administration, or other organizations' cases. |
+| **Citizen portal scope** | Citizens may submit cases to active organizations, attach an optional arbitrary file up to 10 MB, and fully track their own submitted cases: searchable/filterable/sortable list, detail, citizen-visible timeline and updates, information requests and responses, and citizen-visible documents. Citizens have no access to the staff case workspace, staff administration, or other citizens' cases. |
+| **Citizen tracking scope** | Citizens cannot edit a submitted request, add attachments after submission, or reopen a closed/rejected request. Tracking is available in the web portal only; there is no dedicated mobile app or push channel. |
 | **Environment dependent** | Many features require proper backend/frontend configuration |
 | **No offline support** | Requires network connectivity |
 | **File restrictions** | Case attachments accept any file type up to 10 MB; malware scanning is not provided |

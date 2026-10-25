@@ -8,6 +8,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 - [Automated Test Coverage](#automated-test-coverage)
 - [Over-HTTP Verification Results](#over-http-verification-results)
+  - [Browser end-to-end verification](#browser-end-to-end-verification)
 - [Required Local Verification Sequence](#required-local-verification-sequence)
 - [Required Acceptance Evidence](#required-acceptance-evidence)
 - [Port Note](#port-note)
@@ -16,7 +17,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite uses EF Core InMemory and a synthetic authentication handler for most API tests (365 tests total). A subset exercises the real ASP.NET Core Identity flow through the cookie scheme.
+The automated suite contains 383 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie flow. Three PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. A five-test Playwright/Chromium suite exercises the citizen and staff tracking journeys against a disposable PostgreSQL database. The default `dotnet test` run reports 380 passed and 3 skipped.
 
 ### Authentication lifecycle
 
@@ -136,6 +137,18 @@ Covered by automated integration tests:
 Covered by automated integration tests:
 - Document upload/download
 
+### Citizen case tracking
+
+Covered by automated integration tests:
+- The citizen list is paged, searchable by reference/title, filterable by status, and sortable by creation or update time, and returns only the caller's cases
+- The detail projection contains the description, organization, status, citizen-visible status timeline, public updates, information requests, citizen responses, and citizen-visible documents, plus `canRespond` and `awaitingInformation`
+- Internal notes and internal-only documents are filtered in the database query and never returned to a citizen response; status explanations are returned only when marked citizen-visible
+- A citizen response is accepted only from the case owner, is rejected on closed/rejected cases, moves `AwaitingInformation` to `UnderReview` with a visible history entry, and notifies the assigned staff account
+- Unknown and cross-citizen identifiers return `404`; citizen credentials receive `403` from staff endpoints
+- Staff can add `PublicUpdate`, `InformationRequest`, and `InternalNote` entries; an information request transitions the case to `AwaitingInformation`, and an internal note produces no citizen-visible data or notification
+- Staff uploads default to internal and become citizen-visible only when `visibleToCitizen` is true
+- Invalid transitions and updates to closed cases return `400`
+
 ### Staff, organizations, memberships
 
 Covered by automated integration tests:
@@ -145,13 +158,22 @@ Covered by automated integration tests:
 
 ### PostgreSQL migrations and runtime-role restrictions
 
-Verified against a disposable live stack: migrations applied with `civicflow_migrator`, and `civicflow_runtime` could read application tables but could not create schema objects. See [RLS-DESIGN.md](RLS-DESIGN.md) for the tenant-boundary design. These live probes are not yet CI integration tests.
+`CitizenCaseTrackingRlsTests` (3 tests) runs against a disposable PostgreSQL database when both connection strings are supplied. It applies the real EF Core migrations with an administrative connection, then probes the policies through a non-superuser, non-`BYPASSRLS` runtime login. Verified results:
+
+- The migrations were applied and the citizen tracking migration entries (`AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, and `AddCitizenTrackingRls`) are present in `__EFMigrationsHistory`.
+- RLS is enabled and forced on `cases`, `case_status_history`, `case_updates`, `case_documents`, and `staff_members`.
+- A citizen context sees only its own case and its visible updates, visible documents, visible status entries, and the assigned staff row; internal notes and internal documents are invisible.
+- The owning organization context sees the full tenant, including internal notes and internal documents, but no other organization.
+- Citizen writes to an internal note, another citizen's case, or another citizen's history are rejected with PostgreSQL `42501`; a same-case visible write succeeds.
+- The runtime role cannot create schema objects and is confirmed not to be a superuser or hold `BYPASSRLS`.
+
+See [RLS-DESIGN.md](RLS-DESIGN.md) for the policy design. The suite is opt-in rather than part of the default test run; wiring the disposable PostgreSQL fixture into CI remains open.
 
 ---
 
 ## Over-HTTP Verification Results
 
-The following were additionally exercised over HTTP against a local PostgreSQL 17 instance. A live browser run of the same flows was not performed in this environment.
+The following were additionally exercised over HTTP against a local PostgreSQL 17 instance. A browser-level run of the citizen/staff tracking flows was also performed with Playwright and bundled Chromium against a disposable PostgreSQL 17 database; see [Browser end-to-end verification](#browser-end-to-end-verification).
 
 ### Full auth journey
 
@@ -222,6 +244,20 @@ Sign-in failures confirmed to return the machine-readable codes `email_not_confi
 
 ---
 
+### Browser end-to-end verification
+
+The Playwright suite in `civicflow-web/e2e` runs five serial Chromium journeys against a disposable PostgreSQL database:
+
+1. **Citizen submission and display** — a citizen signs in through the real cookie/CSRF flow, submits a request with an attachment to an active organization, sees the reference number, and opens the tracking detail with its status timeline and downloadable document.
+2. **Staff case work** — an organization administrator signs in, finds the case, records a citizen-visible status explanation, observes an invalid transition error, posts a public update, posts a confidential internal note, requests information, uploads a citizen-visible and an internal document, and verifies the staff-visible history.
+3. **Citizen confidentiality and response** — the citizen sees the public update, visible timeline, and visible document, never sees the internal note or internal document, downloads the visible attachment, answers the information request, observes the return to `UnderReview`, and exercises search, status filtering, sorting, and pagination across 12 generated requests.
+4. **Cross-citizen isolation and session expiry** — a second citizen cannot search, read, or mutate the first citizen's case through the API (all return `404`), cannot call a staff endpoint (`403`), and is returned to the landing page after the session is invalidated (`401`).
+5. **CSRF rejection** — a mutation with an invalid anti-forgery token returns `400` with the stable `antiforgery_invalid` code.
+
+Result of the recorded run: **5 passed** (5.9 seconds). The browser suite seeds confirmed users, a demo organization, staff membership, and citizen profiles directly into the disposable database; it does not use production data or a real mail provider.
+
+---
+
 ## Required Local Verification Sequence
 
 Use the disposable local fixtures and local-only credentials:
@@ -242,6 +278,31 @@ dotnet test PublicServiceCaseManagement.sln \
 ```
 
 The Compose fixture initializes separate `civicflow_migrator` and `civicflow_runtime` PostgreSQL roles. Configure the API connection with the runtime role and use the migration role only for `dotnet ef database update`.
+
+### Optional PostgreSQL RLS tests
+
+```bash
+export CIVICFLOW_TEST_POSTGRES_ADMIN='Host=127.0.0.1;Port=55433;Database=civicflow;Username=<admin>;Password=<local-admin-password>'
+export CIVICFLOW_TEST_POSTGRES_RUNTIME='Host=127.0.0.1;Port=55433;Database=civicflow;Username=<runtime>;Password=<local-runtime-password>'
+dotnet test PublicServiceCaseManagement.Tests/PublicServiceCaseManagement.Tests.csproj \
+  --configuration Release --filter FullyQualifiedName~CitizenCaseTrackingRlsTests
+```
+
+The admin connection must be a superuser so it can seed rows while RLS is bypassed; the runtime connection must be a non-superuser role without `BYPASSRLS`. Point both at a disposable database only.
+
+### Browser E2E tests
+
+The Playwright configuration starts a Release API on `http://localhost:5001` and Vite on `http://localhost:5173`, or reuses already-running servers outside CI. The API must use the runtime database role with `BusinessEndpoints__Enabled=true`, `Security__RequireAntiforgery=true`, a writable `FileStorage__RootPath`, and a frontend origin allowed by CORS. The E2E global setup requires either `CIVICFLOW_E2E_DATABASE_URL` (PostgreSQL URL) or `CIVICFLOW_TEST_POSTGRES_ADMIN` (ADO.NET connection string) for its disposable database.
+
+```bash
+cd civicflow-web
+npm ci
+npx playwright install chromium chromium-headless-shell
+export CIVICFLOW_TEST_POSTGRES_ADMIN='Host=127.0.0.1;Port=55433;Database=civicflow;Username=<admin>;Password=<local-admin-password>'
+npm run test:e2e
+```
+
+`CIVICFLOW_E2E_API_URL` and `CIVICFLOW_E2E_WEB_URL` override the API and frontend URLs when the defaults differ. The suite seeds its own confirmed accounts and organization, uses a fixed disposable-only password, and must never be pointed at a persistent or production database. Generated reports and failure traces are gitignored.
 
 Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. The Development placeholder logs only that delivery is unavailable and throws; it never logs recipients, subjects, bodies, or action tokens.
 
@@ -266,6 +327,11 @@ Automated authentication tests replace `IEmailSender` with an in-memory capture 
 - Deleting an organization is refused while it holds cases (`409`), succeeds otherwise (`204`), removes the organization's memberships, staff records, and pending invitations, and is refused without the super-administrator role (`403`).
 - An optional staff phone number is validated, collected with the invitation, stored on a newly accepted account and staff record, never overwrites a number an existing account already had, and can be corrected by an organization administrator.
 - Active application user, membership, and organization are required.
+- A citizen list/detail request is owner-scoped: the server derives the citizen identity from the session and another citizen's case returns `404` without an existence disclosure.
+- A citizen sees every status transition in the timeline but only explanations, updates, and documents marked citizen-visible; internal notes and internal-only documents never appear in a citizen response.
+- An information request moves the case to `AwaitingInformation`; the citizen's response adds a visible timeline entry, returns the case to `UnderReview`, and notifies the assigned staff member.
+- Citizen tracking lists are paged and support search, status filtering, and deterministic sorting.
+- A browser journey verifies those flows through the real cookie/CSRF session, including session expiry and CSRF rejection.
 - Cross-organization case and document access is denied without data disclosure.
 - Case list/detail/update/delete operations remain organization scoped; delete confirmation and administrator authorization are independently asserted.
 - PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.

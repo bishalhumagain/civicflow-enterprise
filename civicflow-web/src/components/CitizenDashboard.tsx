@@ -1,11 +1,20 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useMemo, useState, type FormEvent} from 'react'
 import {
+    downloadMyCaseDocument,
     getMyCases,
     getMyCase,
-    type CitizenCaseSummary,
+    respondToMyCase,
     type CitizenCaseDetails,
+    type CitizenCaseDocument,
+    type CitizenCasePage,
+    type CitizenCaseSort,
+    type CitizenCaseUpdate,
 } from '../api/citizens'
-import {statusLabels} from '../domain'
+import {
+    statusLabels,
+    statusOptions,
+    type CaseStatus,
+} from '../domain'
 import {StatusPill} from './StatusPill'
 import {StatCard} from './StatCard'
 
@@ -15,12 +24,21 @@ export type CitizenDashboardProps = {
     emailConfirmed: boolean
     onOpenIntake: () => void
     onOpenProfile: () => void
+    initialCaseId?: string | null
+    onInitialCaseOpened?: () => void
 }
 
+const updateKindLabels: Record<CitizenCaseUpdate['kind'], string> = {
+    PublicUpdate: 'Update from the case team',
+    InformationRequest: 'Information requested',
+    CitizenResponse: 'Your response',
+}
+
+type StatusFilter = 'All' | CaseStatus
+
 /**
- * Dashboard shown to accounts that hold the citizen role. It only exposes
- * citizen self-service; case management and organization administration stay
- * behind the organization portal.
+ * Citizen self-service workspace. Every query is scoped by the API to the
+ * signed-in citizen; the UI never accepts a citizen identifier from input.
  */
 export function CitizenDashboard({
                                      fullName,
@@ -28,18 +46,83 @@ export function CitizenDashboard({
                                      emailConfirmed,
                                      onOpenIntake,
                                      onOpenProfile,
+                                     initialCaseId,
+                                     onInitialCaseOpened,
                                  }: CitizenDashboardProps) {
     const firstName = fullName.trim().split(/\s+/)[0] || fullName
-    const [cases, setCases] = useState<CitizenCaseSummary[]>([])
+    const [pageData, setPageData] = useState<CitizenCasePage | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [reloadVersion, setReloadVersion] = useState(0)
+
+    const [search, setSearch] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
+    const [sort, setSort] = useState<CitizenCaseSort>('updated_desc')
+    const [page, setPage] = useState(1)
+
     const [selected, setSelected] = useState<CitizenCaseDetails | null>(null)
     const [detailLoading, setDetailLoading] = useState(false)
     const [detailError, setDetailError] = useState<string | null>(null)
+    const [detailNotice, setDetailNotice] = useState<string | null>(null)
+
+    const [responseText, setResponseText] = useState('')
+    const [responding, setResponding] = useState(false)
+    const [responseError, setResponseError] = useState<string | null>(null)
+    const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+    const filtersActive = search.trim().length > 0 || statusFilter !== 'All'
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearch(search)
+            setPage(1)
+            setLoading(true)
+            setError(null)
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [search])
+
+    useEffect(() => {
+        let mounted = true
+
+        getMyCases({
+            page,
+            pageSize: 10,
+            search: debouncedSearch,
+            status: statusFilter === 'All' ? undefined : statusFilter,
+            sort,
+        })
+            .then((result) => {
+                if (!mounted) return
+                setPageData(result)
+                const lastPage = Math.max(1, result.totalPages)
+                if (page > lastPage) {
+                    setLoading(true)
+                    setPage(lastPage)
+                }
+            })
+            .catch((reason: unknown) => {
+                if (!mounted) return
+                setError(reason instanceof Error
+                    ? reason.message
+                    : 'Failed to load your requests. Refresh the page and try again.')
+            })
+            .finally(() => {
+                if (mounted) setLoading(false)
+            })
+
+        return () => {
+            mounted = false
+        }
+    }, [page, debouncedSearch, statusFilter, sort, reloadVersion])
 
     async function openCase(id: string) {
         setDetailLoading(true)
         setDetailError(null)
+        setDetailNotice(null)
+        setResponseError(null)
+        setResponseText('')
 
         try {
             const details = await getMyCase(id)
@@ -53,33 +136,108 @@ export function CitizenDashboard({
         }
     }
 
+    useEffect(() => {
+        if (!initialCaseId) return
+
+        const timer = window.setTimeout(() => {
+            void openCase(initialCaseId)
+            onInitialCaseOpened?.()
+        }, 0)
+
+        return () => window.clearTimeout(timer)
+        // The callback only clears the one-shot deep link in the parent.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialCaseId])
+
     function closeCase() {
         setSelected(null)
         setDetailError(null)
+        setDetailNotice(null)
+        setResponseError(null)
+        setResponseText('')
     }
 
-    useEffect(() => {
-        let mounted = true
+    function applyFilters(resetSearch: boolean) {
+        if (resetSearch) setSearch('')
+        setStatusFilter('All')
+        setSort('updated_desc')
+        setPage(1)
+        setLoading(true)
+        setError(null)
+    }
 
-        getMyCases()
-            .then((loaded) => {
-                if (mounted) setCases(loaded)
-            })
-            .catch((reason: unknown) => {
-                if (mounted) {
-                    setError(reason instanceof Error
-                        ? reason.message
-                        : 'Failed to load your requests. Refresh the page and try again.')
-                }
-            })
-            .finally(() => {
-                if (mounted) setLoading(false)
-            })
+    function changePage(nextPage: number) {
+        setPage(nextPage)
+        setLoading(true)
+        setError(null)
+    }
 
-        return () => {
-            mounted = false
+    async function submitResponse(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault()
+        if (!selected) return
+
+        const message = responseText.trim()
+
+        if (!message) {
+            setResponseError('Enter a response before sending it.')
+            return
         }
-    }, [])
+
+        setResponding(true)
+        setResponseError(null)
+        setDetailNotice(null)
+
+        try {
+            await respondToMyCase(selected.id, message)
+            const refreshed = await getMyCase(selected.id)
+            setSelected(refreshed)
+            setResponseText('')
+            setDetailNotice('Your response was sent to the case team.')
+            setReloadVersion((version) => version + 1)
+        } catch (reason: unknown) {
+            setResponseError(reason instanceof Error
+                ? reason.message
+                : 'Your response could not be sent. Try again.')
+        } finally {
+            setResponding(false)
+        }
+    }
+
+    async function downloadDocument(document: CitizenCaseDocument) {
+        if (!selected) return
+
+        setDownloadingId(document.id)
+        setDetailError(null)
+
+        try {
+            const blob = await downloadMyCaseDocument(selected.id, document.id)
+            const url = URL.createObjectURL(blob)
+            const anchor = window.document.createElement('a')
+
+            anchor.href = url
+            anchor.download = document.originalFileName
+            anchor.click()
+
+            URL.revokeObjectURL(url)
+        } catch (reason: unknown) {
+            setDetailError(reason instanceof Error
+                ? reason.message
+                : 'The document could not be downloaded.')
+        } finally {
+            setDownloadingId(null)
+        }
+    }
+
+    const totalCount = pageData?.totalCount ?? 0
+    const currentPage = pageData?.page ?? page
+    const totalPages = Math.max(1, pageData?.totalPages ?? 1)
+    const visibleCount = pageData?.items.length ?? 0
+
+    const statsDetail = useMemo(() => {
+        if (loading) return 'Loading from the API'
+        if (filtersActive) return 'Matching the current filters'
+        return 'All requests on your account'
+    }, [filtersActive, loading])
 
     return (
         <>
@@ -88,7 +246,7 @@ export function CitizenDashboard({
                     <p className="eyebrow">CITIZEN PORTAL</p>
                     <h1>Welcome back, {firstName}</h1>
                     <p className="muted">
-                        Submit service requests and keep your profile current.
+                        Submit service requests and follow their progress.
                     </p>
                 </div>
             </div>
@@ -107,53 +265,196 @@ export function CitizenDashboard({
                     tone="blue"
                 />
                 <StatCard
-                    label="Portal access"
-                    value="Citizen"
-                    detail="Public self-service only"
+                    label="My requests"
+                    value={loading ? '…' : String(totalCount)}
+                    detail={statsDetail}
                     tone="purple"
                 />
             </div>
 
-            <div className="section-heading">
-                <div>
-                    <h2>My requests</h2>
-                    <span className="muted">Track your submitted service requests</span>
-                </div>
-            </div>
-
             {selected ? (
                 <>
+                    <div className="section-heading">
+                        <div>
+                            <h2>Request details</h2>
+                            <span className="muted">
+                                {selected.referenceNumber} · {selected.organizationName}
+                            </span>
+                        </div>
+                        <button className="secondary-button" onClick={closeCase} type="button">
+                            Back to my requests
+                        </button>
+                    </div>
+
                     {detailError ? (
-                        <div className="error-banner" role="alert">{detailError}</div>
+                        <div className="error-banner" role="alert">
+                            {detailError}
+                            <button
+                                className="secondary-button"
+                                onClick={() => void openCase(selected.id)}
+                                type="button"
+                            >
+                                Retry
+                            </button>
+                        </div>
                     ) : null}
 
-                    <article className="case-card citizen-case-detail">
+                    {detailNotice ? (
+                        <div className="success-message" role="status">{detailNotice}</div>
+                    ) : null}
+
+                    <article className="case-card citizen-case-detail" aria-busy={detailLoading}>
                         <div className="case-card-header">
-                            <h3>{selected.title}</h3>
-                            <StatusPill status={selected.status} />
+                            <div>
+                                <h3>{selected.title}</h3>
+                                <p className="muted">
+                                    Reference {selected.referenceNumber}
+                                </p>
+                            </div>
+                            <StatusPill status={selected.status}/>
                         </div>
-                        <p className="muted">Reference: {selected.referenceNumber}</p>
-                        <p className="muted">
-                            Last updated: {new Date(selected.updatedAt).toLocaleString()}
-                        </p>
+
+                        <dl className="citizen-case-facts">
+                            <div>
+                                <dt>Responsible department</dt>
+                                <dd>{selected.organizationName}</dd>
+                            </div>
+                            <div>
+                                <dt>Submitted</dt>
+                                <dd>{new Date(selected.createdAt).toLocaleString()}</dd>
+                            </div>
+                            <div>
+                                <dt>Last updated</dt>
+                                <dd>{new Date(selected.updatedAt).toLocaleString()}</dd>
+                            </div>
+                        </dl>
+
                         <p className="citizen-case-detail-description">{selected.description}</p>
 
-                        <h4>Status history</h4>
-                        {selected.statusHistory.length === 0 ? (
-                            <p className="muted">No status changes have been recorded yet.</p>
-                        ) : (
+                        {selected.awaitingInformation ? (
+                            <div className="info-banner citizen-tracking-note" role="status">
+                                The case team needs more information from you. Review the request below
+                                and add your response.
+                            </div>
+                        ) : null}
+
+                        <section className="citizen-detail-section" aria-labelledby="citizen-timeline-title">
+                            <h4 id="citizen-timeline-title">Status timeline</h4>
                             <ol className="citizen-status-timeline">
+                                <li>
+                                    <span className="citizen-timeline-dot" aria-hidden="true"/>
+                                    <div>
+                                        <strong>Request submitted</strong>
+                                        <time dateTime={selected.createdAt}>
+                                            {new Date(selected.createdAt).toLocaleString()}
+                                        </time>
+                                    </div>
+                                </li>
                                 {selected.statusHistory.map((entry, index) => (
-                                    <li key={`${entry.changedAt}-${index}`}>
-                                        <span className="citizen-status-transition">
-                                            {statusLabels[entry.previousStatus]} → {statusLabels[entry.newStatus]}
-                                        </span>
-                                        <span className="muted">
-                                            {new Date(entry.changedAt).toLocaleString()}
-                                        </span>
+                                    <li key={`${entry.changedAt}-${entry.newStatus}-${index}`}>
+                                        <span className="citizen-timeline-dot" aria-hidden="true"/>
+                                        <div>
+                                            <strong>
+                                                {statusLabels[entry.previousStatus]} → {statusLabels[entry.newStatus]}
+                                            </strong>
+                                            {entry.explanation ? (
+                                                <p>{entry.explanation}</p>
+                                            ) : null}
+                                            <time dateTime={entry.changedAt}>
+                                                {new Date(entry.changedAt).toLocaleString()}
+                                            </time>
+                                        </div>
                                     </li>
                                 ))}
                             </ol>
+                        </section>
+
+                        <section className="citizen-detail-section" aria-labelledby="citizen-updates-title">
+                            <h4 id="citizen-updates-title">Updates and information requests</h4>
+                            {selected.updates.length === 0 ? (
+                                <p className="muted">
+                                    No citizen-visible updates have been posted yet.
+                                </p>
+                            ) : (
+                                <ul className="citizen-update-list">
+                                    {selected.updates.map((update) => (
+                                        <li
+                                            className={`citizen-update citizen-update-${update.kind.toLowerCase()}`}
+                                            key={update.id}
+                                        >
+                                            <strong>{updateKindLabels[update.kind]}</strong>
+                                            <p>{update.message}</p>
+                                            <time dateTime={update.createdAt}>
+                                                {new Date(update.createdAt).toLocaleString()}
+                                            </time>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </section>
+
+                        <section className="citizen-detail-section" aria-labelledby="citizen-documents-title">
+                            <h4 id="citizen-documents-title">Documents</h4>
+                            {selected.documents.length === 0 ? (
+                                <p className="muted">No documents have been shared with you.</p>
+                            ) : (
+                                <ul className="citizen-document-list">
+                                    {selected.documents.map((document) => (
+                                        <li key={document.id}>
+                                            <div>
+                                                <strong>{document.originalFileName}</strong>
+                                                <span className="muted">
+                                                    {formatFileSize(document.sizeBytes)} ·
+                                                    {' '}{new Date(document.uploadedAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <button
+                                                className="secondary-button"
+                                                disabled={downloadingId === document.id}
+                                                onClick={() => void downloadDocument(document)}
+                                                type="button"
+                                            >
+                                                {downloadingId === document.id ? 'Downloading…' : 'Download'}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </section>
+
+                        {selected.canRespond ? (
+                            <section className="citizen-detail-section" aria-labelledby="citizen-response-title">
+                                <h4 id="citizen-response-title">Add information</h4>
+                                <form className="citizen-response-form" onSubmit={submitResponse}>
+                                    <label htmlFor="citizen-response-message">
+                                        Your message
+                                    </label>
+                                    <textarea
+                                        id="citizen-response-message"
+                                        maxLength={4000}
+                                        minLength={1}
+                                        onChange={(event) => setResponseText(event.target.value)}
+                                        placeholder="Provide the requested details or add context for the case team."
+                                        required
+                                        rows={4}
+                                        value={responseText}
+                                    />
+                                    {responseError ? (
+                                        <div className="error-banner" role="alert">{responseError}</div>
+                                    ) : null}
+                                    <button
+                                        className="primary-button"
+                                        disabled={responding}
+                                        type="submit"
+                                    >
+                                        {responding ? 'Sending…' : 'Send response'}
+                                    </button>
+                                </form>
+                            </section>
+                        ) : (
+                            <p className="muted">
+                                This request is closed, so new responses are no longer accepted.
+                            </p>
                         )}
 
                         <button className="primary-button" onClick={closeCase} type="button">
@@ -161,44 +462,171 @@ export function CitizenDashboard({
                         </button>
                     </article>
                 </>
-            ) : loading ? (
-                <div className="muted">Loading your requests...</div>
-            ) : error ? (
-                <div className="error-banner" role="alert">{error}</div>
-            ) : cases.length === 0 ? (
-                <div className="info-banner citizen-tracking-note" role="status">
-                    You haven't submitted any service requests yet. Use public intake to submit your first request.
-                </div>
             ) : (
                 <>
+                    <div className="section-heading">
+                        <div>
+                            <h2>My requests</h2>
+                            <span className="muted">
+                                {loading
+                                    ? 'Loading your tracked requests'
+                                    : `Showing ${visibleCount} of ${totalCount}`}
+                            </span>
+                        </div>
+                    </div>
+
+                    <section className="case-card citizen-request-list">
+                        <div className="case-toolbar">
+                            <div className="search">
+                                <label className="sr-only" htmlFor="citizen-case-search">
+                                    Search my requests
+                                </label>
+                                <input
+                                    id="citizen-case-search"
+                                    placeholder="Search by title or reference…"
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                />
+                            </div>
+
+                            <label className="citizen-filter">
+                                <span className="sr-only">Filter by status</span>
+                                <select
+                                    aria-label="Filter my requests by status"
+                                    value={statusFilter}
+                                    onChange={(event) => {
+                                        setStatusFilter(event.target.value as StatusFilter)
+                                        setPage(1)
+                                        setLoading(true)
+                                        setError(null)
+                                    }}
+                                >
+                                    <option value="All">All statuses</option>
+                                    {statusOptions.map((status) => (
+                                        <option key={status} value={status}>
+                                            {statusLabels[status]}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className="citizen-filter">
+                                <span className="sr-only">Sort requests</span>
+                                <select
+                                    aria-label="Sort my requests"
+                                    value={sort}
+                                    onChange={(event) => {
+                                        setSort(event.target.value as CitizenCaseSort)
+                                        setPage(1)
+                                        setLoading(true)
+                                        setError(null)
+                                    }}
+                                >
+                                    <option value="updated_desc">Recently updated</option>
+                                    <option value="updated_asc">Least recently updated</option>
+                                    <option value="created_desc">Newest first</option>
+                                    <option value="created_asc">Oldest first</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        {loading ? (
+                            <p className="muted empty-state" role="status">
+                                Loading your requests…
+                            </p>
+                        ) : error ? (
+                            <div className="error-banner" role="alert">
+                                {error}
+                                <button
+                                    className="secondary-button"
+                                    onClick={() => {
+                                        setLoading(true)
+                                        setError(null)
+                                        setReloadVersion((version) => version + 1)
+                                    }}
+                                    type="button"
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : visibleCount === 0 ? (
+                            <div className="empty-state citizen-empty-state">
+                                <p className="muted">
+                                    {filtersActive
+                                        ? 'No requests match the current search and filters.'
+                                        : "You haven't submitted any service requests yet."}
+                                </p>
+                                {filtersActive ? (
+                                    <button
+                                        className="secondary-button"
+                                        onClick={() => applyFilters(true)}
+                                        type="button"
+                                    >
+                                        Clear filters
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="primary-button"
+                                        onClick={onOpenIntake}
+                                        type="button"
+                                    >
+                                        Submit your first request
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="directory-grid citizen-request-grid">
+                                {pageData?.items.map((item) => (
+                                    <article className="case-card citizen-action-card" key={item.id}>
+                                        <div className="case-card-header">
+                                            <h3>{item.title}</h3>
+                                            <StatusPill status={item.status}/>
+                                        </div>
+                                        <p className="muted">Reference: {item.referenceNumber}</p>
+                                        <p className="muted">Department: {item.organizationName}</p>
+                                        <p className="muted">
+                                            Submitted: {new Date(item.createdAt).toLocaleDateString()}
+                                        </p>
+                                        <p className="muted">
+                                            Updated: {new Date(item.updatedAt).toLocaleString()}
+                                        </p>
+                                        <button
+                                            className="primary-button"
+                                            onClick={() => void openCase(item.id)}
+                                            type="button"
+                                            disabled={detailLoading}
+                                        >
+                                            {detailLoading ? 'Loading…' : 'View details'}
+                                        </button>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="pagination">
+                            <span>Page {currentPage} of {totalPages}</span>
+                            <span>
+                                <button
+                                    disabled={currentPage <= 1 || loading}
+                                    onClick={() => changePage(Math.max(1, currentPage - 1))}
+                                    type="button"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    disabled={currentPage >= totalPages || loading}
+                                    onClick={() => changePage(Math.min(totalPages, currentPage + 1))}
+                                    type="button"
+                                >
+                                    Next
+                                </button>
+                            </span>
+                        </div>
+                    </section>
+
                     {detailError ? (
                         <div className="error-banner" role="alert">{detailError}</div>
                     ) : null}
-
-                    <div className="directory-grid">
-                        {cases.map(c => (
-                            <article key={c.id} className="case-card citizen-action-card">
-                                <div className="case-card-header">
-                                    <h3>{c.title}</h3>
-                                    <StatusPill status={c.status} />
-                                </div>
-                                <p className="muted">
-                                    Reference: {c.referenceNumber}
-                                </p>
-                                <p className="muted">
-                                    Submitted: {new Date(c.createdAt).toLocaleDateString()}
-                                </p>
-                                <button
-                                    className="primary-button"
-                                    onClick={() => openCase(c.id)}
-                                    type="button"
-                                    disabled={detailLoading}
-                                >
-                                    {detailLoading ? "Loading..." : "View details"}
-                                </button>
-                            </article>
-                        ))}
-                    </div>
                 </>
             )}
 
@@ -232,4 +660,10 @@ export function CitizenDashboard({
             </div>
         </>
     )
+}
+
+function formatFileSize(sizeBytes: number): string {
+    if (sizeBytes < 1024) return `${sizeBytes} B`
+    if (sizeBytes < 1024 * 1024) return `${Math.ceil(sizeBytes / 1024)} KB`
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
 }

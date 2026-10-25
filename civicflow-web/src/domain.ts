@@ -27,8 +27,39 @@ export type CaseRecord = {
   assignedRole?: 'CaseWorker' | 'Viewer' | null
 }
 export type StaffMember = { id: string; fullName: string; email: string; phoneNumber: string | null; isActive: boolean }
-export type HistoryEntry = { id: string; previousStatus: CaseStatus; newStatus: CaseStatus; changedAt: string }
-export type CaseDocument = { id: string; originalFileName: string; contentType: string; sizeBytes: number; uploadedAt: string }
+export type HistoryEntry = {
+  id: string
+  previousStatus: CaseStatus
+  newStatus: CaseStatus
+  changedAt: string
+  changedByUserId?: string | null
+  explanation?: string | null
+  isVisibleToCitizen?: boolean
+}
+export type CaseUpdateKind =
+  | 'PublicUpdate'
+  | 'InformationRequest'
+  | 'InternalNote'
+  | 'CitizenResponse'
+export type CaseUpdate = {
+  id: string
+  caseId: string
+  kind: CaseUpdateKind
+  message: string
+  isVisibleToCitizen: boolean
+  authorUserId: string
+  createdAt: string
+}
+export type CaseDocument = {
+  id: string
+  caseId: string
+  originalFileName: string
+  contentType: string
+  sizeBytes: number
+  sha256Hash: string
+  uploadedAt: string
+  isVisibleToCitizen: boolean
+}
 export type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; previousRole: 'CaseWorker' | 'Viewer' | null; newRole: 'CaseWorker' | 'Viewer'; assignedAt: string; assignedByUserId: string | null }
 export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
 export type Organization = { id: string; name: string; code: string; organizationTypeId: string; organizationTypeName: string | null; isActive: boolean; createdAt: string; updatedAt: string }
@@ -202,6 +233,7 @@ export type ApplicationError = {
 }
 
 export type CaseHistoryData = { caseId: string; items: HistoryEntry[] }
+export type CaseUpdatesData = { caseId: string; items: CaseUpdate[] }
 export type AssignmentHistoryData = { caseId: string; items: AssignmentEntry[] }
 export type CaseDocumentsData = { caseId: string; items: CaseDocument[] }
 export type MembershipsData = { organizationId: string; items: Membership[] }

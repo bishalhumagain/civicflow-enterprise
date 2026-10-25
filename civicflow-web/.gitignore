@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Playwright browser-test artifacts
+test-results
+playwright-report
+blob-report
+
 # Local environment files (keep the example, ignore real values)
 .env
 .env.*

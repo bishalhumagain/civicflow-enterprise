@@ -3,6 +3,8 @@ namespace PublicServiceCaseManagement.Api.Domain.Cases;
 
 public sealed class CaseStatusHistory
 {
+    public const int MaximumExplanationLength = 2000;
+
     private CaseStatusHistory()
     {
     }
@@ -13,7 +15,9 @@ public sealed class CaseStatusHistory
         CaseStatus previousStatus,
         CaseStatus newStatus,
         DateTimeOffset changedAt,
-        Guid? changedByUserId)
+        Guid? changedByUserId,
+        string? explanation,
+        bool isVisibleToCitizen)
     {
         Id = Guid.NewGuid();
         CaseId = caseId;
@@ -22,6 +26,8 @@ public sealed class CaseStatusHistory
         NewStatus = newStatus;
         ChangedAt = changedAt;
         ChangedByUserId = changedByUserId;
+        Explanation = explanation;
+        IsVisibleToCitizen = isVisibleToCitizen;
     }
 
     public Guid Id { get; private set; }
@@ -38,13 +44,24 @@ public sealed class CaseStatusHistory
 
     public Guid? ChangedByUserId { get; private set; }
 
+    /// <summary>
+    /// Optional human-readable context for the transition. It is only exposed
+    /// to the citizen when <see cref="IsVisibleToCitizen"/> is true, which
+    /// keeps internal staff commentary out of the public timeline.
+    /// </summary>
+    public string? Explanation { get; private set; }
+
+    public bool IsVisibleToCitizen { get; private set; }
+
     public static CaseStatusHistory Create(
         Guid caseId,
         Guid organizationId,
         CaseStatus previousStatus,
         CaseStatus newStatus,
         DateTimeOffset changedAt,
-        Guid? changedByUserId = null)
+        Guid? changedByUserId = null,
+        string? explanation = null,
+        bool isVisibleToCitizen = false)
     {
         if (caseId == Guid.Empty)
         {
@@ -78,12 +95,26 @@ public sealed class CaseStatusHistory
                 "A status history record requires a status change.");
         }
 
+        var normalizedExplanation = string.IsNullOrWhiteSpace(explanation)
+            ? null
+            : explanation.Trim();
+
+        if (normalizedExplanation is { Length: > MaximumExplanationLength })
+        {
+            throw new ArgumentException(
+                $"The status explanation must not exceed " +
+                $"{MaximumExplanationLength} characters.",
+                nameof(explanation));
+        }
+
         return new CaseStatusHistory(
             caseId,
             organizationId,
             previousStatus,
             newStatus,
             changedAt,
-            changedByUserId);
+            changedByUserId,
+            normalizedExplanation,
+            normalizedExplanation is not null && isVisibleToCitizen);
     }
 }

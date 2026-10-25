@@ -285,6 +285,11 @@ export async function login(
     )
   }
 
+  // The pre-sign-in token was issued for the anonymous identity. Anti-forgery
+  // tokens are bound to the authenticated principal, so the first mutation
+  // after sign-in must request a fresh pair instead of triggering a retry.
+  clearCsrfToken()
+
   if (!canUsePortal(user, portal)) {
     await logout()
 

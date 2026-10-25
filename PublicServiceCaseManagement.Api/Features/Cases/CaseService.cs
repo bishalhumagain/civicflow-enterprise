@@ -144,10 +144,15 @@ public sealed class CaseService(
             .Where(history => history.CaseId == caseId &&
                               history.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
+        var updates = await dbContext.CaseUpdates
+            .Where(update => update.CaseId == caseId &&
+                             update.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
 
         dbContext.CaseDocuments.RemoveRange(documents);
         dbContext.CaseStatusHistories.RemoveRange(statusHistory);
         dbContext.CaseAssignmentHistories.RemoveRange(assignmentHistory);
+        dbContext.CaseUpdates.RemoveRange(updates);
         dbContext.Cases.Remove(caseEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -200,7 +205,9 @@ public sealed class CaseService(
         CaseStatus newStatus,
         Guid? changedByUserId = null,
         Guid? authorizedStaffMemberId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? explanation = null,
+        bool explanationVisibleToCitizen = false)
     {
         var caseEntity = await dbContext.Cases
             .SingleOrDefaultAsync(c =>
@@ -234,7 +241,9 @@ public sealed class CaseService(
             previousStatus,
             caseEntity.Status,
             changedAt,
-            changedByUserId);
+            changedByUserId,
+            explanation,
+            explanationVisibleToCitizen);
 
         dbContext.CaseStatusHistories.Add(history);
 
@@ -243,8 +252,11 @@ public sealed class CaseService(
             await notificationOutbox.EnqueueAsync(
                 caseEntity.SubmittedByUserId.Value,
                 NotificationTypes.CaseStatusChanged,
-                "Case update",
-                "There is an update to your case.",
+                "Case status updated",
+                history.IsVisibleToCitizen && history.Explanation is { } visible
+                    ? $"Your case moved to {caseEntity.Status}: " +
+                      TruncateNotificationMessage(visible, 400)
+                    : $"Your case moved to {caseEntity.Status}.",
                 "Case",
                 caseEntity.Id,
                 $"case-status:{history.Id}",
@@ -503,6 +515,265 @@ public sealed class CaseService(
             organizationId,
             caseId,
             cancellationToken);
+    }
+
+    public async Task<CaseUpdate?> AddUpdateAsync(
+        Guid caseId,
+        Guid organizationId,
+        CaseUpdateKind kind,
+        string message,
+        Guid authorUserId,
+        Guid? authorizedStaffMemberId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (kind is not (CaseUpdateKind.PublicUpdate
+            or CaseUpdateKind.InformationRequest
+            or CaseUpdateKind.InternalNote))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(kind),
+                "Staff can add public updates, information requests, and " +
+                "internal notes.");
+        }
+
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(
+                c => c.Id == caseId &&
+                     c.OrganizationId == organizationId &&
+                     (authorizedStaffMemberId == null ||
+                      (c.AssignedToStaffMemberId == authorizedStaffMemberId &&
+                       c.AssignedRole == CaseAssignmentRole.CaseWorker)),
+                cancellationToken);
+
+        if (caseEntity is null)
+        {
+            return null;
+        }
+
+        if (caseEntity.Status is CaseStatus.Closed or CaseStatus.Rejected)
+        {
+            throw new InvalidOperationException(
+                $"A case in {caseEntity.Status} status cannot receive new updates.");
+        }
+
+        var createdAt = DateTimeOffset.UtcNow;
+        CaseStatusHistory? history = null;
+
+        if (kind == CaseUpdateKind.InformationRequest &&
+            caseEntity.Status != CaseStatus.AwaitingInformation)
+        {
+            var previousStatus = caseEntity.Status;
+
+            caseEntity.ChangeStatus(CaseStatus.AwaitingInformation, createdAt);
+            history = CaseStatusHistory.Create(
+                caseEntity.Id,
+                caseEntity.OrganizationId,
+                previousStatus,
+                caseEntity.Status,
+                createdAt,
+                authorUserId,
+                "Additional information was requested.",
+                isVisibleToCitizen: true);
+
+            dbContext.CaseStatusHistories.Add(history);
+        }
+
+        var update = CaseUpdate.Create(
+            caseEntity.Id,
+            caseEntity.OrganizationId,
+            kind,
+            message,
+            authorUserId,
+            createdAt);
+
+        dbContext.CaseUpdates.Add(update);
+
+        if (update.IsVisibleToCitizen && caseEntity.SubmittedByUserId.HasValue)
+        {
+            await notificationOutbox.EnqueueAsync(
+                caseEntity.SubmittedByUserId.Value,
+                kind == CaseUpdateKind.InformationRequest
+                    ? NotificationTypes.CaseInformationRequested
+                    : NotificationTypes.CaseUpdateAdded,
+                kind == CaseUpdateKind.InformationRequest
+                    ? "Information requested"
+                    : "New case update",
+                kind == CaseUpdateKind.InformationRequest
+                    ? "Your case team needs more information. Open your case to respond."
+                    : "A new update was added to your case.",
+                "Case",
+                caseEntity.Id,
+                $"case-update:{update.Id}",
+                organizationId,
+                update.Id.ToString("N"),
+                cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = kind switch
+                {
+                    CaseUpdateKind.InformationRequest =>
+                        AuditActions.CaseInformationRequested,
+                    CaseUpdateKind.InternalNote => AuditActions.CaseNoteAdded,
+                    _ => AuditActions.CaseUpdatePublished
+                },
+                OrganizationId = organizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details =
+                    $"{caseEntity.ReferenceNumber} {kind} " +
+                    $"(visible to citizen: {update.IsVisibleToCitizen})"
+            },
+            cancellationToken);
+
+        return update;
+    }
+
+    public async Task<CaseUpdate?> AddCitizenResponseAsync(
+        Guid caseId,
+        Guid citizenUserId,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        var caseEntity = await dbContext.Cases
+            .SingleOrDefaultAsync(
+                c => c.Id == caseId &&
+                     c.SubmittedByUserId == citizenUserId,
+                cancellationToken);
+
+        if (caseEntity is null)
+        {
+            return null;
+        }
+
+        if (caseEntity.Status is CaseStatus.Closed or CaseStatus.Rejected)
+        {
+            throw new InvalidOperationException(
+                $"A case in {caseEntity.Status} status cannot receive new updates.");
+        }
+
+        var createdAt = DateTimeOffset.UtcNow;
+        CaseStatusHistory? history = null;
+
+        if (caseEntity.Status == CaseStatus.AwaitingInformation)
+        {
+            caseEntity.ChangeStatus(CaseStatus.UnderReview, createdAt);
+            history = CaseStatusHistory.Create(
+                caseEntity.Id,
+                caseEntity.OrganizationId,
+                CaseStatus.AwaitingInformation,
+                caseEntity.Status,
+                createdAt,
+                citizenUserId,
+                "Citizen provided the requested information.",
+                isVisibleToCitizen: true);
+
+            dbContext.CaseStatusHistories.Add(history);
+        }
+
+        var update = CaseUpdate.Create(
+            caseEntity.Id,
+            caseEntity.OrganizationId,
+            CaseUpdateKind.CitizenResponse,
+            message,
+            citizenUserId,
+            createdAt);
+
+        dbContext.CaseUpdates.Add(update);
+
+        if (caseEntity.AssignedToStaffMemberId is { } assignedStaffMemberId)
+        {
+            foreach (var watcherUserId in await GetAssignedStaffWatcherUserIdsAsync(
+                         caseEntity.OrganizationId,
+                         assignedStaffMemberId,
+                         cancellationToken))
+            {
+                await notificationOutbox.EnqueueAsync(
+                    watcherUserId,
+                    NotificationTypes.CaseCitizenResponded,
+                    "Citizen response received",
+                    "The citizen added information to a case you are handling.",
+                    "Case",
+                    caseEntity.Id,
+                    $"case-citizen-response:{update.Id}:user:{watcherUserId}",
+                    caseEntity.OrganizationId,
+                    update.Id.ToString("N"),
+                    cancellationToken);
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Case,
+                Action = AuditActions.CaseCitizenResponded,
+                OrganizationId = caseEntity.OrganizationId,
+                EntityType = "Case",
+                EntityId = caseEntity.Id.ToString(),
+                Details = $"{caseEntity.ReferenceNumber} citizen response"
+            },
+            cancellationToken);
+
+        return update;
+    }
+
+    public async Task<IReadOnlyList<CaseUpdate>> GetUpdatesAsync(
+        Guid caseId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.CaseUpdates
+            .AsNoTracking()
+            .Where(update =>
+                update.CaseId == caseId &&
+                update.OrganizationId == organizationId)
+            .OrderBy(update => update.CreatedAt)
+            .ThenBy(update => update.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static string TruncateNotificationMessage(
+        string message,
+        int maximumLength) =>
+        message.Length <= maximumLength
+            ? message
+            : message[..(maximumLength - 3)] + "...";
+
+    private async Task<IReadOnlyList<Guid>> GetAssignedStaffWatcherUserIdsAsync(
+        Guid organizationId,
+        Guid assignedStaffMemberId,
+        CancellationToken cancellationToken)
+    {
+        var assignedStaffEmail = await dbContext.StaffMembers
+            .AsNoTracking()
+            .Where(staff => staff.Id == assignedStaffMemberId)
+            .Select(staff => staff.Email)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(assignedStaffEmail))
+        {
+            return Array.Empty<Guid>();
+        }
+
+        return await (
+            from membership in dbContext.OrganizationMemberships
+            join user in dbContext.ApplicationUsers
+                on membership.UserId equals user.Id
+            where membership.OrganizationId == organizationId &&
+                  membership.IsActive &&
+                  user.IsActive &&
+                  user.Email != null &&
+                  user.Email.ToUpper() == assignedStaffEmail.ToUpper()
+            select user.Id)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<CaseStatusHistory>> GetStatusHistoryAsync(

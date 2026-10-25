@@ -340,7 +340,9 @@ public sealed class CasesController(
                 request.NewStatus,
                 applicationUserId.Value,
                 authorizedStaffMemberId,
-                cancellationToken);
+                cancellationToken,
+                request.Explanation,
+                request.ExplanationVisibleToCitizen);
 
             if (caseEntity is null)
                 return NotFound();
@@ -394,8 +396,109 @@ public sealed class CasesController(
             item.PreviousStatus,
             item.NewStatus,
             item.ChangedAt,
-            item.ChangedByUserId
+            item.ChangedByUserId,
+            item.Explanation,
+            item.IsVisibleToCitizen
         }));
+    }
+
+    [HttpPost("{id:guid}/updates")]
+    public async Task<ActionResult<CaseUpdateResponse>> AddUpdate(
+        Guid id,
+        [FromBody] AddCaseUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        if (!await CanManageCasesAsync(cancellationToken))
+            return Forbid();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+        if (organizationId is null)
+            return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+        if (!await CanEditCaseAsync(existingCase, cancellationToken))
+            return Forbid();
+
+        var applicationUserId = await organizationContext
+            .GetApplicationUserIdAsync(cancellationToken);
+        if (applicationUserId is null)
+            return Forbid();
+
+        var authorizedStaffMemberId =
+            await IsOrganizationAdminAsync(cancellationToken)
+                ? null
+                : await GetCurrentStaffMemberIdAsync(
+                    organizationId.Value,
+                    cancellationToken);
+
+        try
+        {
+            var update = await caseService.AddUpdateAsync(
+                id,
+                organizationId.Value,
+                request.Kind,
+                request.Message,
+                applicationUserId.Value,
+                authorizedStaffMemberId,
+                cancellationToken);
+
+            if (update is null)
+                return NotFound();
+
+            return CreatedAtAction(
+                nameof(GetUpdates),
+                new { id },
+                ToUpdateResponse(update));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new { error = "The update kind is invalid." });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/updates")]
+    public async Task<IActionResult> GetUpdates(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!businessEndpointAccess.IsEnabled)
+            return NotFound();
+
+        var organizationId = await organizationContext.GetOrganizationIdAsync(
+            cancellationToken);
+        if (organizationId is null)
+            return Forbid();
+
+        var existingCase = await GetAccessibleCaseAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+        if (existingCase is null)
+            return NotFound();
+
+        var updates = await caseService.GetUpdatesAsync(
+            id,
+            organizationId.Value,
+            cancellationToken);
+
+        return Ok(updates.Select(ToUpdateResponse).ToList());
     }
 
     [HttpPatch("{id:guid}/assignment")]
@@ -499,6 +602,7 @@ public sealed class CasesController(
     public async Task<ActionResult<CaseDocumentResponse>> UploadDocument(
         Guid id,
         IFormFile file,
+        [FromForm] bool? visibleToCitizen,
         CancellationToken cancellationToken)
     {
         if (!businessEndpointAccess.IsEnabled)
@@ -540,7 +644,8 @@ public sealed class CasesController(
                 file,
                 cancellationToken,
                 applicationUserId.Value,
-                authorizedStaffMemberId);
+                authorizedStaffMemberId,
+                visibleToCitizen ?? false);
 
             return CreatedAtAction(
                 nameof(GetDocument),
@@ -646,6 +751,16 @@ public sealed class CasesController(
         }
     }
 
+    private static CaseUpdateResponse ToUpdateResponse(CaseUpdate update) =>
+        new(
+            update.Id,
+            update.CaseId,
+            update.Kind,
+            update.Message,
+            update.IsVisibleToCitizen,
+            update.AuthorUserId,
+            update.CreatedAt);
+
     private static CaseDocumentResponse ToDocumentResponse(
         Domain.Cases.CaseDocument document) =>
         new(
@@ -655,7 +770,8 @@ public sealed class CasesController(
             document.ContentType,
             document.SizeBytes,
             document.Sha256Hash,
-            document.UploadedAt);
+            document.UploadedAt,
+            document.IsVisibleToCitizen);
 
     private async Task<bool> CanManageCasesAsync(
         CancellationToken cancellationToken)

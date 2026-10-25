@@ -15,7 +15,8 @@ public sealed class CaseDocument
         long sizeBytes,
         string sha256Hash,
         Guid? uploadedByUserId,
-        DateTimeOffset uploadedAt)
+        DateTimeOffset uploadedAt,
+        bool isVisibleToCitizen)
     {
         Id = Guid.NewGuid();
         CaseId = caseId;
@@ -27,6 +28,7 @@ public sealed class CaseDocument
         Sha256Hash = sha256Hash;
         UploadedByUserId = uploadedByUserId;
         UploadedAt = uploadedAt;
+        IsVisibleToCitizen = isVisibleToCitizen;
     }
 
     public Guid Id { get; private set; }
@@ -49,6 +51,17 @@ public sealed class CaseDocument
 
     public DateTimeOffset UploadedAt { get; private set; }
 
+    /// <summary>
+    /// Staff-only documents remain hidden from the citizen portal. Citizen
+    /// uploads and documents explicitly shared by staff are visible.
+    /// </summary>
+    public bool IsVisibleToCitizen { get; private set; }
+
+    public void SetCitizenVisibility(bool isVisibleToCitizen)
+    {
+        IsVisibleToCitizen = isVisibleToCitizen;
+    }
+
     public static CaseDocument Create(
         Guid caseId,
         Guid organizationId,
@@ -58,7 +71,8 @@ public sealed class CaseDocument
         long sizeBytes,
         string sha256Hash,
         Guid? uploadedByUserId,
-        DateTimeOffset uploadedAt)
+        DateTimeOffset uploadedAt,
+        bool isVisibleToCitizen = false)
     {
         if (caseId == Guid.Empty)
             throw new ArgumentException("Case ID is required.", nameof(caseId));
@@ -97,6 +111,7 @@ public sealed class CaseDocument
             sizeBytes,
             sha256Hash,
             uploadedByUserId,
-            uploadedAt);
+            uploadedAt,
+            isVisibleToCitizen);
     }
 }

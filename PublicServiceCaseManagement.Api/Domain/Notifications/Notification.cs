@@ -5,6 +5,9 @@ public static class NotificationTypes
     public const string CaseSubmitted = "CaseSubmitted";
     public const string CaseAssigned = "CaseAssigned";
     public const string CaseStatusChanged = "CaseStatusChanged";
+    public const string CaseUpdateAdded = "CaseUpdateAdded";
+    public const string CaseInformationRequested = "CaseInformationRequested";
+    public const string CaseCitizenResponded = "CaseCitizenResponded";
 }
 
 public static class NotificationDeliveryStatuses

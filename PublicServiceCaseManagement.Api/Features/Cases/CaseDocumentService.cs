@@ -18,7 +18,8 @@ public sealed class CaseDocumentService(
         IFormFile file,
         CancellationToken cancellationToken,
         Guid? uploadedByUserId = null,
-        Guid? authorizedStaffMemberId = null)
+        Guid? authorizedStaffMemberId = null,
+        bool isVisibleToCitizen = false)
     {
         var caseExists = await dbContext.Cases
             .AnyAsync(
@@ -51,7 +52,8 @@ public sealed class CaseDocumentService(
             storedFile.SizeBytes,
             storedFile.Sha256Hash,
             uploadedByUserId,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            isVisibleToCitizen);
 
         dbContext.CaseDocuments.Add(document);
 
@@ -78,6 +80,48 @@ public sealed class CaseDocumentService(
 
         return document;
     }
+
+    public async Task<IReadOnlyList<CaseDocument>> GetVisibleForCitizenAsync(
+        Guid caseId,
+        Guid citizenUserId,
+        CancellationToken cancellationToken)
+    {
+        var ownsCase = await dbContext.Cases
+            .AnyAsync(
+                item => item.Id == caseId &&
+                        item.SubmittedByUserId == citizenUserId,
+                cancellationToken);
+
+        if (!ownsCase)
+        {
+            throw new KeyNotFoundException("The case does not exist.");
+        }
+
+        return await dbContext.CaseDocuments
+            .AsNoTracking()
+            .Where(document =>
+                document.CaseId == caseId &&
+                document.IsVisibleToCitizen)
+            .OrderBy(document => document.UploadedAt)
+            .ThenBy(document => document.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<CaseDocument?> GetVisibleByIdForCitizenAsync(
+        Guid caseId,
+        Guid documentId,
+        Guid citizenUserId,
+        CancellationToken cancellationToken) =>
+        await dbContext.CaseDocuments
+            .AsNoTracking()
+            .Where(document =>
+                document.Id == documentId &&
+                document.CaseId == caseId &&
+                document.IsVisibleToCitizen &&
+                dbContext.Cases.Any(caseEntity =>
+                    caseEntity.Id == caseId &&
+                    caseEntity.SubmittedByUserId == citizenUserId))
+            .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<CaseDocument>> GetAllAsync(
         Guid organizationId,

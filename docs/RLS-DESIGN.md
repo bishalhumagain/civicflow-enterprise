@@ -17,13 +17,13 @@ maintained in [API Contract and Authorization Matrix](API-AUTHORIZATION.md).
 - [Application-Level Organization Predicates](#application-level-organization-predicates)
 - [Database Roles](#database-roles)
 - [Verification Results](#verification-results)
-- [Remaining Gap](#remaining-gap)
+- [Automated Coverage](#automated-coverage)
 
 ---
 
 ## Overview
 
-RLS is enabled for five tenant-owned operational tables by migration `20261019150000_AddTenantRowLevelSecurity`. The migration enables and forces RLS, so the table owner is subject to the policy and the runtime role cannot bypass it.
+RLS is enabled and forced for six tenant-owned operational tables. Migration `20261019150000_AddTenantRowLevelSecurity` established the baseline for cases, status/assignment history, documents, and staff. Migration `20261024123000_AddCitizenCaseTrackingRls` added the first citizen owner branch for cases and status history. Migration `20261025070100_AddCitizenTrackingRls` adds `case_updates` and extends the status-history, document, and staff policies so the citizen tracking projection and response flow remain owner-scoped. The table owner is subject to the policies, and the runtime role cannot bypass them.
 
 RLS is a **database-level enforcement layer** that ensures queries on tenant-owned tables only return rows matching the current organization context. It works alongside — not instead of — application-level authorization checks.
 
@@ -33,13 +33,14 @@ RLS is a **database-level enforcement layer** that ensures queries on tenant-own
 
 | Table | Purpose | RLS Policy |
 |---|---|---|
-| `cases` | Service requests/issues | `current_setting('civicflow.organization_id', true) = "OrganizationId"::text` |
-| `case_status_history` | Status change audit trail | Same, on `OrganizationId` |
+| `cases` | Service requests/issues | Staff organization context, or the submitting citizen's own case |
+| `case_status_history` | Status change audit trail | Staff organization context, or the submitting citizen's own case |
 | `case_assignment_history` | Assignment audit trail | Same, on `OrganizationId` |
-| `case_documents` | Uploaded case documents | Same, on `OrganizationId` |
-| `staff_members` | Organization staff | Same, on `OrganizationId` |
+| `case_documents` | Uploaded case documents | Staff organization context, or the submitting citizen's own case when the document is citizen-visible |
+| `staff_members` | Organization staff | Staff organization context; the submitting citizen may read only the staff row assigned to their own case |
+| `case_updates` | Public updates, information requests, internal notes, and citizen responses | Staff organization context, or the submitting citizen's own case when the update is citizen-visible |
 
-All five tables carry an `OrganizationId` column that the RLS policy checks against the transaction-local `civicflow.organization_id` PostgreSQL setting.
+All six tables carry an `OrganizationId` column that the RLS policy checks against the transaction-local `civicflow.organization_id` PostgreSQL setting. Citizen self-service additionally sets `civicflow.user_id`; the owner-scoped clauses compare that setting with `cases.SubmittedByUserId`. For `case_updates` and `case_documents`, the row must also be marked `IsVisibleToCitizen`; internal notes and internal-only documents are invisible to the citizen even within their own case.
 
 ---
 
@@ -70,10 +71,11 @@ Organization and membership resolution intentionally occurs before the tenant tr
 1. **Authenticate first** — Resolve the application user and active membership in application code.
 2. **Set context after resolution** — Set `civicflow.organization_id` with `set_config(..., true)` only after authentication and membership resolution succeed.
 3. **Read the transaction-local value** — Policies read the transaction-local setting, never the raw request header.
-4. **Execute within the request transaction** — Tenant queries and writes execute inside the same request transaction.
-5. **Clean up on commit/rollback** — `OrganizationTransactionMiddleware` completes the transaction context; pooled connections do not retain the `SET LOCAL` value.
-6. **Runtime role cannot bypass** — The runtime role cannot bypass RLS or alter policies.
-7. **Test edge cases** — Missing context, invalid context, cross-organization reads/writes, and connection-pool reuse must be tested.
+4. **Use a distinct citizen context** — Citizen self-service sets `civicflow.user_id` transaction-locally and derives the value from the authenticated principal, never from a request parameter or header.
+5. **Execute within the request transaction** — Tenant queries and writes execute inside the same request transaction.
+6. **Clean up on commit/rollback** — `OrganizationTransactionMiddleware` completes the transaction context; pooled connections do not retain the `SET LOCAL` values.
+7. **Runtime role cannot bypass** — The runtime role cannot bypass RLS or alter policies.
+8. **Test edge cases** — Missing context, invalid context, cross-organization and cross-citizen reads/writes, and connection-pool reuse must be tested.
 
 ---
 
@@ -89,7 +91,48 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-The same policy shape applies to all five protected tables. `FORCE ROW LEVEL SECURITY` ensures the table owner is also subject to the policy.
+The same organization-isolation shape applies to the baseline tables. `FORCE ROW LEVEL SECURITY` ensures the table owner is also subject to the policy.
+
+The citizen tracking tables add an owner-scoped branch. For example:
+
+```sql
+ALTER TABLE case_updates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE case_updates FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY case_updates_organization_isolation
+ON case_updates
+USING (
+  current_setting('civicflow.organization_id', true) = "OrganizationId"::text
+  OR (
+    current_setting('civicflow.user_id', true) IS NOT NULL
+    AND "IsVisibleToCitizen"
+    AND EXISTS (
+      SELECT 1
+      FROM cases citizen_case
+      WHERE citizen_case."Id" = "case_updates"."CaseId"
+        AND citizen_case."SubmittedByUserId"::text =
+            current_setting('civicflow.user_id', true)
+    )
+  )
+)
+WITH CHECK (
+  current_setting('civicflow.organization_id', true) = "OrganizationId"::text
+  OR (
+    current_setting('civicflow.user_id', true) IS NOT NULL
+    AND "IsVisibleToCitizen"
+    AND "AuthorUserId"::text = current_setting('civicflow.user_id', true)
+    AND EXISTS (
+      SELECT 1
+      FROM cases citizen_case
+      WHERE citizen_case."Id" = "case_updates"."CaseId"
+        AND citizen_case."SubmittedByUserId"::text =
+            current_setting('civicflow.user_id', true)
+    )
+  )
+);
+```
+
+A citizen context can therefore insert and read only its own visible rows. `case_status_history` allows the owner's own case so the automatic `AwaitingInformation` → `UnderReview` transition can be written; `case_documents` restricts the owner branch to `IsVisibleToCitizen`; and the `staff_members` owner branch is read-only and limited to the staff row assigned to the citizen's own case.
 
 ---
 
@@ -103,6 +146,8 @@ The application-level organization predicates (in `AuthenticatedOrganizationReso
 - Provide defense in depth alongside RLS
 
 `GET /api/organizations/me` returns only the caller's active memberships and is the frontend's source for organization selection. Organization dashboard statistics are derived from this validated context; a supplied organization ID is rejected when it does not match.
+
+Citizen tracking routes resolve the application user from `ClaimTypes.NameIdentifier` and call `BeginCitizenAsync(userId)` before querying tenant tables. The list, detail, response, and document queries are constrained to `SubmittedByUserId = caller`; the controller performs no client-supplied user lookup. A case owned by another citizen is indistinguishable from a missing case (`404`). Citizen routes do not accept `X-Organization-Id`.
 
 Case queries add resource-level authorization after organization resolution: organization administrators can query every case in their active organization, while staff list/detail/history/document endpoints are filtered to cases assigned to the authenticated user's active staff record. Assignment management is restricted to organization administrators. A CaseWorker assignment may update case details and status and upload documents; a Viewer assignment is read-only. Only an organization administrator can delete a case, and the endpoint requires explicit confirmation. These checks complement organization predicates and RLS, and identifier-based lookups use the same assigned-case filter to avoid leaking unassigned or co-worker cases.
 
@@ -130,14 +175,25 @@ The runtime role cannot:
 
 The live disposable verification confirmed:
 
-- RLS is enabled and forced on all five tenant-owned operational tables.
+- RLS is enabled and forced on all six tenant-owned operational tables, including `case_updates`.
 - The runtime role sees no rows without a context or with a different organization context.
 - A same-organization API case create/status update succeeds.
 - A cross-organization case request returns `403` without protected data.
-- The runtime role cannot create schema objects.
+- A citizen context sees only visible updates and documents on its own case; internal notes and internal-only documents return no rows.
+- A citizen context cannot read another citizen's case rows and cannot insert an update attributed to another author or into another citizen's case.
+- The runtime role cannot create schema objects or bypass the policies.
 
 ---
 
-## Remaining Gap
+## Automated Coverage
 
-A repeatable automated PostgreSQL test harness is not yet implemented. These checks are currently recorded as disposable live verification rather than CI tests. Converting them to repeatable integration tests is tracked in the [Delivery Roadmap](DELIVERY-ROADMAP.md) (item 2 and item 3).
+`CitizenCaseTrackingRlsTests` is an opt-in PostgreSQL suite (3 tests) that applies the real migrations and probes the policies with the admin and runtime roles. It is skipped unless both disposable connection strings are supplied:
+
+```bash
+export CIVICFLOW_TEST_POSTGRES_ADMIN='Host=127.0.0.1;Port=55433;Database=civicflow;Username=civicflow_admin;Password=<local-admin-password>'
+export CIVICFLOW_TEST_POSTGRES_RUNTIME='Host=127.0.0.1;Port=55433;Database=civicflow;Username=civicflow_runtime;Password=<local-runtime-password>'
+dotnet test PublicServiceCaseManagement.Tests/PublicServiceCaseManagement.Tests.csproj \
+  --configuration Release --filter FullyQualifiedName~CitizenCaseTrackingRlsTests
+```
+
+The suite asserts that migrations apply cleanly, that RLS is enabled and forced on the citizen tracking tables, that the citizen owner sees only visible rows, that the owner cannot write internal or cross-citizen rows, and that the runtime role cannot create schema objects. It targets a disposable database only and is not pointed at a shared or production instance. The remaining work is to wire the disposable PostgreSQL fixture into CI; until then the suite is opt-in and reported as skipped in the default `dotnet test` run.

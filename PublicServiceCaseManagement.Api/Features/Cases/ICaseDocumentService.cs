@@ -10,7 +10,19 @@ public interface ICaseDocumentService
         IFormFile file,
         CancellationToken cancellationToken,
         Guid? uploadedByUserId = null,
-        Guid? authorizedStaffMemberId = null);
+        Guid? authorizedStaffMemberId = null,
+        bool isVisibleToCitizen = false);
+
+    Task<IReadOnlyList<CaseDocument>> GetVisibleForCitizenAsync(
+        Guid caseId,
+        Guid citizenUserId,
+        CancellationToken cancellationToken);
+
+    Task<CaseDocument?> GetVisibleByIdForCitizenAsync(
+        Guid caseId,
+        Guid documentId,
+        Guid citizenUserId,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CaseDocument>> GetAllAsync(
         Guid organizationId,
