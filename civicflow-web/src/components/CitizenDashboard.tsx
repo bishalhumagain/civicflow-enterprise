@@ -256,18 +256,21 @@ export function CitizenDashboard({
 
             <div className="stat-grid citizen-stat-grid">
                 <StatCard
+                    icon={emailConfirmed ? 'check' : 'alert'}
                     label="Account status"
                     value={emailConfirmed ? 'Verified' : 'Pending'}
                     detail={emailConfirmed ? 'Email address confirmed' : 'Confirm your email address'}
                     tone={emailConfirmed ? 'green' : 'amber'}
                 />
                 <StatCard
+                    icon="profile"
                     label="Signed in as"
                     value={email}
                     detail="Citizen account"
                     tone="blue"
                 />
                 <StatCard
+                    icon="cases"
                     label="My requests"
                     value={loading ? '…' : formatNumber(totalCount)}
                     detail={statsDetail}

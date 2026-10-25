@@ -50,11 +50,7 @@ export function LoginForm({
   }
 
   return (
-    <form className="case-card create-form" noValidate onSubmit={handleSubmit}>
-      <h2>Sign In</h2>
-      <p className="muted">
-        Sign in with your CivicFlow account to continue.
-      </p>
+    <form className="case-card auth-card" noValidate onSubmit={handleSubmit}>
       {error !== null && (
         <div className="auth-error" role="alert">
           {error}
@@ -114,7 +110,7 @@ export function LoginForm({
           {passwordError}
         </span>
       )}
-      <div>
+      <div className="auth-actions">
         <button className="primary-button" type="submit" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </button>

@@ -300,18 +300,21 @@ export function PlatformCases() {
 
             <section aria-label="Platform case summary" className="stat-grid">
                 <StatCard
+                    icon="cases"
                     label="Total cases"
                     value={formatNumber(statistics?.totalCases ?? 0)}
                     detail="All organizations"
                     tone="blue"
                 />
                 <StatCard
+                    icon="activity"
                     label="Open cases"
                     value={formatNumber(openCases)}
                     detail="Not resolved, closed, or rejected"
                     tone="amber"
                 />
                 <StatCard
+                    icon="check"
                     label="Resolved"
                     value={formatNumber(
                         (statistics?.resolvedCases ?? 0) +
@@ -321,6 +324,7 @@ export function PlatformCases() {
                     tone="green"
                 />
                 <StatCard
+                    icon="alert"
                     label="Critical priority"
                     value={formatNumber(statistics?.criticalPriorityCases ?? 0)}
                     detail="Requires immediate attention"
@@ -330,8 +334,8 @@ export function PlatformCases() {
 
             <div className="case-layout platform-case-layout">
                 <section className="case-card">
-                    <div className="case-toolbar platform-case-toolbar">
-                        <div className="search">
+                    <div className="case-toolbar platform-case-toolbar data-grid-toolbar">
+                        <div className="search data-grid-search">
                             <Icon className="search-icon" name="search" />
                             <input
                                 aria-label="Search all platform cases"
@@ -342,13 +346,12 @@ export function PlatformCases() {
                             />
                         </div>
 
-                        <label className="platform-filter" htmlFor="platform-case-organization">
-                            Organization
-                        </label>
-                        <select
-                            id="platform-case-organization"
-                            aria-label="Organization"
-                            value={organizationId}
+                        <label className="data-grid-filter" htmlFor="platform-case-organization">
+                            <span>Organization</span>
+                            <select
+                                id="platform-case-organization"
+                                aria-label="Organization"
+                                value={organizationId}
                                 onChange={(event) => {
                                     setOrganizationId(event.target.value)
                                     setPage(1)
@@ -361,14 +364,14 @@ export function PlatformCases() {
                                     </option>
                                 ))}
                             </select>
-
-                        <label className="platform-filter" htmlFor="platform-case-status">
-                            Status
                         </label>
-                        <select
-                            id="platform-case-status"
-                            aria-label="Status"
-                            value={status}
+
+                        <label className="data-grid-filter" htmlFor="platform-case-status">
+                            <span>Status</span>
+                            <select
+                                id="platform-case-status"
+                                aria-label="Status"
+                                value={status}
                                 onChange={(event) => {
                                     setStatus(event.target.value as 'All' | CaseStatus)
                                     setPage(1)
@@ -381,14 +384,14 @@ export function PlatformCases() {
                                     </option>
                                 ))}
                             </select>
-
-                        <label className="platform-filter" htmlFor="platform-case-priority">
-                            Priority
                         </label>
-                        <select
-                            id="platform-case-priority"
-                            aria-label="Priority"
-                            value={priority}
+
+                        <label className="data-grid-filter" htmlFor="platform-case-priority">
+                            <span>Priority</span>
+                            <select
+                                id="platform-case-priority"
+                                aria-label="Priority"
+                                value={priority}
                                 onChange={(event) => {
                                     setPriority(event.target.value as 'All' | CasePriority)
                                     setPage(1)
@@ -399,14 +402,14 @@ export function PlatformCases() {
                                     <option key={option} value={option}>{option}</option>
                                 ))}
                             </select>
-
-                        <label className="platform-filter" htmlFor="platform-case-sort">
-                            Sort
                         </label>
-                        <select
-                            id="platform-case-sort"
-                            aria-label="Sort"
-                            value={sort}
+
+                        <label className="data-grid-filter" htmlFor="platform-case-sort">
+                            <span>Sort</span>
+                            <select
+                                id="platform-case-sort"
+                                aria-label="Sort"
+                                value={sort}
                                 onChange={(event) => {
                                     setSort(event.target.value)
                                     setPage(1)
@@ -418,14 +421,17 @@ export function PlatformCases() {
                                     </option>
                                 ))}
                             </select>
+                        </label>
 
-                        <button
-                            className="secondary-button"
-                            onClick={resetFilters}
-                            type="button"
-                        >
-                            Reset
-                        </button>
+                        <div className="data-grid-toolbar-actions">
+                            <button
+                                className="secondary-button"
+                                onClick={resetFilters}
+                                type="button"
+                            >
+                                Reset
+                            </button>
+                        </div>
                     </div>
 
                     <div className="section-heading platform-case-count">
@@ -453,15 +459,15 @@ export function PlatformCases() {
                             role="region"
                             tabIndex={0}
                         >
-                            <table>
+                            <table className="data-grid-table">
                                 <thead>
                                     <tr>
-                                        <th>CASE</th>
-                                        <th>ORGANIZATION</th>
-                                        <th>STATUS</th>
-                                        <th>PRIORITY</th>
-                                        <th>ASSIGNEE</th>
-                                        <th>UPDATED</th>
+                                        <th scope="col">CASE</th>
+                                        <th scope="col">ORGANIZATION</th>
+                                        <th scope="col">STATUS</th>
+                                        <th scope="col">PRIORITY</th>
+                                        <th scope="col">ASSIGNEE</th>
+                                        <th scope="col">UPDATED</th>
                                     </tr>
                                 </thead>
                                 <tbody>

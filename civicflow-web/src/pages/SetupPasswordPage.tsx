@@ -5,7 +5,7 @@ import {
   lookupInvitation,
   type InvitationDetails,
 } from "../auth"
-import { PublicFooter, PublicHeader } from "../components/PublicLayout"
+import { AuthPage } from "../components/AuthPage"
 import { formatDateTime } from "../utils/format"
 import {
   MAX_PASSWORD_LENGTH,
@@ -132,171 +132,167 @@ export function SetupPasswordPage({ onSignIn }: SetupPasswordPageProps) {
   }
 
   return (
-    <div className="landing-page">
-      <PublicHeader />
-      <main className="landing-main">
-        <section style={{ maxWidth: 480, margin: "0 auto", width: "100%" }}>
-          <h2 style={{ marginTop: 0 }}>Set up your password</h2>
+    <AuthPage
+      description="Choose a password to activate your staff account."
+      title="Set up your password"
+    >
+      {state === "loading" && (
+        <p aria-live="polite" className="muted empty-state">
+          Checking your invitation…
+        </p>
+      )}
 
-          {state === "loading" && (
-            <p className="muted">Checking your invitation…</p>
-          )}
+      {state === "unavailable" && (
+        <div className="case-card auth-card">
+          <div className="auth-error" role="alert">
+            {error ?? unavailableMessage}
+          </div>
+          <p className="muted">
+            Invitation links expire after a few days and can be used only
+            once. Contact the administrator who invited you to request a
+            new link.
+          </p>
+          <div className="auth-actions">
+            <button className="secondary-button" type="button" onClick={onSignIn}>
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      )}
 
-          {state === "unavailable" && (
-            <>
-              <div className="auth-error" role="alert">
-                {error ?? unavailableMessage}
-              </div>
-              <p className="muted">
-                Invitation links expire after a few days and can be used only
-                once. Contact the administrator who invited you to request a
-                new link.
-              </p>
-            </>
-          )}
+      {state === "accepted" && (
+        <div className="case-card auth-card">
+          <div className="auth-info" role="status">
+            {message ??
+              "Your account is ready. Sign in with the password you just chose."}
+          </div>
+          <div className="auth-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={onSignIn}
+            >
+              Continue to sign in
+            </button>
+          </div>
+        </div>
+      )}
 
-          {state === "accepted" && (
-            <>
-              <div className="auth-info" role="status">
-                {message ??
-                  "Your account is ready. Sign in with the password you just chose."}
-              </div>
-              <div style={{ marginTop: 16 }}>
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={onSignIn}
-                >
-                  Continue to sign in
-                </button>
-              </div>
-            </>
-          )}
+      {state === "ready" && details !== null && (
+        <>
+          <div className="case-card auth-card auth-summary">
+            <p className="eyebrow">YOU WERE INVITED TO JOIN</p>
+            <h2>{details.organizationName}</h2>
+            <p className="muted">
+              {details.fullName} · {details.email}
+            </p>
+            <p className="muted">
+              Role: {details.role} · Link expires{" "}
+              {formatDateTime(details.expiresAt)}
+            </p>
+          </div>
 
-          {state === "ready" && details !== null && (
-            <>
-              <div className="case-card" style={{ marginBottom: 16 }}>
-                <p className="eyebrow" style={{ marginTop: 0 }}>
-                  YOU WERE INVITED TO JOIN
-                </p>
-                <h3 style={{ margin: "4px 0" }}>{details.organizationName}</h3>
-                <p className="muted" style={{ margin: "4px 0" }}>
-                  {details.fullName} · {details.email}
-                </p>
-                <p className="muted" style={{ margin: "4px 0" }}>
-                  Role: {details.role} · Link expires{" "}
-                  {formatDateTime(details.expiresAt)}
-                </p>
-              </div>
-
-              <form
-                className="case-card create-form"
-                noValidate
-                onSubmit={handleSubmit}
+          <form className="case-card auth-card" noValidate onSubmit={handleSubmit}>
+            <label htmlFor="setup-password">
+              Password
+              <input
+                aria-describedby={
+                  passwordError !== null
+                    ? "setup-password-error setup-password-hint"
+                    : "setup-password-hint"
+                }
+                aria-invalid={passwordError !== null}
+                autoComplete="new-password"
+                disabled={loading}
+                id="setup-password"
+                maxLength={MAX_PASSWORD_LENGTH}
+                minLength={MIN_PASSWORD_LENGTH}
+                onBlur={() =>
+                  setTouched((current) => ({
+                    ...current,
+                    password: true,
+                  }))
+                }
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                  setError(null)
+                }}
+                ref={passwordRef}
+                required
+                type="password"
+                value={password}
+              />
+            </label>
+            {passwordError !== null && (
+              <span
+                className="field-error"
+                id="setup-password-error"
+                role="alert"
               >
-                <label htmlFor="setup-password">
-                  Password
-                  <input
-                    aria-describedby={
-                      passwordError !== null
-                        ? "setup-password-error setup-password-hint"
-                        : "setup-password-hint"
-                    }
-                    aria-invalid={passwordError !== null}
-                    autoComplete="new-password"
-                    disabled={loading}
-                    id="setup-password"
-                    maxLength={MAX_PASSWORD_LENGTH}
-                    minLength={MIN_PASSWORD_LENGTH}
-                    onBlur={() =>
-                      setTouched((current) => ({
-                        ...current,
-                        password: true,
-                      }))
-                    }
-                    onChange={(event) => {
-                      setPassword(event.target.value)
-                      setError(null)
-                    }}
-                    ref={passwordRef}
-                    required
-                    type="password"
-                    value={password}
-                  />
-                </label>
-                {passwordError !== null && (
-                  <span
-                    className="field-error"
-                    id="setup-password-error"
-                    role="alert"
-                  >
-                    {passwordError}
-                  </span>
-                )}
+                {passwordError}
+              </span>
+            )}
 
-                <label htmlFor="setup-confirm-password">
-                  Confirm password
-                  <input
-                    aria-describedby={
-                      confirmationError !== null
-                        ? "setup-confirm-password-error"
-                        : undefined
-                    }
-                    aria-invalid={confirmationError !== null}
-                    autoComplete="new-password"
-                    disabled={loading}
-                    id="setup-confirm-password"
-                    maxLength={MAX_PASSWORD_LENGTH}
-                    minLength={MIN_PASSWORD_LENGTH}
-                    onBlur={() =>
-                      setTouched((current) => ({
-                        ...current,
-                        confirmPassword: true,
-                      }))
-                    }
-                    onChange={(event) => {
-                      setConfirmPassword(event.target.value)
-                      setError(null)
-                    }}
-                    ref={confirmRef}
-                    required
-                    type="password"
-                    value={confirmPassword}
-                  />
-                </label>
-                {confirmationError !== null && (
-                  <span
-                    className="field-error"
-                    id="setup-confirm-password-error"
-                    role="alert"
-                  >
-                    {confirmationError}
-                  </span>
-                )}
-                <small className="muted" id="setup-password-hint">
-                  {PASSWORD_RULES} No password is ever emailed to you.
-                </small>
-                {error !== null && (
-                  <div className="auth-error" role="alert">
-                    {error}
-                  </div>
-                )}
-                <div>
-                  <button
-                    className="primary-button"
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading ? "Creating account…" : "Create account"}
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-        </section>
-      </main>
-      <PublicFooter />
-    </div>
+            <label htmlFor="setup-confirm-password">
+              Confirm password
+              <input
+                aria-describedby={
+                  confirmationError !== null
+                    ? "setup-confirm-password-error"
+                    : undefined
+                }
+                aria-invalid={confirmationError !== null}
+                autoComplete="new-password"
+                disabled={loading}
+                id="setup-confirm-password"
+                maxLength={MAX_PASSWORD_LENGTH}
+                minLength={MIN_PASSWORD_LENGTH}
+                onBlur={() =>
+                  setTouched((current) => ({
+                    ...current,
+                    confirmPassword: true,
+                  }))
+                }
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value)
+                  setError(null)
+                }}
+                ref={confirmRef}
+                required
+                type="password"
+                value={confirmPassword}
+              />
+            </label>
+            {confirmationError !== null && (
+              <span
+                className="field-error"
+                id="setup-confirm-password-error"
+                role="alert"
+              >
+                {confirmationError}
+              </span>
+            )}
+            <small className="muted" id="setup-password-hint">
+              {PASSWORD_RULES} No password is ever emailed to you.
+            </small>
+            {error !== null && (
+              <div className="auth-error" role="alert">
+                {error}
+              </div>
+            )}
+            <div className="auth-actions">
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? "Creating account…" : "Create account"}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+    </AuthPage>
   )
 }
 

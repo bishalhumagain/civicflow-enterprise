@@ -14,16 +14,34 @@ export function PlatformDashboard({
     organizationBreakdown: PlatformOrganizationCaseBreakdown[]
     loading: boolean
 }) {
+    const heading = (
+        <div className="page-heading dashboard-heading">
+            <div>
+                <p className="eyebrow">PLATFORM ADMINISTRATION</p>
+                <h1>Platform overview</h1>
+                <p className="muted">A live view of case activity and platform operations.</p>
+            </div>
+        </div>
+    )
+
     if (loading) {
-        return <p aria-live="polite" className="muted empty-state">Loading platform metrics…</p>
+        return (
+            <>
+                {heading}
+                <p aria-live="polite" className="muted empty-state">Loading platform metrics…</p>
+            </>
+        )
     }
 
     if (!statistics) {
         return (
-            <section className="case-card dashboard-unavailable" role="status">
-                <h1>Platform overview</h1>
-                <p className="muted">Platform metrics are unavailable. Use the error message above to retry.</p>
-            </section>
+            <>
+                {heading}
+                <section className="case-card dashboard-unavailable" role="status">
+                    <h2>Metrics unavailable</h2>
+                    <p className="muted">Platform metrics are unavailable. Use the error message above to retry.</p>
+                </section>
+            </>
         )
     }
 
@@ -34,23 +52,19 @@ export function PlatformDashboard({
 
     return (
         <>
-            <div className="page-heading dashboard-heading">
-                <div>
-                    <p className="eyebrow">PLATFORM ADMINISTRATION</p>
-                    <h1>Platform overview</h1>
-                    <p className="muted">A live view of case activity and platform operations.</p>
-                </div>
-            </div>
+            {heading}
 
             {overview && (
                 <section aria-label="Platform accounts and organizations" className="stat-grid platform-overview-grid">
-                    <StatCard label="Organizations" value={formatNumber(overview.organizationCount)}
+                    <StatCard icon="building" label="Organizations"
+                              value={formatNumber(overview.organizationCount)}
                               detail={`${formatNumber(overview.activeOrganizationCount)} active`} tone="blue"/>
-                    <StatCard label="User accounts" value={formatNumber(overview.userCount)}
+                    <StatCard icon="directory" label="User accounts" value={formatNumber(overview.userCount)}
                               detail={`${formatNumber(overview.activeUserCount)} active`} tone="green"/>
-                    <StatCard label="Staff memberships" value={formatNumber(overview.staffCount)}
+                    <StatCard icon="staff" label="Staff memberships" value={formatNumber(overview.staffCount)}
                               detail={`${formatNumber(overview.activeStaffCount)} active`} tone="purple"/>
-                    <StatCard label="Pending invitations" value={formatNumber(overview.pendingInvitationCount)}
+                    <StatCard icon="invite" label="Pending invitations"
+                              value={formatNumber(overview.pendingInvitationCount)}
                               detail={`${formatNumber(overview.invitationCount)} total invitations`} tone="amber"/>
                 </section>
             )}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type ApplicationError } from '../domain'
+import { Icon } from './Icon'
 import { formatDateTime } from '../utils/format'
 
 type ErrorFilter = 'all' | 'unhandled' | 'handled'
@@ -67,15 +68,15 @@ export function PlatformErrors({
           <p className="muted empty-state">No application errors match this filter.</p>
         ) : (
           <div aria-label="Application errors" className="table-wrap" role="region" tabIndex={0}>
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>ERROR</th>
-                  <th>REQUEST</th>
-                  <th>USER</th>
-                  <th>OCCURRED</th>
-                  <th>STATUS</th>
-                  <th>ACTION</th>
+                  <th scope="col">ERROR</th>
+                  <th scope="col">REQUEST</th>
+                  <th scope="col">USER</th>
+                  <th scope="col">OCCURRED</th>
+                  <th scope="col">STATUS</th>
+                  <th className="data-grid-actions-column" scope="col">ACTION</th>
                 </tr>
               </thead>
               <tbody>
@@ -103,7 +104,7 @@ export function PlatformErrors({
                         {error.isHandled ? 'Handled' : 'Unhandled'}
                       </span>
                     </td>
-                    <td>
+                    <td className="data-grid-actions-column">
                       {error.isHandled ? (
                         <span className="muted">—</span>
                       ) : (
@@ -113,7 +114,8 @@ export function PlatformErrors({
                           onClick={() => void onMarkAsHandled(error.id)}
                           type="button"
                         >
-                          Mark as handled
+                          <Icon className="button-icon" name="check" />
+                          <span>Mark as handled</span>
                         </button>
                       )}
                     </td>

@@ -8,6 +8,7 @@ import type {
   PlatformUserOrganization,
 } from '../domain'
 import { Icon } from './Icon'
+import { StatCard } from './StatCard'
 import { formatDate } from '../utils/format'
 import {
   MAX_ADDRESS_LENGTH,
@@ -777,43 +778,39 @@ export function PlatformDirectory({
 
       {overview && (
         <div className="stat-grid">
-          <div className="stat-card">
-            <span className="stat-icon blue"><Icon className="app-icon" name="building" /></span>
-            <div>
-              <span>Accounts</span>
-              <strong>{overview.userCount}</strong>
-              <small>{overview.activeUserCount} active</small>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon purple"><Icon className="app-icon" name="directory" /></span>
-            <div>
-              <span>Staff memberships</span>
-              <strong>{overview.staffCount}</strong>
-              <small>{overview.activeStaffCount} active</small>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon green"><Icon className="app-icon" name="staff" /></span>
-            <div>
-              <span>Organizations</span>
-              <strong>{overview.organizationCount}</strong>
-              <small>{overview.activeOrganizationCount} active</small>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon amber"><Icon className="app-icon" name="mail" /></span>
-            <div>
-              <span>Invitations</span>
-              <strong>{overview.invitationCount}</strong>
-              <small>{overview.pendingInvitationCount} pending</small>
-            </div>
-          </div>
+          <StatCard
+            detail={`${overview.activeUserCount} active`}
+            icon="directory"
+            label="Accounts"
+            tone="blue"
+            value={String(overview.userCount)}
+          />
+          <StatCard
+            detail={`${overview.activeStaffCount} active`}
+            icon="staff"
+            label="Staff memberships"
+            tone="purple"
+            value={String(overview.staffCount)}
+          />
+          <StatCard
+            detail={`${overview.activeOrganizationCount} active`}
+            icon="building"
+            label="Organizations"
+            tone="green"
+            value={String(overview.organizationCount)}
+          />
+          <StatCard
+            detail={`${overview.pendingInvitationCount} pending`}
+            icon="invite"
+            label="Invitations"
+            tone="amber"
+            value={String(overview.invitationCount)}
+          />
         </div>
       )}
 
       <section className="case-card admin-panel">
-        <div className="admin-row" style={{ marginBottom: 16 }}>
+        <div className="data-grid-tabs admin-row" style={{ marginBottom: 16 }}>
           <button
             className={tab === 'citizens' ? 'primary-button' : 'secondary-button'}
             onClick={() => switchTab('citizens')}
@@ -837,50 +834,60 @@ export function PlatformDirectory({
           </button>
         </div>
 
-        <div className="admin-row" style={{ marginBottom: 16 }}>
-          <input
-            aria-label="Search directory"
-            maxLength={200}
-            type="search"
-            placeholder="Search by name, email, phone, type, organization or role…"
-            value={searchQuery}
-            onChange={(event) => {
-              setSearchQuery(event.target.value)
-              setPage(1)
-            }}
-            style={{ flex: 1, minWidth: 240 }}
-          />
-          {tab === 'users' && (
-            <select
-              aria-label="Filter account type"
-              value={accountFilter}
+        <div className="data-grid-toolbar data-grid-toolbar--inset">
+          <label className="data-grid-search">
+            <Icon className="search-icon" name="search" />
+            <input
+              aria-label="Search directory"
+              maxLength={200}
+              type="search"
+              placeholder="Search by name, email, phone, type, organization or role…"
+              value={searchQuery}
               onChange={(event) => {
-                setAccountFilter(event.target.value as AccountFilter)
+                setSearchQuery(event.target.value)
+                setPage(1)
+              }}
+            />
+          </label>
+          {tab === 'users' && (
+            <label className="data-grid-filter">
+              <span>Account type</span>
+              <select
+                aria-label="Filter account type"
+                value={accountFilter}
+                onChange={(event) => {
+                  setAccountFilter(event.target.value as AccountFilter)
+                  setPage(1)
+                }}
+              >
+                <option value="all">All accounts</option>
+                <option value="citizens">Citizens only</option>
+                <option value="staff">Staff only</option>
+              </select>
+            </label>
+          )}
+          <label className="data-grid-filter">
+            <span>Sort by</span>
+            <select
+              aria-label="Sort by"
+              value={sortField}
+              onChange={(event) => {
+                setSortField(event.target.value as SortField)
                 setPage(1)
               }}
             >
-              <option value="all">All accounts</option>
-              <option value="citizens">Citizens only</option>
-              <option value="staff">Staff only</option>
+              {sortOptions}
             </select>
-          )}
-          <select
-            aria-label="Sort by"
-            value={sortField}
-            onChange={(event) => {
-              setSortField(event.target.value as SortField)
-              setPage(1)
-            }}
-          >
-            {sortOptions}
-          </select>
-          <button
-            className="secondary-button"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            type="button"
-          >
-            {sortOrder === 'asc' ? 'Ascending ↑' : 'Descending ↓'}
-          </button>
+          </label>
+          <div className="data-grid-toolbar-actions">
+            <button
+              className="secondary-button"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              type="button"
+            >
+              {sortOrder === 'asc' ? 'Ascending ↑' : 'Descending ↓'}
+            </button>
+          </div>
         </div>
 
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -901,19 +908,19 @@ export function PlatformDirectory({
         ) : tab === 'citizens' ? (
           <>
             <div aria-label="Platform citizens" className="table-wrap" role="region" tabIndex={0}>
-              <table>
+              <table className="data-grid-table">
                 <thead>
                   <tr>
-                    <th>NAME</th>
-                    <th>CONTACT</th>
-                    <th>ACCOUNT</th>
-                    <th>EMAIL</th>
-                    <th>NID</th>
-                    <th>GENDER</th>
-                    <th>AGE</th>
-                    <th>CREATED</th>
-                    <th>PROFILE UPDATED</th>
-                    <th>ACTIONS</th>
+                    <th scope="col">NAME</th>
+                    <th scope="col">CONTACT</th>
+                    <th scope="col">ACCOUNT</th>
+                    <th scope="col">EMAIL</th>
+                    <th scope="col">NID</th>
+                    <th scope="col">GENDER</th>
+                    <th scope="col">AGE</th>
+                    <th scope="col">CREATED</th>
+                    <th scope="col">PROFILE UPDATED</th>
+                    <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -942,7 +949,7 @@ export function PlatformDirectory({
                         <td>{citizen.age ?? '—'}</td>
                         <td>{formatDate(citizen.createdAt)}</td>
                         <td>{formatDate(citizen.updatedAt)}</td>
-                        <td>
+                        <td className="data-grid-actions-column">
                           <button
                             className="secondary-button"
                             disabled={busy !== null}
@@ -955,7 +962,11 @@ export function PlatformDirectory({
                             }
                             type="button"
                           >
-                            {editingCitizenId === citizen.userId ? 'Close' : 'Edit'}
+                            <Icon
+                              className="button-icon"
+                              name={editingCitizenId === citizen.userId ? 'x' : 'edit'}
+                            />
+                            <span>{editingCitizenId === citizen.userId ? 'Close' : 'Edit'}</span>
                           </button>
                           <button
                             className="secondary-button"
@@ -963,7 +974,11 @@ export function PlatformDirectory({
                             onClick={() => void handleToggleCitizen(citizen)}
                             type="button"
                           >
-                            {citizen.isActive ? 'Deactivate' : 'Activate'}
+                            <Icon
+                              className="button-icon"
+                              name={citizen.isActive ? 'x' : 'check'}
+                            />
+                            <span>{citizen.isActive ? 'Deactivate' : 'Activate'}</span>
                           </button>
                         </td>
                       </tr>
@@ -984,17 +999,17 @@ export function PlatformDirectory({
           </>
         ) : tab === 'staff' ? (
           <div aria-label="Platform staff accounts" className="table-wrap" role="region" tabIndex={0}>
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>NAME</th>
-                  <th>CONTACT</th>
-                  <th>ORGANIZATIONS &amp; ROLES</th>
-                  <th>ACCOUNT</th>
-                  <th>EMAIL</th>
-                  <th>PLATFORM ROLE</th>
-                  <th>CREATED</th>
-                  <th>ACTIONS</th>
+                  <th scope="col">NAME</th>
+                  <th scope="col">CONTACT</th>
+                  <th scope="col">ORGANIZATIONS &amp; ROLES</th>
+                  <th scope="col">ACCOUNT</th>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">PLATFORM ROLE</th>
+                  <th scope="col">CREATED</th>
+                  <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1038,7 +1053,7 @@ export function PlatformDirectory({
                       </td>
                       <td>{user.platformRole}</td>
                       <td>{formatDate(user.createdAt)}</td>
-                      <td>
+                      <td className="data-grid-actions-column">
                         <button
                           className="secondary-button"
                           disabled={busy !== null}
@@ -1049,7 +1064,11 @@ export function PlatformDirectory({
                           }
                           type="button"
                         >
-                          {editingStaffId === user.id ? 'Close' : 'Edit'}
+                          <Icon
+                            className="button-icon"
+                            name={editingStaffId === user.id ? 'x' : 'edit'}
+                          />
+                          <span>{editingStaffId === user.id ? 'Close' : 'Edit'}</span>
                         </button>
                         <button
                           className="secondary-button"
@@ -1057,7 +1076,11 @@ export function PlatformDirectory({
                           onClick={() => void handleToggleUser(user)}
                           type="button"
                         >
-                          {user.isActive ? 'Deactivate' : 'Activate'}
+                          <Icon
+                            className="button-icon"
+                            name={user.isActive ? 'x' : 'check'}
+                          />
+                          <span>{user.isActive ? 'Deactivate' : 'Activate'}</span>
                         </button>
                       </td>
                     </tr>
@@ -1077,18 +1100,18 @@ export function PlatformDirectory({
           </div>
         ) : (
           <div aria-label="All platform users" className="table-wrap" role="region" tabIndex={0}>
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>NAME</th>
-                  <th>CONTACT</th>
-                  <th>TYPE</th>
-                  <th>ACCOUNT</th>
-                  <th>EMAIL</th>
-                  <th>PLATFORM ROLE</th>
-                  <th>MEMBERSHIPS</th>
-                  <th>CREATED</th>
-                  <th>ACTIONS</th>
+                  <th scope="col">NAME</th>
+                  <th scope="col">CONTACT</th>
+                  <th scope="col">TYPE</th>
+                  <th scope="col">ACCOUNT</th>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">PLATFORM ROLE</th>
+                  <th scope="col">MEMBERSHIPS</th>
+                  <th scope="col">CREATED</th>
+                  <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1147,14 +1170,18 @@ export function PlatformDirectory({
                         )}
                       </td>
                       <td>{formatDate(user.createdAt)}</td>
-                      <td>
+                      <td className="data-grid-actions-column">
                         <button
                           className="secondary-button"
                           disabled={busy !== null}
                           onClick={() => void handleToggleUser(user)}
                           type="button"
                         >
-                          {user.isActive ? 'Deactivate' : 'Activate'}
+                          <Icon
+                            className="button-icon"
+                            name={user.isActive ? 'x' : 'check'}
+                          />
+                          <span>{user.isActive ? 'Deactivate' : 'Activate'}</span>
                         </button>
                       </td>
                     </tr>

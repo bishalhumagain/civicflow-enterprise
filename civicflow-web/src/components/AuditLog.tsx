@@ -75,64 +75,81 @@ export function AuditLog({
       <section className="case-card admin-panel">
         <h2>Filters</h2>
 
-        <form className="inline-form" onSubmit={handleSubmit}>
-          <select
-            aria-label="Filter by category"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          >
-            <option value="">All categories</option>
-            {auditCategories.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+        <form className="data-grid-toolbar data-grid-toolbar--inset" onSubmit={handleSubmit}>
+          <label className="data-grid-filter">
+            <span>Category</span>
+            <select
+              aria-label="Filter by category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+            >
+              <option value="">All categories</option>
+              {auditCategories.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
 
-          <input
-            aria-label="Filter by action"
-            placeholder="Action (for example case.created)"
-            value={action}
-            onChange={(event) => setAction(event.target.value)}
-          />
+          <label className="data-grid-filter">
+            <span>Action</span>
+            <input
+              aria-label="Filter by action"
+              placeholder="e.g. case.created"
+              value={action}
+              onChange={(event) => setAction(event.target.value)}
+            />
+          </label>
 
-          <input
-            aria-label="Search the audit trail"
-            placeholder="Search actor, entity or details"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <label className="data-grid-filter">
+            <span>Search</span>
+            <input
+              aria-label="Search the audit trail"
+              placeholder="Actor, entity, or details"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
 
-          <input
-            aria-label="From date"
-            type="date"
-            value={from}
-            onChange={(event) => setFrom(event.target.value)}
-          />
+          <label className="data-grid-filter">
+            <span>From</span>
+            <input
+              aria-label="From date"
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
 
-          <input
-            aria-label="To date"
-            type="date"
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-          />
+          <label className="data-grid-filter">
+            <span>To</span>
+            <input
+              aria-label="To date"
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </label>
 
-          <button className="primary-button" disabled={loading} type="submit">
-            <Icon className="button-icon" name="filter" />
-            <span>{loading ? 'Loading…' : 'Apply filters'}</span>
-          </button>
-          <button
-            className="secondary-button"
-            disabled={loading}
-            onClick={handleReset}
-            type="button"
-          >
-            <Icon className="button-icon" name="refresh" />
-            <span>Reset</span>
-          </button>
+          <div className="data-grid-toolbar-actions">
+            <button className="primary-button" disabled={loading} type="submit">
+              <Icon className="button-icon" name="filter" />
+              <span>{loading ? 'Loading…' : 'Apply filters'}</span>
+            </button>
+            <button
+              className="secondary-button"
+              disabled={loading}
+              onClick={handleReset}
+              type="button"
+            >
+              <Icon className="button-icon" name="refresh" />
+              <span>Reset</span>
+            </button>
+          </div>
         </form>
       </section>
 
       <section className="case-card">
-        <div className="section-heading" style={{ padding: '18px 18px 0' }}>
+        <div className="section-heading list-toolbar">
           <div>
             <h2>Events</h2>
             <span className="muted">
@@ -147,15 +164,15 @@ export function AuditLog({
           <p className="muted empty-state">{emptyMessage}</p>
         ) : (
           <div aria-label="Audit events" className="table-wrap" role="region" tabIndex={0}>
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>OCCURRED</th>
-                  <th>CATEGORY</th>
-                  <th>ACTION</th>
-                  <th>ACTOR</th>
-                  <th>ORGANIZATION</th>
-                  <th>DETAILS</th>
+                  <th scope="col">OCCURRED</th>
+                  <th scope="col">CATEGORY</th>
+                  <th scope="col">ACTION</th>
+                  <th scope="col">ACTOR</th>
+                  <th scope="col">ORGANIZATION</th>
+                  <th scope="col">DETAILS</th>
                 </tr>
               </thead>
               <tbody>

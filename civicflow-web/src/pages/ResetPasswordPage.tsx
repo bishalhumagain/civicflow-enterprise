@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react"
 import { resetPassword } from "../auth"
-import { PublicFooter, PublicHeader } from "../components/PublicLayout"
+import { AuthPage } from "../components/AuthPage"
 import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -60,92 +60,90 @@ export function ResetPasswordPage({ onSignIn }: ResetPasswordPageProps) {
   }
 
   return (
-    <div className="landing-page">
-      <PublicHeader />
-      <main className="landing-main">
-        <section style={{ maxWidth: 480, margin: "0 auto", width: "100%" }}>
-          <h2 style={{ marginTop: 0 }}>Choose a new password</h2>
-
-          {linkIncomplete ? (
-            <div className="auth-error" role="alert">
-              This password reset link is incomplete or invalid. Request a new
-              recovery link and try again.
-            </div>
-          ) : (
-            <form
-              className="case-card create-form"
-              noValidate
-              onSubmit={handleSubmit}
+    <AuthPage
+      description="Choose a strong password for your account."
+      title="Choose a new password"
+    >
+      {linkIncomplete ? (
+        <div className="case-card auth-card">
+          <div className="auth-error" role="alert">
+            This password reset link is incomplete or invalid. Request a new
+            recovery link and try again.
+          </div>
+          <div className="auth-actions">
+            <button className="secondary-button" type="button" onClick={onSignIn}>
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form className="case-card auth-card" noValidate onSubmit={handleSubmit}>
+          <label htmlFor="reset-new-password">
+            New password
+            <input
+              aria-describedby={
+                visiblePasswordError !== null
+                  ? "reset-password-error reset-password-hint"
+                  : "reset-password-hint"
+              }
+              aria-invalid={visiblePasswordError !== null}
+              autoComplete="new-password"
+              disabled={loading}
+              id="reset-new-password"
+              maxLength={MAX_PASSWORD_LENGTH}
+              minLength={MIN_PASSWORD_LENGTH}
+              onBlur={() => setTouched(true)}
+              onChange={(event) => {
+                setNewPassword(event.target.value)
+                setError(null)
+                setMessage(null)
+              }}
+              ref={passwordRef}
+              required
+              type="password"
+              value={newPassword}
+            />
+          </label>
+          {visiblePasswordError !== null && (
+            <span
+              className="field-error"
+              id="reset-password-error"
+              role="alert"
             >
-              <label htmlFor="reset-new-password">
-                New password
-                <input
-                  aria-describedby={
-                    visiblePasswordError !== null
-                      ? "reset-password-error reset-password-hint"
-                      : "reset-password-hint"
-                  }
-                  aria-invalid={visiblePasswordError !== null}
-                  autoComplete="new-password"
-                  disabled={loading}
-                  id="reset-new-password"
-                  maxLength={MAX_PASSWORD_LENGTH}
-                  minLength={MIN_PASSWORD_LENGTH}
-                  onBlur={() => setTouched(true)}
-                  onChange={(event) => {
-                    setNewPassword(event.target.value)
-                    setError(null)
-                    setMessage(null)
-                  }}
-                  ref={passwordRef}
-                  required
-                  type="password"
-                  value={newPassword}
-                />
-              </label>
-              {visiblePasswordError !== null && (
-                <span
-                  className="field-error"
-                  id="reset-password-error"
-                  role="alert"
-                >
-                  {visiblePasswordError}
-                </span>
-              )}
-              <small className="muted" id="reset-password-hint">
-                {PASSWORD_RULES}
-              </small>
-              {error !== null && (
-                <div className="auth-error" role="alert">
-                  {error}
-                </div>
-              )}
-              {message !== null && (
-                <div className="auth-info" role="status">
-                  {message}
-                </div>
-              )}
-              <div>
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={loading}
-                >
-                  {loading ? "Saving…" : "Reset password"}
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={onSignIn}
-                >
-                  Back to sign in
-                </button>
-              </div>
-            </form>
+              {visiblePasswordError}
+            </span>
           )}
-        </section>
-      </main>
-      <PublicFooter />
-    </div>
+          <small className="muted" id="reset-password-hint">
+            {PASSWORD_RULES}
+          </small>
+          {error !== null && (
+            <div className="auth-error" role="alert">
+              {error}
+            </div>
+          )}
+          {message !== null && (
+            <div className="auth-info" role="status">
+              {message}
+            </div>
+          )}
+          <div className="auth-actions">
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? "Saving…" : "Reset password"}
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onSignIn}
+            >
+              Back to sign in
+            </button>
+          </div>
+        </form>
+      )}
+    </AuthPage>
   )
 }

@@ -376,7 +376,7 @@ export function OrganizationAdministration({
     ]
 
     return (
-      <div className="admin-row" style={{ marginBottom: 16 }}>
+      <div className="data-grid-tabs admin-row" style={{ marginBottom: 16 }}>
         {tabs.map((entry) => (
           <button
             className={tab === entry.id ? 'primary-button' : 'secondary-button'}
@@ -458,15 +458,15 @@ export function OrganizationAdministration({
           <p className="muted empty-state">No organizations found.</p>
         ) : (
           <div aria-label="Organizations" className="table-wrap" role="region" tabIndex={0}>
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>NAME</th>
-                  <th>CODE</th>
-                  <th>TYPE</th>
-                  <th>STATUS</th>
-                  <th>CREATED</th>
-                  <th>ACTIONS</th>
+                  <th scope="col">NAME</th>
+                  <th scope="col">CODE</th>
+                  <th scope="col">TYPE</th>
+                  <th scope="col">STATUS</th>
+                  <th scope="col">CREATED</th>
+                  <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,7 +513,7 @@ export function OrganizationAdministration({
                         </td>
                         <td>{org.isActive ? 'Active' : 'Inactive'}</td>
                         <td>{formatDate(org.createdAt)}</td>
-                        <td>
+                        <td className="data-grid-actions-column">
                           <button
                             className="primary-button"
                             disabled={busy !== null}
@@ -550,7 +550,7 @@ export function OrganizationAdministration({
                           </span>
                         </td>
                         <td>{formatDate(org.createdAt)}</td>
-                        <td>
+                        <td className="data-grid-actions-column">
                           <button
                             className="secondary-button"
                             disabled={busy !== null}
@@ -577,7 +577,11 @@ export function OrganizationAdministration({
                                 onClick={() => void handleToggleOrganization(org)}
                                 type="button"
                               >
-                                {org.isActive ? 'Deactivate' : 'Activate'}
+                                <Icon
+                                  className="button-icon"
+                                  name={org.isActive ? 'x' : 'check'}
+                                />
+                                <span>{org.isActive ? 'Deactivate' : 'Activate'}</span>
                               </button>
                               <button
                                 className="secondary-button danger"
@@ -675,15 +679,15 @@ export function OrganizationAdministration({
             role="region"
             tabIndex={0}
           >
-            <table>
+            <table className="data-grid-table">
               <thead>
                 <tr>
-                  <th>NAME</th>
-                  <th>CODE</th>
-                  <th>ORGANIZATIONS</th>
-                  <th>STATUS</th>
-                  <th>CREATED</th>
-                  <th>ACTIONS</th>
+                  <th scope="col">NAME</th>
+                  <th scope="col">CODE</th>
+                  <th scope="col">ORGANIZATIONS</th>
+                  <th scope="col">STATUS</th>
+                  <th scope="col">CREATED</th>
+                  <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -715,7 +719,7 @@ export function OrganizationAdministration({
                           <td>{item.organizationCount}</td>
                           <td>{item.isActive ? 'Active' : 'Inactive'}</td>
                           <td>{formatDate(item.createdAt)}</td>
-                          <td>
+                          <td className="data-grid-actions-column">
                             <button
                               className="primary-button"
                               disabled={busy !== null}
@@ -760,7 +764,7 @@ export function OrganizationAdministration({
                             </span>
                           </td>
                           <td>{formatDate(item.createdAt)}</td>
-                          <td>
+                          <td className="data-grid-actions-column">
                             <button
                               className="secondary-button"
                               disabled={busy !== null}
@@ -777,7 +781,11 @@ export function OrganizationAdministration({
                                 onClick={() => void handleToggleType(item)}
                                 type="button"
                               >
-                                {item.isActive ? 'Deactivate' : 'Activate'}
+                                <Icon
+                                  className="button-icon"
+                                  name={item.isActive ? 'x' : 'check'}
+                                />
+                                <span>{item.isActive ? 'Deactivate' : 'Activate'}</span>
                               </button>
                             )}
                             {!isUncategorized && (
@@ -821,64 +829,71 @@ export function OrganizationAdministration({
               </div>
             </div>
             <form
-              className="inline-form"
+              className="data-grid-toolbar data-grid-toolbar--inset"
               onSubmit={(event) => {
                 event.preventDefault()
                 applyMembersFilter()
               }}
-              style={{ padding: '0 18px 18px' }}
             >
-              <select
-                aria-label="Filter by organization type"
-                value={filterTypeId}
-                onChange={(event) => {
-                  const nextTypeId = event.target.value
-                  setFilterTypeId(nextTypeId)
+              <label className="data-grid-filter">
+                <span>Organization type</span>
+                <select
+                  aria-label="Filter by organization type"
+                  value={filterTypeId}
+                  onChange={(event) => {
+                    const nextTypeId = event.target.value
+                    setFilterTypeId(nextTypeId)
 
-                  if (filterOrgId) {
-                    const stillValid = organizations.some((org) =>
-                      org.id === filterOrgId &&
-                      (nextTypeId === '' || org.organizationTypeId === nextTypeId),
-                    )
-                    if (!stillValid) setFilterOrgId('')
-                  }
-                }}
-              >
-                <option value="">All types</option>
-                {organizationTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Select organization"
-                value={filterOrgId}
-                onChange={(event) => setFilterOrgId(event.target.value)}
-              >
-                <option value="">Select an organization…</option>
-                {filteredOrganizations.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name} ({org.code})
-                  </option>
-                ))}
-              </select>
-              <button
-                className="primary-button"
-                disabled={busy !== null || !filterOrgId}
-                type="submit"
-              >
-                <Icon className="button-icon" name="search" />
-                <span>Apply</span>
-              </button>
-              <button
-                className="secondary-button"
-                disabled={busy !== null || (!selectedOrganizationId && !filterTypeId && !filterOrgId)}
-                onClick={resetMembersFilter}
-                type="button"
-              >
-                Reset
-              </button>
+                    if (filterOrgId) {
+                      const stillValid = organizations.some((org) =>
+                        org.id === filterOrgId &&
+                        (nextTypeId === '' || org.organizationTypeId === nextTypeId),
+                      )
+                      if (!stillValid) setFilterOrgId('')
+                    }
+                  }}
+                >
+                  <option value="">All types</option>
+                  {organizationTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="data-grid-filter">
+                <span>Organization</span>
+                <select
+                  aria-label="Select organization"
+                  value={filterOrgId}
+                  onChange={(event) => setFilterOrgId(event.target.value)}
+                >
+                  <option value="">Select an organization…</option>
+                  {filteredOrganizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name} ({org.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="data-grid-toolbar-actions">
+                <button
+                  className="primary-button"
+                  disabled={busy !== null || !filterOrgId}
+                  type="submit"
+                >
+                  <Icon className="button-icon" name="search" />
+                  <span>Apply</span>
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={busy !== null || (!selectedOrganizationId && !filterTypeId && !filterOrgId)}
+                  onClick={resetMembersFilter}
+                  type="button"
+                >
+                  Reset
+                </button>
+              </div>
             </form>
           </section>
         )}
@@ -900,14 +915,14 @@ export function OrganizationAdministration({
                 <p className="muted empty-state">No memberships found for this organization.</p>
               ) : (
                 <div aria-label="Organization memberships" className="table-wrap" role="region" tabIndex={0}>
-                  <table>
+                  <table className="data-grid-table">
                     <thead>
                       <tr>
-                        <th>USER ID</th>
-                        <th>ROLE</th>
-                        <th>STATUS</th>
-                        <th>CREATED</th>
-                        <th>ACTIONS</th>
+                        <th scope="col">USER ID</th>
+                        <th scope="col">ROLE</th>
+                        <th scope="col">STATUS</th>
+                        <th scope="col">CREATED</th>
+                        <th className="data-grid-actions-column" scope="col">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -933,14 +948,18 @@ export function OrganizationAdministration({
                             </span>
                           </td>
                           <td>{formatDate(membership.createdAt)}</td>
-                          <td>
+                          <td className="data-grid-actions-column">
                             <button
                               className="secondary-button"
                               disabled={busy !== null || loading}
                               onClick={() => void onUpdateMembership(membership, 'active')}
                               type="button"
                             >
-                              {membership.isActive ? 'Deactivate' : 'Activate'}
+                              <Icon
+                                className="button-icon"
+                                name={membership.isActive ? 'x' : 'check'}
+                              />
+                              <span>{membership.isActive ? 'Deactivate' : 'Activate'}</span>
                             </button>
                           </td>
                         </tr>

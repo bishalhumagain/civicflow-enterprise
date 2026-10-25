@@ -1,5 +1,5 @@
+import { AuthPage } from '../components/AuthPage'
 import { LoginForm, type LoginCredentials } from '../components/LoginForm'
-import { PublicFooter, PublicHeader } from '../components/PublicLayout'
 
 export type PlatformAdminLoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
@@ -23,33 +23,26 @@ export function PlatformAdminLoginPage({
   errorCode = null,
 }: PlatformAdminLoginPageProps) {
   return (
-    <div className="landing-page">
-      <PublicHeader />
-      <main className="landing-main">
-        <section style={{ maxWidth: 480, margin: '0 auto', width: '100%' }}>
-          <h2 style={{ marginTop: 0 }}>Platform Administrator Sign In</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            This portal is reserved for platform administrators. Organization
-            staff sign in through the organization portal, and citizens sign in
-            through the citizen portal.
-          </p>
-          <LoginForm
-            onSubmit={onSubmit}
-            loading={loading}
-            error={error}
-            errorCode={errorCode}
-          />
-          {onForgotPassword ? (
-            <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
-              <button className="link-button" type="button" onClick={onForgotPassword}>
-                Forgot your password?
-              </button>
-            </p>
-          ) : null}
-        </section>
-      </main>
-      <PublicFooter />
-    </div>
+    <AuthPage
+      description="This portal is reserved for platform administrators. Organization staff sign in through the organization portal, and citizens sign in through the citizen portal."
+      footer={
+        onForgotPassword ? (
+          <div className="auth-links">
+            <button className="link-button" type="button" onClick={onForgotPassword}>
+              Forgot your password?
+            </button>
+          </div>
+        ) : undefined
+      }
+      title="Platform Administrator Sign In"
+    >
+      <LoginForm
+        onSubmit={onSubmit}
+        loading={loading}
+        error={error}
+        errorCode={errorCode}
+      />
+    </AuthPage>
   )
 }
 

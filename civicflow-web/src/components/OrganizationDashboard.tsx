@@ -10,28 +10,40 @@ export function OrganizationDashboard({
     loading: boolean
     organizationName: string
 }) {
+    const heading = (
+        <div className="page-heading dashboard-heading">
+            <div>
+                <p className="eyebrow">ORGANIZATION WORKSPACE</p>
+                <h1>{organizationName} overview</h1>
+                <p className="muted">Live case statistics for the active organization.</p>
+            </div>
+        </div>
+    )
+
     if (loading) {
-        return <p aria-live="polite" className="muted empty-state">Loading organization metrics…</p>
+        return (
+            <>
+                {heading}
+                <p aria-live="polite" className="muted empty-state">Loading organization metrics…</p>
+            </>
+        )
     }
 
     if (!statistics) {
         return (
-            <section className="case-card dashboard-unavailable" role="status">
-                <h1>Organization overview</h1>
-                <p className="muted">Organization metrics are unavailable. Use the error message above to retry.</p>
-            </section>
+            <>
+                {heading}
+                <section className="case-card dashboard-unavailable" role="status">
+                    <h2>Metrics unavailable</h2>
+                    <p className="muted">Organization metrics are unavailable. Use the error message above to retry.</p>
+                </section>
+            </>
         )
     }
 
     return (
         <>
-            <div className="page-heading dashboard-heading">
-                <div>
-                    <p className="eyebrow">ORGANIZATION WORKSPACE</p>
-                    <h1>{organizationName} overview</h1>
-                    <p className="muted">Live case statistics for the active organization.</p>
-                </div>
-            </div>
+            {heading}
             <CaseAnalytics statistics={statistics}/>
         </>
     )

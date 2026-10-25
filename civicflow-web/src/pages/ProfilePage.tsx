@@ -279,24 +279,28 @@ export default function ProfilePage() {
 
       <div className="stat-grid profile-stat-grid">
         <StatCard
+          icon="profile"
           label="Account type"
           value={profile.accountType === 'Citizen' ? 'Citizen' : 'Organization staff'}
           detail={formatRoles(profile.roles)}
           tone="blue"
         />
         <StatCard
+          icon="mail"
           label="Email address"
           value={profile.email}
           detail={profile.emailConfirmed ? 'Verified' : 'Confirmation pending'}
           tone={profile.emailConfirmed ? 'green' : 'amber'}
         />
         <StatCard
+          icon="building"
           label="Workspace"
           value={profile.organizationName ?? 'Citizen services'}
           detail={profile.organizationRole ?? 'Personal account'}
           tone="purple"
         />
         <StatCard
+          icon="calendar"
           label="Last updated"
           value={formatDate(profile.updatedAt)}
           detail="Most recent change"

@@ -71,7 +71,8 @@ import {OrganizationDashboard} from './components/OrganizationDashboard'
 import {PlatformErrors} from './components/PlatformErrors'
 import {NotificationCenter} from './components/NotificationCenter'
 import {BackgroundJobsPage} from './components/BackgroundJobsPage'
-import {AppFooter, PublicFooter, PublicHeader} from './components/PublicLayout'
+import {AppFooter} from './components/PublicLayout'
+import {AuthPage} from './components/AuthPage'
 import {ProfileMenu} from './components/ProfileMenu'
 import {LandingPage} from './pages/LandingPage'
 import StaffLoginPage from './pages/StaffLoginPage'
@@ -1546,36 +1547,28 @@ function App() {
     // are returned to their own portal.
     if (route === 'staff-login' && !organizationAccess) {
         return (
-            <div className="landing-page">
-                <PublicHeader />
-                <main className="landing-main">
-                    <section style={{maxWidth: 520, margin: '0 auto', width: '100%'}}>
-                        <h2 style={{marginTop: 0}}>Organization workspace unavailable</h2>
-                        <p className="muted">
-                            This account is signed in as a citizen account. Citizen accounts
-                            only have access to the citizen portal, so the organization
-                            workspace, case management, and staff administration stay closed.
-                        </p>
-                        <div className="landing-card-actions">
-                            <button
-                                className="landing-button primary"
-                                onClick={() => {
-                                    setViewSelection('citizen-dashboard')
-                                    navigateTo(WORKSPACE_PATH)
-                                    setRoute('workspace')
-                                }}
-                                type="button"
-                            >
-                                Go to my dashboard
-                            </button>
-                            <button className="landing-button" onClick={handleSignOut} type="button">
-                                Sign out
-                            </button>
-                        </div>
-                    </section>
-                </main>
-                <PublicFooter />
-            </div>
+            <AuthPage
+                description="This account is signed in as a citizen account. Citizen accounts only have access to the citizen portal, so the organization workspace, case management, and staff administration stay closed."
+                title="Organization workspace unavailable"
+                width="wide"
+            >
+                <div className="auth-actions">
+                    <button
+                        className="primary-button"
+                        onClick={() => {
+                            setViewSelection('citizen-dashboard')
+                            navigateTo(WORKSPACE_PATH)
+                            setRoute('workspace')
+                        }}
+                        type="button"
+                    >
+                        Go to my dashboard
+                    </button>
+                    <button className="secondary-button" onClick={handleSignOut} type="button">
+                        Sign out
+                    </button>
+                </div>
+            </AuthPage>
         )
     }
 
@@ -1584,35 +1577,27 @@ function App() {
     // are told why and are returned to their own portal.
     if (route === 'platform-admin-login' && !platformAdminAccess) {
         return (
-            <div className="landing-page">
-                <PublicHeader />
-                <main className="landing-main">
-                    <section style={{maxWidth: 520, margin: '0 auto', width: '100%'}}>
-                        <h2 style={{marginTop: 0}}>Platform administration unavailable</h2>
-                        <p className="muted">
-                            This account is not a platform administrator. Platform
-                            administration is limited to super administrator accounts; staff
-                            use the organization portal and citizens use the citizen portal.
-                        </p>
-                        <div className="landing-card-actions">
-                            <button
-                                className="landing-button primary"
-                                onClick={() => {
-                                    navigateTo(WORKSPACE_PATH)
-                                    setRoute('workspace')
-                                }}
-                                type="button"
-                            >
-                                Go to my workspace
-                            </button>
-                            <button className="landing-button" onClick={handleSignOut} type="button">
-                                Sign out
-                            </button>
-                        </div>
-                    </section>
-                </main>
-                <PublicFooter />
-            </div>
+            <AuthPage
+                description="This account is not a platform administrator. Platform administration is limited to super administrator accounts; staff use the organization portal and citizens use the citizen portal."
+                title="Platform administration unavailable"
+                width="wide"
+            >
+                <div className="auth-actions">
+                    <button
+                        className="primary-button"
+                        onClick={() => {
+                            navigateTo(WORKSPACE_PATH)
+                            setRoute('workspace')
+                        }}
+                        type="button"
+                    >
+                        Go to my workspace
+                    </button>
+                    <button className="secondary-button" onClick={handleSignOut} type="button">
+                        Sign out
+                    </button>
+                </div>
+            </AuthPage>
         )
     }
 
@@ -2003,24 +1988,28 @@ function App() {
 
                                     <div className="stat-grid">
                                         <StatCard
+                                            icon="cases"
                                             label="Total cases"
                                             value={formatNumber(summaryTotalCases)}
                                             detail="Across this organization"
                                             tone="blue"
                                         />
                                         <StatCard
+                                            icon="eye"
                                             label="Needs review"
                                             value={formatNumber(summaryNeedsReview)}
                                             detail="Submitted or under review"
                                             tone="amber"
                                         />
                                         <StatCard
+                                            icon="activity"
                                             label="In progress"
                                             value={formatNumber(summaryInProgress)}
                                             detail="Active workflow"
                                             tone="purple"
                                         />
                                         <StatCard
+                                            icon="check"
                                             label="Resolved"
                                             value={formatNumber(summaryResolved)}
                                             detail="Resolved or closed"
@@ -2038,8 +2027,8 @@ function App() {
 
                                     <div className="case-layout">
                                         <section className="case-card">
-                                            <div className="case-toolbar">
-                                                <div className="search">
+                                            <div className="case-toolbar data-grid-toolbar">
+                                                <div className="search data-grid-search">
                                                     <Icon className="search-icon" name="search" />
                                                     <input
                                                         aria-label="Search cases"
@@ -2050,35 +2039,41 @@ function App() {
                                                     />
                                                 </div>
 
-                                                <select
-                                                    aria-label="Filter by status"
-                                                    value={selectedStatus}
-                                                    onChange={(event) => {
-                                                        setSelectedStatus(event.target.value as 'All' | CaseStatus)
-                                                        setCasePage(1)
-                                                    }}
-                                                >
-                                                    <option value="All">All statuses</option>
-                                                    {statusOptions.map((status) => (
-                                                        <option key={status}
-                                                                value={status}>{statusLabels[status]}</option>
-                                                    ))}
-                                                </select>
+                                                <label className="data-grid-filter">
+                                                    <span>Status</span>
+                                                    <select
+                                                        aria-label="Filter by status"
+                                                        value={selectedStatus}
+                                                        onChange={(event) => {
+                                                            setSelectedStatus(event.target.value as 'All' | CaseStatus)
+                                                            setCasePage(1)
+                                                        }}
+                                                    >
+                                                        <option value="All">All statuses</option>
+                                                        {statusOptions.map((status) => (
+                                                            <option key={status}
+                                                                    value={status}>{statusLabels[status]}</option>
+                                                        ))}
+                                                    </select>
+                                                </label>
 
-                                                <select
-                                                    aria-label="Filter by priority"
-                                                    value={selectedPriority}
-                                                    onChange={(event) => {
-                                                        setSelectedPriority(event.target.value as 'All' | CasePriority)
-                                                        setCasePage(1)
-                                                    }}
-                                                >
-                                                    <option value="All">All priorities</option>
-                                                    <option value="Critical">Critical</option>
-                                                    <option value="High">High</option>
-                                                    <option value="Normal">Normal</option>
-                                                    <option value="Low">Low</option>
-                                                </select>
+                                                <label className="data-grid-filter">
+                                                    <span>Priority</span>
+                                                    <select
+                                                        aria-label="Filter by priority"
+                                                        value={selectedPriority}
+                                                        onChange={(event) => {
+                                                            setSelectedPriority(event.target.value as 'All' | CasePriority)
+                                                            setCasePage(1)
+                                                        }}
+                                                    >
+                                                        <option value="All">All priorities</option>
+                                                        <option value="Critical">Critical</option>
+                                                        <option value="High">High</option>
+                                                        <option value="Normal">Normal</option>
+                                                        <option value="Low">Low</option>
+                                                    </select>
+                                                </label>
                                             </div>
 
                                             {loading ? (
@@ -2088,13 +2083,13 @@ function App() {
                                             ) : (
                                                 <div aria-label="Cases list" className="table-wrap" role="region"
                                                      tabIndex={0}>
-                                                    <table>
+                                                    <table className="data-grid-table">
                                                         <thead>
                                                         <tr>
-                                                            <th>CASE</th>
-                                                            <th>STATUS</th>
-                                                            <th>PRIORITY</th>
-                                                            <th>UPDATED</th>
+                                                            <th scope="col">CASE</th>
+                                                            <th scope="col">STATUS</th>
+                                                            <th scope="col">PRIORITY</th>
+                                                            <th scope="col">UPDATED</th>
                                                         </tr>
                                                         </thead>
                                                         <tbody>

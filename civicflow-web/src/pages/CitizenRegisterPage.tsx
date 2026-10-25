@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type RefObject } from "react"
 import { register } from "../auth"
-import { PublicFooter, PublicHeader } from "../components/PublicLayout"
+import { AuthPage } from "../components/AuthPage"
 import {
   MAX_EMAIL_LENGTH,
   MAX_IDENTIFIER_LENGTH,
@@ -194,222 +194,214 @@ export function CitizenRegisterPage({
   const passwordError = errorFor("password")
 
   return (
-    <div className="landing-page">
-      <PublicHeader />
-      <main className="landing-main">
-        <section style={{ maxWidth: 480, margin: "0 auto", width: "100%" }}>
-          <h2 style={{ marginTop: 0 }}>Create a Citizen Account</h2>
-          <form
-            className="case-card create-form"
-            noValidate
-            onSubmit={handleSubmit}
+    <AuthPage
+      description="Register to submit public service requests and follow their progress."
+      title="Create a Citizen Account"
+    >
+      <form className="case-card auth-card" noValidate onSubmit={handleSubmit}>
+        <label htmlFor="register-full-name">
+          Full name
+          <input
+            aria-describedby={
+              fullNameError ? "register-full-name-error" : undefined
+            }
+            aria-invalid={fullNameError !== null}
+            autoComplete="name"
+            disabled={loading}
+            id="register-full-name"
+            maxLength={MAX_NAME_LENGTH}
+            onBlur={() => markTouched("fullName")}
+            onChange={(event) => update("fullName", event.target.value)}
+            ref={fullNameRef}
+            required
+            value={form.fullName}
+          />
+        </label>
+        {fullNameError !== null && (
+          <span
+            className="field-error"
+            id="register-full-name-error"
+            role="alert"
           >
-            <label htmlFor="register-full-name">
-              Full name
-              <input
-                aria-describedby={
-                  fullNameError ? "register-full-name-error" : undefined
-                }
-                aria-invalid={fullNameError !== null}
-                autoComplete="name"
-                disabled={loading}
-                id="register-full-name"
-                maxLength={MAX_NAME_LENGTH}
-                onBlur={() => markTouched("fullName")}
-                onChange={(event) => update("fullName", event.target.value)}
-                ref={fullNameRef}
-                required
-                value={form.fullName}
-              />
-            </label>
-            {fullNameError !== null && (
-              <span
-                className="field-error"
-                id="register-full-name-error"
-                role="alert"
-              >
-                {fullNameError}
-              </span>
-            )}
+            {fullNameError}
+          </span>
+        )}
 
-            <label htmlFor="register-email">
-              Email
-              <input
-                aria-describedby={
-                  emailError ? "register-email-error" : undefined
-                }
-                aria-invalid={emailError !== null}
-                autoCapitalize="none"
-                autoComplete="email"
-                disabled={loading}
-                id="register-email"
-                inputMode="email"
-                maxLength={MAX_EMAIL_LENGTH}
-                onBlur={() => markTouched("email")}
-                onChange={(event) => update("email", event.target.value)}
-                ref={emailRef}
-                required
-                spellCheck={false}
-                type="email"
-                value={form.email}
-              />
-            </label>
-            {emailError !== null && (
-              <span className="field-error" id="register-email-error" role="alert">
-                {emailError}
-              </span>
-            )}
+        <label htmlFor="register-email">
+          Email
+          <input
+            aria-describedby={
+              emailError ? "register-email-error" : undefined
+            }
+            aria-invalid={emailError !== null}
+            autoCapitalize="none"
+            autoComplete="email"
+            disabled={loading}
+            id="register-email"
+            inputMode="email"
+            maxLength={MAX_EMAIL_LENGTH}
+            onBlur={() => markTouched("email")}
+            onChange={(event) => update("email", event.target.value)}
+            ref={emailRef}
+            required
+            spellCheck={false}
+            type="email"
+            value={form.email}
+          />
+        </label>
+        {emailError !== null && (
+          <span className="field-error" id="register-email-error" role="alert">
+            {emailError}
+          </span>
+        )}
 
-            <label htmlFor="register-phone">
-              Phone number
-              <input
-                aria-describedby={
-                  phoneError ? "register-phone-error" : undefined
-                }
-                aria-invalid={phoneError !== null}
-                autoComplete="tel"
-                disabled={loading}
-                id="register-phone"
-                inputMode="tel"
-                maxLength={MAX_PHONE_LENGTH}
-                onBlur={() => markTouched("phoneNumber")}
-                onChange={(event) =>
-                  update("phoneNumber", sanitizePhoneInput(event.target.value))
-                }
-                ref={phoneRef}
-                required
-                type="tel"
-                value={form.phoneNumber}
-              />
-            </label>
-            {phoneError !== null && (
-              <span className="field-error" id="register-phone-error" role="alert">
-                {phoneError}
-              </span>
-            )}
+        <label htmlFor="register-phone">
+          Phone number
+          <input
+            aria-describedby={
+              phoneError ? "register-phone-error" : undefined
+            }
+            aria-invalid={phoneError !== null}
+            autoComplete="tel"
+            disabled={loading}
+            id="register-phone"
+            inputMode="tel"
+            maxLength={MAX_PHONE_LENGTH}
+            onBlur={() => markTouched("phoneNumber")}
+            onChange={(event) =>
+              update("phoneNumber", sanitizePhoneInput(event.target.value))
+            }
+            ref={phoneRef}
+            required
+            type="tel"
+            value={form.phoneNumber}
+          />
+        </label>
+        {phoneError !== null && (
+          <span className="field-error" id="register-phone-error" role="alert">
+            {phoneError}
+          </span>
+        )}
 
-            <label htmlFor="register-citizenship">
-              Citizenship number
-              <input
-                aria-describedby={
-                  citizenshipError
-                    ? "register-citizenship-error"
-                    : undefined
-                }
-                aria-invalid={citizenshipError !== null}
-                autoCapitalize="characters"
-                disabled={loading}
-                id="register-citizenship"
-                maxLength={MAX_IDENTIFIER_LENGTH}
-                onBlur={() => markTouched("citizenshipNumber")}
-                onChange={(event) =>
-                  update(
-                    "citizenshipNumber",
-                    event.target.value.toUpperCase(),
-                  )
-                }
-                ref={citizenshipRef}
-                required
-                spellCheck={false}
-                value={form.citizenshipNumber}
-              />
-            </label>
-            {citizenshipError !== null && (
-              <span
-                className="field-error"
-                id="register-citizenship-error"
-                role="alert"
-              >
-                {citizenshipError}
-              </span>
-            )}
+        <label htmlFor="register-citizenship">
+          Citizenship number
+          <input
+            aria-describedby={
+              citizenshipError
+                ? "register-citizenship-error"
+                : undefined
+            }
+            aria-invalid={citizenshipError !== null}
+            autoCapitalize="characters"
+            disabled={loading}
+            id="register-citizenship"
+            maxLength={MAX_IDENTIFIER_LENGTH}
+            onBlur={() => markTouched("citizenshipNumber")}
+            onChange={(event) =>
+              update(
+                "citizenshipNumber",
+                event.target.value.toUpperCase(),
+              )
+            }
+            ref={citizenshipRef}
+            required
+            spellCheck={false}
+            value={form.citizenshipNumber}
+          />
+        </label>
+        {citizenshipError !== null && (
+          <span
+            className="field-error"
+            id="register-citizenship-error"
+            role="alert"
+          >
+            {citizenshipError}
+          </span>
+        )}
 
-            <label htmlFor="register-nid">
-              NID number
-              <input
-                aria-describedby={nidError ? "register-nid-error" : undefined}
-                aria-invalid={nidError !== null}
-                autoCapitalize="characters"
-                disabled={loading}
-                id="register-nid"
-                maxLength={MAX_IDENTIFIER_LENGTH}
-                onBlur={() => markTouched("nidNumber")}
-                onChange={(event) =>
-                  update("nidNumber", event.target.value.toUpperCase())
-                }
-                ref={nidRef}
-                required
-                spellCheck={false}
-                value={form.nidNumber}
-              />
-            </label>
-            {nidError !== null && (
-              <span className="field-error" id="register-nid-error" role="alert">
-                {nidError}
-              </span>
-            )}
+        <label htmlFor="register-nid">
+          NID number
+          <input
+            aria-describedby={nidError ? "register-nid-error" : undefined}
+            aria-invalid={nidError !== null}
+            autoCapitalize="characters"
+            disabled={loading}
+            id="register-nid"
+            maxLength={MAX_IDENTIFIER_LENGTH}
+            onBlur={() => markTouched("nidNumber")}
+            onChange={(event) =>
+              update("nidNumber", event.target.value.toUpperCase())
+            }
+            ref={nidRef}
+            required
+            spellCheck={false}
+            value={form.nidNumber}
+          />
+        </label>
+        {nidError !== null && (
+          <span className="field-error" id="register-nid-error" role="alert">
+            {nidError}
+          </span>
+        )}
 
-            <label htmlFor="register-password">
-              Password
-              <input
-                aria-describedby={
-                  passwordError
-                    ? "register-password-error register-password-hint"
-                    : "register-password-hint"
-                }
-                aria-invalid={passwordError !== null}
-                autoComplete="new-password"
-                disabled={loading}
-                id="register-password"
-                maxLength={MAX_PASSWORD_LENGTH}
-                minLength={MIN_PASSWORD_LENGTH}
-                onBlur={() => markTouched("password")}
-                onChange={(event) => update("password", event.target.value)}
-                ref={passwordRef}
-                required
-                type="password"
-                value={form.password}
-              />
-            </label>
-            {passwordError !== null && (
-              <span
-                className="field-error"
-                id="register-password-error"
-                role="alert"
-              >
-                {passwordError}
-              </span>
-            )}
-            <small className="muted" id="register-password-hint">
-              {PASSWORD_RULES}
-            </small>
+        <label htmlFor="register-password">
+          Password
+          <input
+            aria-describedby={
+              passwordError
+                ? "register-password-error register-password-hint"
+                : "register-password-hint"
+            }
+            aria-invalid={passwordError !== null}
+            autoComplete="new-password"
+            disabled={loading}
+            id="register-password"
+            maxLength={MAX_PASSWORD_LENGTH}
+            minLength={MIN_PASSWORD_LENGTH}
+            onBlur={() => markTouched("password")}
+            onChange={(event) => update("password", event.target.value)}
+            ref={passwordRef}
+            required
+            type="password"
+            value={form.password}
+          />
+        </label>
+        {passwordError !== null && (
+          <span
+            className="field-error"
+            id="register-password-error"
+            role="alert"
+          >
+            {passwordError}
+          </span>
+        )}
+        <small className="muted" id="register-password-hint">
+          {PASSWORD_RULES}
+        </small>
 
-            {error !== null && (
-              <div className="auth-error" role="alert">
-                {error}
-              </div>
-            )}
-            {info !== null && (
-              <div className="auth-info" role="status">
-                {info}
-              </div>
-            )}
-            <div>
-              <button className="primary-button" type="submit" disabled={loading}>
-                {loading ? "Creating account…" : "Register"}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={onSignIn}
-              >
-                I already have an account
-              </button>
-            </div>
-          </form>
-        </section>
-      </main>
-      <PublicFooter />
-    </div>
+        {error !== null && (
+          <div className="auth-error" role="alert">
+            {error}
+          </div>
+        )}
+        {info !== null && (
+          <div className="auth-info" role="status">
+            {info}
+          </div>
+        )}
+        <div className="auth-actions">
+          <button className="primary-button" type="submit" disabled={loading}>
+            {loading ? "Creating account…" : "Register"}
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onSignIn}
+          >
+            I already have an account
+          </button>
+        </div>
+      </form>
+    </AuthPage>
   )
 }

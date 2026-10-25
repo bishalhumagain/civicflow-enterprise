@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react'
 import { formatNumber } from '../utils/format'
 import {statusLabels, statusOptions, type CaseStatistics, type CaseStatus} from '../domain'
+import {StatCard} from './StatCard'
 
 const statusColors: Record<string, string> = {
     Submitted: 'var(--chart-slate)',
@@ -52,13 +53,17 @@ export function CaseAnalytics({statistics, scopeLabel = 'this organization'}: {
     return (
         <>
             <div className="stat-grid dashboard-stat-grid">
-                <SummaryCard label="Total cases" value={statistics.totalCases} detail={`Across ${scopeLabel}`}/>
-                <SummaryCard label="Active cases" value={Math.max(0, activeCases)}
-                             detail="Not yet resolved, closed, or rejected"/>
-                <SummaryCard label="Resolved this month" value={statistics.casesResolvedThisMonth}
-                             detail="Current calendar month"/>
-                <SummaryCard label="Created this month" value={statistics.casesCreatedThisMonth}
-                             detail="Current calendar month"/>
+                <StatCard icon="cases" label="Total cases" tone="blue"
+                          value={formatNumber(statistics.totalCases)} detail={`Across ${scopeLabel}`}/>
+                <StatCard icon="activity" label="Active cases" tone="amber"
+                          value={formatNumber(Math.max(0, activeCases))}
+                          detail="Not yet resolved, closed, or rejected"/>
+                <StatCard icon="check" label="Resolved this month" tone="green"
+                          value={formatNumber(statistics.casesResolvedThisMonth)}
+                          detail="Current calendar month"/>
+                <StatCard icon="plus" label="Created this month" tone="purple"
+                          value={formatNumber(statistics.casesCreatedThisMonth)}
+                          detail="Current calendar month"/>
             </div>
 
             <section className="analytics-grid" aria-label="Case analytics">
@@ -170,19 +175,6 @@ export function CaseAnalytics({statistics, scopeLabel = 'this organization'}: {
                 </article>
             </section>
         </>
-    )
-}
-
-function SummaryCard({label, value, detail}: { label: string; value: number; detail: string }) {
-    return (
-        <article className="stat-card">
-            <span className="summary-indicator" aria-hidden="true"/>
-            <div>
-                <span>{label}</span>
-                <strong>{formatNumber(value)}</strong>
-                <small>{detail}</small>
-            </div>
-        </article>
     )
 }
 

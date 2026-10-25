@@ -117,8 +117,17 @@ export function BackgroundJobsPage() {
           <p className="muted empty-state">No jobs found.</p>
         ) : (
           <div aria-label="Background jobs" className="table-wrap jobs-table" role="region" tabIndex={0}>
-            <table>
-              <thead><tr><th>TYPE / ENTITY</th><th>STATUS</th><th>ATTEMPTS</th><th>CREATED / UPDATED</th><th>DETAILS</th><th>ACTIONS</th></tr></thead>
+            <table className="data-grid-table">
+              <thead>
+                <tr>
+                  <th scope="col">TYPE / ENTITY</th>
+                  <th scope="col">STATUS</th>
+                  <th scope="col">ATTEMPTS</th>
+                  <th scope="col">CREATED / UPDATED</th>
+                  <th scope="col">DETAILS</th>
+                  <th className="data-grid-actions-column" scope="col">ACTIONS</th>
+                </tr>
+              </thead>
               <tbody>
                 {result.items.map((job) => (
                   <tr key={job.id}>
@@ -134,7 +143,7 @@ export function BackgroundJobsPage() {
                     <td>{job.attemptCount} / {job.maxAttempts}</td>
                     <td><span>{formatDateTime(job.createdAt)}</span><small>{job.lastAttemptAt ? formatDateTime(job.lastAttemptAt) : 'Not attempted'}</small></td>
                     <td>{job.errorCode && <><strong>{job.errorCode}</strong><span>{job.errorDetails}</span></>}</td>
-                    <td>
+                    <td className="data-grid-actions-column">
                       {job.status === 'Failed' && (
                         <button
                           className="secondary-button"
