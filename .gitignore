@@ -23,13 +23,3 @@ appsettings.json
 
 # Local release artifacts and detached signatures
 /artifacts/
-
-# Local agent/tool configuration
-.qoder/
-.devin/
-.vtcode/
-vtcode.toml
-skills/
-
-# Stakpak session files
-.stakpak/session*

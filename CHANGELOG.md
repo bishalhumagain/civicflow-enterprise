@@ -24,7 +24,7 @@
 
 ### Removed
 
-- Repository audit cleanup. Deleted unused frontend assets (`hero.png`, `react.svg`, `vite.svg`, `public/icons.svg`) and the tracked local assistant settings in `.qoder/`; `.qoder/` and `.devin/` are now gitignored. Removed API client wrappers that no view called (platform overview/users/staff/citizens, organization/membership/invitation helpers, citizen self-profile, and password change), the unused `ServerConfiguration` binding and its `Server` template block, and the corresponding unused template keys. Backend endpoints and supported behaviour are unchanged.
+- Repository audit cleanup. Deleted unused frontend assets (`hero.png`, `react.svg`, `vite.svg`, `public/icons.svg`). Removed API client wrappers that no view called (platform overview/users/staff/citizens, organization/membership/invitation helpers, citizen self-profile, and password change), the unused `ServerConfiguration` binding and its `Server` template block, and the corresponding unused template keys. Backend endpoints and supported behaviour are unchanged.
 
 ### Fixed
 
