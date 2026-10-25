@@ -96,6 +96,54 @@ test("registration normalizes padded input before calling the API", async ({
   expect(captured.citizenshipNumber).toBe(("CIT-" + suffix).toUpperCase())
 })
 
+test("password recovery reports accessible email errors and normalizes the address", async ({
+  page,
+}) => {
+  const captured: { body: Record<string, string> | null } = { body: null }
+
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({ status: 401, body: "" })
+  })
+  await page.route("**/api/auth/forgot-password", async (route) => {
+    captured.body = route.request().postDataJSON() as Record<string, string>
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        succeeded: true,
+        message: "Recovery request received.",
+      }),
+    })
+  })
+
+  await page.goto("/forgot-password")
+  await expect(
+    page.getByRole("heading", { name: "Reset your password" }),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Send recovery link" }).click()
+  await expect(page.locator("#recovery-email-error")).toHaveText(
+    "Email address is required.",
+  )
+  await expect(page.getByLabel("Email")).toBeFocused()
+  await expect(page.getByLabel("Email")).toHaveAttribute("aria-invalid", "true")
+
+  await page.getByLabel("Email").fill("not-an-email")
+  await page.getByRole("button", { name: "Send recovery link" }).click()
+  await expect(page.locator("#recovery-email-error")).toHaveText(
+    "Enter a valid email address, for example name@example.com.",
+  )
+  await expect(page.getByLabel("Email")).toBeFocused()
+
+  await page.getByLabel("Email").fill("  E2E.Recovery@Example.TEST  ")
+  await page.getByRole("button", { name: "Send recovery link" }).click()
+
+  await expect(page.getByRole("status")).toContainText(
+    "If e2e.recovery@example.test is registered",
+  )
+  expect(captured.body?.email).toBe("e2e.recovery@example.test")
+})
+
 test("public intake reports field errors and submits normalized case text", async ({
   page,
 }) => {

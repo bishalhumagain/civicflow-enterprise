@@ -180,7 +180,7 @@ public sealed class CaseDocumentService(
             throw new InvalidDataException("The file name is invalid.");
         }
 
-        if (fileName.Contains('\\') || fileName.Contains('\0'))
+        if (fileName.Contains('\\') || fileName.Any(char.IsControl))
         {
             throw new InvalidDataException("The file metadata is invalid.");
         }

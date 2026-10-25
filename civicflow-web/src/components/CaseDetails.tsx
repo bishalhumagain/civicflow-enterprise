@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
 import { Icon } from './Icon'
 import { formatDateTime, formatFileSize } from '../utils/format'
@@ -110,6 +110,10 @@ export function CaseDetails({
   const [updateMessage, setUpdateMessage] = useState('')
   const [sendingUpdate, setSendingUpdate] = useState(false)
 
+  const editTitleRef = useRef<HTMLInputElement | null>(null)
+  const editDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
+  const updateMessageRef = useRef<HTMLTextAreaElement | null>(null)
+
   if (!caseRecord) {
     return (
       <aside className="detail-card">
@@ -149,7 +153,16 @@ export function CaseDetails({
           className="case-edit-form"
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault()
-            if (editTitleError !== null || editDescriptionError !== null) return
+
+            if (editTitleError !== null) {
+              editTitleRef.current?.focus()
+              return
+            }
+
+            if (editDescriptionError !== null) {
+              editDescriptionRef.current?.focus()
+              return
+            }
 
             const normalizedTitle = normalizeWhitespace(editTitle)
             const normalizedDescription = normalizeMultiline(editDescription)
@@ -180,6 +193,7 @@ export function CaseDetails({
                 title: event.target.value,
                 description: editDescription,
               })}
+              ref={editTitleRef}
               required
               value={editTitle}
             />
@@ -206,6 +220,7 @@ export function CaseDetails({
                 title: editTitle,
                 description: event.target.value,
               })}
+              ref={editDescriptionRef}
               required
               value={editDescription}
             />
@@ -249,10 +264,13 @@ export function CaseDetails({
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault()
             if (!statusChanged) return
+
+            const explanation = normalizeMultiline(statusExplanation)
+
             void onStatusChange(
               selectedStatus,
-              statusExplanation.trim() || undefined,
-              statusExplanation.trim().length > 0 && statusExplanationVisible,
+              explanation.length > 0 ? explanation : undefined,
+              explanation.length > 0 && statusExplanationVisible,
             ).then(() => {
               setPendingStatus(null)
               setStatusExplanation('')
@@ -451,7 +469,10 @@ export function CaseDetails({
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
                   event.preventDefault()
                   const message = normalizeMultiline(updateMessage)
-                  if (message.length === 0 || updateError !== null) return
+                  if (message.length === 0 || updateError !== null) {
+                    updateMessageRef.current?.focus()
+                    return
+                  }
                   setSendingUpdate(true)
                   void onAddUpdate(updateKind, message)
                     .then((saved) => {
@@ -493,6 +514,7 @@ export function CaseDetails({
                         ? 'Only organization staff can read this note.'
                         : 'This message will appear in the citizen timeline.'
                     }
+                    ref={updateMessageRef}
                     required
                     rows={4}
                     value={updateMessage}

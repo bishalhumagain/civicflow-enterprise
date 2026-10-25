@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Organizations;
@@ -9,6 +10,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
 
@@ -43,7 +45,7 @@ public sealed class CitizenCasesController(
         [FromQuery, Range(1, 100)] int pageSize = 20,
         [FromQuery, StringLength(200)] string? search = null,
         [FromQuery] CaseStatus? status = null,
-        [FromQuery] string? sort = "updated_desc",
+        [FromQuery, StringLength(20)] string? sort = "updated_desc",
         CancellationToken cancellationToken = default)
     {
         var userId = await organizationResolver.ResolveApplicationUserIdAsync(
@@ -81,7 +83,9 @@ public sealed class CitizenCasesController(
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLowerInvariant();
+            var term = TextNormalization
+                .CollapseWhitespace(search)
+                .ToLowerInvariant();
 
             query = query.Where(caseEntity =>
                 caseEntity.ReferenceNumber.ToLower().Contains(term) ||
@@ -504,15 +508,21 @@ public sealed class CitizenCasesController(
 
 public sealed class CitizenCreateCaseRequest
 {
-    [Required]
+    [NotEmptyGuid]
     public Guid OrganizationId { get; init; }
 
     [Required]
-    [StringLength(200, MinimumLength = 3)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(
+        Case.MaximumTitleLength,
+        MinimumLength = Case.MinimumTitleLength)]
     public string Title { get; init; } = string.Empty;
 
     [Required]
-    [StringLength(5000, MinimumLength = 10)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(
+        Case.MaximumDescriptionLength,
+        MinimumLength = Case.MinimumDescriptionLength)]
     public string Description { get; init; } = string.Empty;
 
     public IFormFile? AdditionalDocument { get; init; }
@@ -521,7 +531,10 @@ public sealed class CitizenCreateCaseRequest
 public sealed class CitizenCaseResponseRequest
 {
     [Required]
-    [StringLength(CaseUpdate.MaximumMessageLength, MinimumLength = 1)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(
+        CaseUpdate.MaximumMessageLength,
+        MinimumLength = 1)]
     public string Message { get; init; } = string.Empty;
 }
 

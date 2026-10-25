@@ -3,6 +3,11 @@ namespace PublicServiceCaseManagement.Api.Domain.Cases;
 
 public sealed class Case
 {
+    public const int MinimumTitleLength = 3;
+    public const int MaximumTitleLength = 200;
+    public const int MinimumDescriptionLength = 10;
+    public const int MaximumDescriptionLength = 5000;
+
     private Case()
     {
     }
@@ -215,18 +220,21 @@ public sealed class Case
         var normalizedTitle = TextNormalization.CollapseWhitespace(title);
         var normalizedDescription = TextNormalization.NormalizeMultiline(description);
 
-        if (normalizedTitle.Length == 0 || normalizedTitle.Length > 200)
+        if (normalizedTitle.Length < MinimumTitleLength ||
+            normalizedTitle.Length > MaximumTitleLength)
         {
             throw new ArgumentException(
-                "Title is required and must not exceed 200 characters.",
+                $"Title must be between {MinimumTitleLength} and " +
+                $"{MaximumTitleLength} characters.",
                 nameof(title));
         }
 
-        if (normalizedDescription.Length == 0 ||
-            normalizedDescription.Length > 5000)
+        if (normalizedDescription.Length < MinimumDescriptionLength ||
+            normalizedDescription.Length > MaximumDescriptionLength)
         {
             throw new ArgumentException(
-                "Description is required and must not exceed 5000 characters.",
+                $"Description must be between {MinimumDescriptionLength} and " +
+                $"{MaximumDescriptionLength} characters.",
                 nameof(description));
         }
     }

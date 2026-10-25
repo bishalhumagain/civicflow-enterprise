@@ -99,6 +99,52 @@ public sealed class CaseTests
                 Now));
     }
 
+    [Theory]
+    [InlineData("ab")]
+    [InlineData("  a  ")]
+    [InlineData("   ")]
+    public void Create_WithTitleShorterThanMinimumAfterNormalization_Throws(
+        string title)
+    {
+        Assert.Throws<ArgumentException>(
+            () => Case.Create(
+                OrganizationId,
+                "CF-12345678",
+                title,
+                "A valid description for this case.",
+                Now));
+    }
+
+    [Theory]
+    [InlineData("too short")]
+    [InlineData("  123456789  ")]
+    [InlineData("\n\n123456789\n\n")]
+    public void Create_WithDescriptionShorterThanMinimumAfterTrimming_Throws(
+        string description)
+    {
+        Assert.Throws<ArgumentException>(
+            () => Case.Create(
+                OrganizationId,
+                "CF-12345678",
+                "Valid title",
+                description,
+                Now));
+    }
+
+    [Fact]
+    public void Create_WithMinimumLengthDetails_Succeeds()
+    {
+        var newCase = Case.Create(
+            OrganizationId,
+            "CF-12345678",
+            "abc",
+            "0123456789",
+            Now);
+
+        Assert.Equal("abc", newCase.Title);
+        Assert.Equal("0123456789", newCase.Description);
+    }
+
     [Fact]
     public void UpdateDetails_WhenClosed_Throws()
     {

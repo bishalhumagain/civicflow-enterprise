@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Features.Cases;
 using PublicServiceCaseManagement.Api.Features.Profiles;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
@@ -291,6 +293,52 @@ public sealed class InputValidationIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("ab")]
+    [InlineData("  ab  ")]
+    [InlineData("a")]
+    public async Task CreateCase_WithTitleShorterThanMinimum_ReturnsBadRequest(
+        string title)
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title,
+                description = "A sufficiently long description for testing."
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("too short")]
+    [InlineData("  123456789  ")]
+    [InlineData("   ")]
+    [InlineData("\t\r\n")]
+    public async Task
+        CreateCase_WithDescriptionShorterThanMinimum_ReturnsBadRequest(
+            string description)
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.CaseWorker);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "A valid case title",
+                description
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task CreateCase_NormalizesTitleAndDescription()
     {
@@ -335,6 +383,33 @@ public sealed class InputValidationIntegrationTests
         var response = await client.GetAsync("/api/notifications?" + query);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public void ValidateUpload_WithUnsafeFileName_Throws()
+    {
+        var unsafeNames = new[]
+        {
+            "evidence\n.txt",
+            "evidence\t.txt",
+            "evidence\u0001.txt",
+            "..\\evidence.txt",
+        };
+
+        foreach (var fileName in unsafeNames)
+        {
+            using var stream = new MemoryStream(
+                Encoding.UTF8.GetBytes("file content"));
+            var file = new FormFile(
+                stream,
+                0,
+                stream.Length,
+                "additionalDocument",
+                fileName);
+
+            Assert.Throws<InvalidDataException>(
+                () => CaseDocumentService.ValidateUpload(file));
+        }
     }
 
     [Fact]

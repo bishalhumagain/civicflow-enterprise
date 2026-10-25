@@ -132,7 +132,7 @@ Frontend:
 
 `npm run typecheck:e2e`
 
-The Playwright suite includes `input-validation.spec.ts`, which covers registration field errors and normalization, public-intake field errors, and normalized case text in the tracking view. Browser journeys require the disposable PostgreSQL fixture described in `INTEGRATION-VERIFICATION.md`.
+The Playwright suite includes `input-validation.spec.ts`, which covers registration field errors and normalization, password-recovery field errors and focus management, public-intake field errors, and normalized case text in the tracking view. Browser journeys require the disposable PostgreSQL fixture described in `INTEGRATION-VERIFICATION.md`.
 
 Database:
 

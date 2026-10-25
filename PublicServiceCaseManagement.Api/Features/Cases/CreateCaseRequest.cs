@@ -1,14 +1,22 @@
 using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
 public sealed class CreateCaseRequest
 {
     [Required]
-    [StringLength(200, MinimumLength = 3)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(
+        Case.MaximumTitleLength,
+        MinimumLength = Case.MinimumTitleLength)]
     public string Title { get; init; } = string.Empty;
 
     [Required]
-    [StringLength(5000, MinimumLength = 10)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(
+        Case.MaximumDescriptionLength,
+        MinimumLength = Case.MinimumDescriptionLength)]
     public string Description { get; init; } = string.Empty;
 }

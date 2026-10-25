@@ -190,8 +190,8 @@ The platform is built around three core principles:
 │   │   ├── Identity/                        #   Roles, anti-forgery, security headers, seeder, PAT auth handler
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
-│   └── Migrations/                         # 26 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (477 tests; 3 opt-in PostgreSQL RLS)
+│   └── Migrations/                         # 28 EF Core migrations
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (492 tests; 3 opt-in PostgreSQL RLS)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── e2e/                                # Playwright browser journeys + disposable DB seeding
 │   ├── playwright.config.ts                # Serial Chromium E2E runner (API + Vite)
@@ -394,7 +394,7 @@ USING (current_setting('civicflow.organization_id', true) = "OrganizationId"::te
 WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId"::text);
 ```
 
-**Migrations**: 26 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications`, `AddBackgroundJobConcurrencyVersion`, `AddOrganizationTypes`, `AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, and `AddCitizenTrackingRls` for the durable queue, notification outbox, attempt history, job concurrency protection, the platform-owned organization-type catalogue, and the citizen update/timeline privacy and ownership policies.
+**Migrations**: 28 EF Core migrations, including `AddPersistentBackgroundJobsAndNotifications`, `AddBackgroundJobConcurrencyVersion`, `AddOrganizationTypes`, `AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, `AddCitizenTrackingRls`, `AddValidationConstraints`, and `AlignCaseTextMinimums` for the durable queue, notification outbox, attempt history, job concurrency protection, the platform-owned organization-type catalogue, the citizen update/timeline privacy and ownership policies, and the application-wide database validation bounds.
 
 ### Security Model
 
@@ -741,7 +741,7 @@ Verification, password-reset, and invitation messages are sent through `IEmailSe
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**477 tests** (474 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
+**492 tests** (489 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
 
 | Category | What's tested |
 |---|---|
@@ -776,7 +776,7 @@ npm run typecheck:e2e   # TypeScript check for the Playwright suite
 
 ### Browser E2E Tests
 
-The Playwright suite runs eight serial Chromium journeys against a disposable PostgreSQL database. It seeds confirmed citizen/staff accounts, an organization, and staff membership, then exercises real cookie and anti-forgery sessions:
+The Playwright suite runs nine serial Chromium journeys against a disposable PostgreSQL database. It seeds confirmed citizen/staff accounts, an organization, and staff membership, then exercises real cookie and anti-forgery sessions:
 
 ```bash
 cd civicflow-web
@@ -884,8 +884,8 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 477 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
-- 5 Playwright browser end-to-end journeys (verified against disposable PostgreSQL)
+- 492 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
+- 9 Playwright browser end-to-end journeys (verified against disposable PostgreSQL)
 - CI pipeline (GitHub Actions)
 
 ### Implemented but Limited

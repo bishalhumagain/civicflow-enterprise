@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Cases;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases;
 
@@ -8,7 +9,7 @@ public sealed class ChangeCaseStatusRequest
     [EnumDataType(typeof(CaseStatus))]
     public CaseStatus NewStatus { get; init; }
 
-    [StringLength(CaseStatusHistory.MaximumExplanationLength)]
+    [TrimmedStringLength(CaseStatusHistory.MaximumExplanationLength)]
     public string? Explanation { get; init; }
 
     /// <summary>
