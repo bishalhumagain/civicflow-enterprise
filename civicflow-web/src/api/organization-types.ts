@@ -1,40 +1,16 @@
 import { authFetch } from "../auth";
+import { ApiError } from "../api-client";
+import { readApiErrorMessage } from "../api-error";
 import type { OrganizationType } from "../domain";
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.error === "string" && body.error.length > 0) {
-      return body.error;
-    }
-  } catch {
-    // ignore malformed bodies
-  }
-  return fallback;
-}
-
-export class OrganizationTypeApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "OrganizationTypeApiError";
-    this.status = status;
-  }
-}
+export { ApiError as OrganizationTypeApiError };
 
 export async function getOrganizationTypes(): Promise<OrganizationType[]> {
   const response = await authFetch("/api/platform/organization-types");
 
   if (!response.ok) {
-    throw new OrganizationTypeApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch organization types: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -55,11 +31,8 @@ export async function createOrganizationType(
   });
 
   if (!response.ok) {
-    throw new OrganizationTypeApiError(
-      await readErrorMessage(
-        response,
-        `Failed to create organization type: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -84,11 +57,8 @@ export async function updateOrganizationType(
   );
 
   if (!response.ok) {
-    throw new OrganizationTypeApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update organization type: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -107,11 +77,8 @@ export async function setOrganizationTypeActive(
   );
 
   if (!response.ok) {
-    throw new OrganizationTypeApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update organization type status: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -126,11 +93,8 @@ export async function deleteOrganizationType(id: string): Promise<void> {
   );
 
   if (!response.ok) {
-    throw new OrganizationTypeApiError(
-      await readErrorMessage(
-        response,
-        `Failed to delete organization type: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }

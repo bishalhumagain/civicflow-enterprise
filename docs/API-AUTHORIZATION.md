@@ -183,10 +183,10 @@ active staff record and assigned cases.
 
 | Method and path | Additional access / request | Success, failures, and effects |
 |---|---|---|
-| `POST /api/cases` | CaseWorker or OrganizationAdmin; `CreateCaseRequest` | `201 CreateCaseResponse`; `400` invalid case; creates a case in the resolved organization and records audit event. |
+| `POST /api/cases` | CaseWorker or OrganizationAdmin; `CreateCaseRequest` (title 3–200, description 10–5,000) | `201 CreateCaseResponse`; `400` invalid or whitespace-only case text; normalizes the title by collapsing whitespace and trims the description while preserving line breaks; creates a case in the resolved organization and records audit event. |
 | `GET /api/cases?page={n}&pageSize={n}` | Active organization member; defaults page `1`, pageSize `20`, page range `1–1,000,000`, pageSize range `1–100` | `200 PagedCasesResponse`; admin gets org cases, staff get their assignments only. |
 | `GET /api/cases/{id:guid}` | OrganizationAdmin or assigned staff | `200 CreateCaseResponse`; `404` missing, cross-org, or unassigned case. |
-| `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details. |
+| `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details with the same title/description bounds and normalization as creation. |
 | `DELETE /api/cases/{id:guid}` | OrganizationAdmin; `ConfirmCaseDeletionRequest` must explicitly confirm | `204`; `400` missing confirmation, `403` unauthorized role, `404` inaccessible case; deletes case/history/document metadata and stored files and records an audit event. |
 | `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` (`newStatus`, optional `explanation`, `explanationVisibleToCitizen`) | `200 ChangeCaseStatusResponse`; `400` invalid transition/explanation, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. The transition is always citizen-visible; the explanation is projected to the citizen timeline only when the visibility flag is true. |
 | `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries including explanation and `isVisibleToCitizen`; `404` inaccessible case. |
@@ -194,7 +194,7 @@ active staff record and assigned cases.
 | `GET /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned staff | `200 CaseUpdateResponse[]`; staff see internal and citizen-visible entries with visibility and author IDs; `404` inaccessible case. |
 | `PATCH /api/cases/{id:guid}/assignment` | OrganizationAdmin; `AssignCaseRequest` (staff ID and assignment role) | `200` case assignment; `400` invalid role/target, `404` inaccessible case; target must be active staff in the same organization; records assignment history and audit. |
 | `GET /api/cases/{id:guid}/assignment-history` | OrganizationAdmin or assigned staff | `200` assignment-history entries; `404` inaccessible case. |
-| `POST /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned CaseWorker; multipart `file` and optional `visibleToCitizen` (default false), max request body 11 MiB/file 10 MiB | `201 CaseDocumentResponse`; `400` invalid upload, `403` Viewer/unassigned write, `404` inaccessible case; stores file and metadata and records audit. Only documents marked `visibleToCitizen` are listed or downloadable by the citizen owner. |
+| `POST /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned CaseWorker; multipart `file` and optional `visibleToCitizen` (default false), max request body 11 MiB/file 10 MiB | `201 CaseDocumentResponse`; `400` empty file, invalid file name, oversize file, or declared-type signature mismatch, `403` Viewer/unassigned write, `404` inaccessible case; stores file and metadata and records audit. Declared `application/pdf`, `image/png`, `image/jpeg`, and `image/gif` content must match its magic signature; other declared media types are accepted by the arbitrary-file contract. Only documents marked `visibleToCitizen` are listed or downloadable by the citizen owner. |
 | `GET /api/cases/{id:guid}/documents` | OrganizationAdmin or assigned staff | `200 CaseDocumentResponse[]`; `404` inaccessible case. |
 | `GET /api/cases/{id:guid}/documents/{documentId:guid}` | OrganizationAdmin or assigned staff | `200` file stream with range support and attachment filename; `404` inaccessible case/document/file. |
 
@@ -260,6 +260,15 @@ The worker accepts only the registered `notification.email` type and looks up th
   controller-specific `{error}` objects; authentication flows use stable
   `code` and `error` values; the global exception middleware returns a generic
   server error without exception details.
+- Validation and normalization rules are shared across the API, domain, and
+  database. Trimming and whitespace collapsing happen before length checks;
+  optional blanks become `null`; emails are trimmed and lower-cased;
+  identifiers are trimmed and upper-cased; phone numbers allow digits, spaces,
+  and `+ - ( ) . /` with 6–30 characters and at least 6 digits. PostgreSQL
+  CHECK constraints added by `AddValidationConstraints` enforce the critical
+  bounds independently of the application. See
+  [VALIDATION-AND-FORMATTING.md](VALIDATION-AND-FORMATTING.md) for the complete
+  table, file rules, display formats, and change checklist.
 - Duplicate/conflicting writes return `409` where the feature defines a
   conflict. Invitation unavailability returns `410`; authentication throttles
   return `429`; login lockout returns `423`; database readiness failure returns
@@ -281,7 +290,10 @@ The worker accepts only the registered `notification.email` type and looks up th
   returns `{code,error}`. Clients should handle these documented shapes.
 - Case updates are append-only through the API: staff cannot edit or delete a
   published update, and there is no bulk operation, export, or general document
-  deletion endpoint. Citizens cannot edit a submitted case or add attachments
+  deletion endpoint.
+- Upload restriction is intentionally limited to size, file-name shape, and
+  magic-signature checks for declared PDF/PNG/JPEG/GIF types. Arbitrary other
+  types remain allowed, and malware scanning is not implemented. Citizens cannot edit a submitted case or add attachments
   after submission.
 - The email sender is secure by default but requires SMTP configuration outside
   Development; see the README deployment settings. Development logs no message

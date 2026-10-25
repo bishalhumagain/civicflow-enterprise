@@ -41,7 +41,7 @@ public sealed class CitizenCasesController(
     public async Task<ActionResult<CitizenCasePage>> GetMyCases(
         [FromQuery, Range(1, 1_000_000)] int page = 1,
         [FromQuery, Range(1, 100)] int pageSize = 20,
-        [FromQuery] string? search = null,
+        [FromQuery, StringLength(200)] string? search = null,
         [FromQuery] CaseStatus? status = null,
         [FromQuery] string? sort = "updated_desc",
         CancellationToken cancellationToken = default)

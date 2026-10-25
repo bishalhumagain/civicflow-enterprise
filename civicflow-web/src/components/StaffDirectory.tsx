@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { StaffMember } from '../domain'
+import { MAX_PHONE_LENGTH, sanitizePhoneInput, validatePhone } from '../utils/validation'
 import { Icon } from './Icon'
 
 /**
@@ -24,16 +25,26 @@ export function StaffDirectory({
 }) {
   const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null)
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [phoneError, setPhoneError] = useState<string | null>(null)
 
   function startEditing(member: StaffMember) {
     setEditingPhoneFor(member.id)
     setPhoneNumber(member.phoneNumber ?? '')
+    setPhoneError(null)
   }
 
   async function savePhone(member: StaffMember) {
+    const validationError = validatePhone(phoneNumber)
+
+    if (validationError !== null) {
+      setPhoneError(validationError)
+      return
+    }
+
     await onUpdatePhone(member, phoneNumber.trim())
     setEditingPhoneFor(null)
     setPhoneNumber('')
+    setPhoneError(null)
   }
 
   return (
@@ -67,17 +78,24 @@ export function StaffDirectory({
                   {canManage && editingPhoneFor === member.id ? (
                     <span style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <input
+                        aria-describedby={
+                          phoneError !== null ? `staff-phone-error-${member.id}` : undefined
+                        }
+                        aria-invalid={phoneError !== null}
                         aria-label={`Phone number for ${member.fullName}`}
                         autoFocus
                         type="tel"
-                        maxLength={30}
+                        maxLength={MAX_PHONE_LENGTH}
                         placeholder="Phone number"
                         value={phoneNumber}
-                        onChange={(event) => setPhoneNumber(event.target.value)}
+                        onChange={(event) => {
+                          setPhoneNumber(sanitizePhoneInput(event.target.value))
+                          setPhoneError(null)
+                        }}
                       />
                       <button
                         className="primary-button"
-                        disabled={loading}
+                        disabled={loading || validatePhone(phoneNumber) !== null}
                         onClick={() => void savePhone(member)}
                         type="button"
                       >
@@ -92,6 +110,15 @@ export function StaffDirectory({
                       >
                         Cancel
                       </button>
+                      {phoneError !== null && (
+                        <span
+                          className="field-error"
+                          id={`staff-phone-error-${member.id}`}
+                          role="alert"
+                        >
+                          {phoneError}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span>

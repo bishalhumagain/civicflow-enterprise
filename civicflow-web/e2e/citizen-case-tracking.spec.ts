@@ -232,6 +232,7 @@ test('staff records public updates, a confidential note, an information request,
       .click()
     await expect(
       page
+        .locator('main')
         .getByRole('alert')
         .filter({ hasText: 'A case cannot transition from UnderReview to Closed.' }),
     ).toBeVisible()

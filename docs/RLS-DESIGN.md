@@ -171,6 +171,14 @@ The runtime role cannot:
 
 ---
 
+## Validation CHECK Constraints
+
+RLS governs which rows are visible. The separate `AddValidationConstraints` migration governs what values a visible row may contain. It adds 27 PostgreSQL CHECK constraints for critical bounds, including citizen age and identifier length, case title and description length, case status and priority values, document size, update kind and message length, status-history values and explanation length, organization name and code, and account, staff, and invitation name, email, phone, and role fields.
+
+These constraints are defense in depth, not a replacement for application validation or authorization. They protect against direct database writes, future code paths that bypass the domain, and accidental data corruption. The Down path drops all 27 constraints. When RLS tests apply the full migration chain, they also exercise this migration.
+
+---
+
 ## Verification Results
 
 The live disposable verification confirmed:

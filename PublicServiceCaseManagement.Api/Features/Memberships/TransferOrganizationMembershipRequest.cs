@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
+
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
 /// <summary>
@@ -6,5 +9,9 @@ namespace PublicServiceCaseManagement.Api.Features.Memberships;
 /// memberships in unrelated organizations are never touched.
 /// </summary>
 public sealed record TransferOrganizationMembershipRequest(
+    [NotEmptyGuid]
     Guid DestinationOrganizationId,
+    [Required]
+    [NotWhiteSpace]
+    [StringLength(32)]
     string Role);

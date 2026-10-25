@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Headers;
+using System.Text;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
@@ -185,7 +186,117 @@ public sealed class CaseDocumentService(
         }
     }
 
-    private static void Validate(IFormFile file) => ValidateUpload(file);
+    private static void Validate(IFormFile file)
+    {
+        ValidateUpload(file);
+        ValidateFileNameDetails(file);
+        ValidateSignature(file);
+    }
+
+    private static void ValidateSignature(IFormFile file)
+    {
+        var mediaType = GetMediaType(file.ContentType);
+
+        if (mediaType is null)
+        {
+            return;
+        }
+
+        var header = ReadHeader(file);
+
+        switch (mediaType)
+        {
+            case "application/pdf":
+                RequireSignature(
+                    "application/pdf",
+                    IndexOfAscii(header, "%PDF-") >= 0);
+                break;
+            case "image/png":
+                RequireSignature(
+                    "image/png",
+                    StartsWith(
+                        header,
+                        new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }));
+                break;
+            case "image/jpeg":
+                RequireSignature(
+                    "image/jpeg",
+                    StartsWith(header, new byte[] { 0xFF, 0xD8, 0xFF }));
+                break;
+            case "image/gif":
+                RequireSignature(
+                    "image/gif",
+                    IndexOfAscii(header, "GIF87a") == 0 ||
+                    IndexOfAscii(header, "GIF89a") == 0);
+                break;
+        }
+    }
+
+    private static void RequireSignature(string declaredType, bool matches)
+    {
+        if (!matches)
+        {
+            throw new InvalidDataException(
+                "The file content does not match the declared type " +
+                declaredType + ".");
+        }
+    }
+
+    private static string? GetMediaType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType) ||
+            contentType.Length > 100 ||
+            !MediaTypeHeaderValue.TryParse(contentType, out var parsed))
+        {
+            return null;
+        }
+
+        return parsed.MediaType?.ToLowerInvariant();
+    }
+
+    private static void ValidateFileNameDetails(IFormFile file)
+    {
+        var fileName = Path.GetFileName(file.FileName);
+
+        if (fileName.Length == 0 ||
+            fileName == "." ||
+            fileName == ".." ||
+            fileName.EndsWith((char)32) ||
+            fileName.EndsWith((char)46))
+        {
+            throw new InvalidDataException("The file name is invalid.");
+        }
+    }
+
+    private static byte[] ReadHeader(IFormFile file)
+    {
+        var length = (int)Math.Min(file.Length, 1024);
+        var buffer = new byte[length];
+        var offset = 0;
+
+        using var stream = file.OpenReadStream();
+
+        while (offset < length)
+        {
+            var read = stream.Read(buffer, offset, length - offset);
+
+            if (read == 0)
+            {
+                break;
+            }
+
+            offset += read;
+        }
+
+        return offset == length ? buffer : buffer[..offset];
+    }
+
+    private static bool StartsWith(byte[] header, byte[] signature) =>
+        header.Length >= signature.Length &&
+        header.AsSpan(0, signature.Length).SequenceEqual(signature);
+
+    private static int IndexOfAscii(byte[] header, string value) =>
+        header.AsSpan().IndexOf(Encoding.ASCII.GetBytes(value));
 
     private static string NormalizeContentType(string? contentType) =>
         !string.IsNullOrWhiteSpace(contentType) &&

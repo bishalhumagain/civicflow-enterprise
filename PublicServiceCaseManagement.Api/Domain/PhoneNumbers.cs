@@ -2,7 +2,7 @@ namespace PublicServiceCaseManagement.Api.Domain;
 
 /// <summary>
 /// Shared validation for the optional contact phone number that is collected
-/// when an administrator onboards a staff member.
+/// for citizens, staff members, and invitations.
 /// </summary>
 public static class PhoneNumbers
 {
@@ -13,15 +13,39 @@ public static class PhoneNumbers
     /// <summary>
     /// Normalizes a phone number, or returns <c>null</c> when none was
     /// supplied. Invalid values are rejected instead of being silently
-    /// dropped so the administrator gets immediate feedback.
+    /// dropped so the caller gets immediate feedback.
     /// </summary>
     public static string? Normalize(
         string? value,
         string parameterName = "phoneNumber")
     {
+        if (TryNormalize(value, out var normalized, out var error))
+        {
+            return normalized;
+        }
+
+        throw new ArgumentException(
+            error ?? "The phone number is invalid.",
+            parameterName);
+    }
+
+    /// <summary>
+    /// Attempts to normalize a phone number. Returns <c>true</c> for a null or
+    /// whitespace-only value with <paramref name="normalized"/> set to
+    /// <c>null</c>; returns <c>false</c> with a human-readable
+    /// <paramref name="error"/> when the value is not acceptable.
+    /// </summary>
+    public static bool TryNormalize(
+        string? value,
+        out string? normalized,
+        out string? error)
+    {
+        normalized = null;
+        error = null;
+
         if (string.IsNullOrWhiteSpace(value))
         {
-            return null;
+            return true;
         }
 
         var trimmed = value.Trim();
@@ -29,37 +53,39 @@ public static class PhoneNumbers
         if (trimmed.Length < MinimumLength ||
             trimmed.Length > MaximumLength)
         {
-            throw new ArgumentException(
-                $"A phone number must be between {MinimumLength} and " +
-                $"{MaximumLength} characters.",
-                parameterName);
+            error = "A phone number must be between " + MinimumLength +
+                " and " + MaximumLength + " characters.";
+            return false;
         }
 
         foreach (var character in trimmed)
         {
             if (!IsAllowed(character))
             {
-                throw new ArgumentException(
-                    "A phone number may only contain digits, spaces, and " +
-                    "the characters + - ( ) .",
-                    parameterName);
+                error = "A phone number may only contain digits, spaces, and " +
+                    "the characters + - ( ) .";
+                return false;
             }
         }
 
-        var digitCount = trimmed.Count(char.IsDigit);
-
-        if (digitCount < MinimumLength)
+        if (trimmed.Count(char.IsDigit) < MinimumLength)
         {
-            throw new ArgumentException(
-                "A phone number must contain at least " +
-                $"{MinimumLength} digits.",
-                parameterName);
+            error = "A phone number must contain at least " +
+                MinimumLength + " digits.";
+            return false;
         }
 
-        return trimmed;
+        normalized = trimmed;
+        return true;
     }
 
     private static bool IsAllowed(char character) =>
         char.IsDigit(character) ||
-        character is ' ' or '+' or '-' or '(' or ')' or '.' or '/';
+        character == (char)32 ||
+        character == (char)43 ||
+        character == (char)45 ||
+        character == (char)40 ||
+        character == (char)41 ||
+        character == (char)46 ||
+        character == (char)47;
 }

@@ -7,13 +7,24 @@ import {
   type UpdateProfileRequest,
 } from '../api/profile'
 import { StatCard } from '../components/StatCard'
+import { formatDate } from '../utils/format'
+import {
+  MAX_ADDRESS_LENGTH,
+  MAX_IDENTIFIER_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_PHONE_LENGTH,
+  countDigits,
+  normalizeIdentifier,
+  normalizeWhitespace,
+  sanitizePhoneInput,
+  validateAge,
+  validateIdentifier,
+  validateLength,
+  validateName,
+  validatePhone,
+} from '../utils/validation'
 
 const genderOptions = ['Female', 'Male', 'Other', 'Prefer not to say']
-
-const MAX_NAME = 150
-const MAX_PHONE = 30
-const MAX_IDENTIFIER = 50
-const MAX_ADDRESS = 500
 
 type ProfileForm = {
   fullName: string
@@ -37,21 +48,6 @@ const emptyForm: ProfileForm = {
   temporaryAddress: '',
 }
 
-/** Collapses runs of whitespace so the stored full name reads consistently. */
-function normalizeFullName(value: string): string {
-  return value.trim().replace(/\s+/g, ' ')
-}
-
-/** Keeps only the characters a phone number may contain. */
-function sanitizePhone(value: string): string {
-  return value.replace(/[^0-9+()\-./\s]/g, '')
-}
-
-/** Identifiers are stored upper-case so lookups stay case-insensitive. */
-function normalizeIdentifier(value: string): string {
-  return value.trim().toUpperCase()
-}
-
 function toForm(profile: Profile): ProfileForm {
   return {
     fullName: profile.fullName ?? '',
@@ -65,19 +61,6 @@ function toForm(profile: Profile): ProfileForm {
   }
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return '—'
-
-  return parsed.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 type FieldErrors = Partial<
   Record<keyof ProfileForm, string>
 >
@@ -85,51 +68,39 @@ type FieldErrors = Partial<
 function validate(form: ProfileForm, isCitizen: boolean): FieldErrors {
   const errors: FieldErrors = {}
 
-  const fullName = normalizeFullName(form.fullName)
+  const fullName = validateName(form.fullName)
+  if (fullName !== null) errors.fullName = fullName
 
-  if (!fullName) {
-    errors.fullName = 'A full name is required.'
-  } else if (fullName.length > MAX_NAME) {
-    errors.fullName = `The full name must be ${MAX_NAME} characters or fewer.`
-  }
+  const phone = validatePhone(form.phoneNumber)
+  if (phone !== null) errors.phoneNumber = phone
 
-  const phone = sanitizePhone(form.phoneNumber).trim()
+  if (isCitizen === false) return errors
 
-  if (phone) {
-    const digits = phone.replace(/\D/g, '')
+  const nid = validateIdentifier(form.nidNumber, "National ID number")
+  if (nid !== null) errors.nidNumber = nid
 
-    if (phone.length > MAX_PHONE) {
-      errors.phoneNumber = `The phone number must be ${MAX_PHONE} characters or fewer.`
-    } else if (digits.length < 6) {
-      errors.phoneNumber = 'Enter a phone number with at least 6 digits.'
-    }
-  }
+  const citizenship = validateIdentifier(
+    form.citizenshipNumber,
+    "Citizenship number",
+  )
+  if (citizenship !== null) errors.citizenshipNumber = citizenship
 
-  if (!isCitizen) return errors
+  const age = validateAge(form.age)
+  if (age !== null) errors.age = age
 
-  if (normalizeIdentifier(form.nidNumber).length > MAX_IDENTIFIER) {
-    errors.nidNumber = `The national ID must be ${MAX_IDENTIFIER} characters or fewer.`
-  }
+  const permanentAddress = validateLength(
+    form.permanentAddress,
+    "Permanent address",
+    MAX_ADDRESS_LENGTH,
+  )
+  if (permanentAddress !== null) errors.permanentAddress = permanentAddress
 
-  if (normalizeIdentifier(form.citizenshipNumber).length > MAX_IDENTIFIER) {
-    errors.citizenshipNumber = `The citizenship number must be ${MAX_IDENTIFIER} characters or fewer.`
-  }
-
-  if (form.age.trim()) {
-    const age = Number.parseInt(form.age, 10)
-
-    if (!Number.isFinite(age) || age < 0 || age > 150) {
-      errors.age = 'Enter an age between 0 and 150.'
-    }
-  }
-
-  if (form.permanentAddress.length > MAX_ADDRESS) {
-    errors.permanentAddress = `The address must be ${MAX_ADDRESS} characters or fewer.`
-  }
-
-  if (form.temporaryAddress.length > MAX_ADDRESS) {
-    errors.temporaryAddress = `The address must be ${MAX_ADDRESS} characters or fewer.`
-  }
+  const temporaryAddress = validateLength(
+    form.temporaryAddress,
+    "Temporary address",
+    MAX_ADDRESS_LENGTH,
+  )
+  if (temporaryAddress !== null) errors.temporaryAddress = temporaryAddress
 
   return errors
 }
@@ -196,12 +167,12 @@ export default function ProfilePage() {
   )
 
   const normalizedName = useMemo(
-    () => normalizeFullName(form.fullName),
+    () => normalizeWhitespace(form.fullName),
     [form.fullName],
   )
 
   const phoneDigits = useMemo(
-    () => sanitizePhone(form.phoneNumber).replace(/\D/g, '').length,
+    () => countDigits(form.phoneNumber),
     [form.phoneNumber],
   )
 
@@ -230,7 +201,7 @@ export default function ProfilePage() {
 
     const request: UpdateProfileRequest = {
       fullName: normalizedName,
-      phoneNumber: sanitizePhone(form.phoneNumber).trim() || null,
+      phoneNumber: sanitizePhoneInput(form.phoneNumber).trim() || null,
     }
 
     if (isCitizen) {
@@ -351,17 +322,24 @@ export default function ProfilePage() {
           <label>
             Full name
             <input
+              aria-describedby={
+                errorFor('fullName')
+                  ? 'profile-full-name-error'
+                  : 'profile-full-name-hint'
+              }
+              aria-invalid={errorFor('fullName') !== null}
+              id="profile-full-name"
               type="text"
-              maxLength={MAX_NAME}
+              maxLength={MAX_NAME_LENGTH}
               value={form.fullName}
               onChange={(event) => update('fullName', event.target.value)}
               onBlur={() => markTouched('fullName')}
               disabled={saving}
             />
             {errorFor('fullName') ? (
-              <span className="field-error">{errorFor('fullName')}</span>
+              <span className="field-error" id="profile-full-name-error" role="alert">{errorFor('fullName')}</span>
             ) : (
-              <span className="field-hint">
+              <span className="field-hint" id="profile-full-name-hint">
                 Saved as “{normalizedName || '—'}”
               </span>
             )}
@@ -369,8 +347,15 @@ export default function ProfilePage() {
 
           <label>
             Email address
-            <input type="email" value={profile.email} readOnly disabled />
-            <span className="field-hint">
+            <input
+              aria-describedby="profile-email-hint"
+              id="profile-email"
+              type="email"
+              value={profile.email}
+              readOnly
+              disabled
+            />
+            <span className="field-hint" id="profile-email-hint">
               {profile.emailConfirmed
                 ? 'Your email address is verified.'
                 : 'Your email address is not verified yet. Contact support to change it.'}
@@ -380,20 +365,27 @@ export default function ProfilePage() {
           <label>
             Phone number
             <input
+              aria-describedby={
+                errorFor('phoneNumber')
+                  ? 'profile-phone-error'
+                  : 'profile-phone-hint'
+              }
+              aria-invalid={errorFor('phoneNumber') !== null}
+              id="profile-phone"
               type="tel"
-              maxLength={MAX_PHONE}
+              maxLength={MAX_PHONE_LENGTH}
               value={form.phoneNumber}
               onChange={(event) =>
-                update('phoneNumber', sanitizePhone(event.target.value))
+                update('phoneNumber', sanitizePhoneInput(event.target.value))
               }
               onBlur={() => markTouched('phoneNumber')}
               disabled={saving}
               placeholder="+977 98XXXXXXXX"
             />
             {errorFor('phoneNumber') ? (
-              <span className="field-error">{errorFor('phoneNumber')}</span>
+              <span className="field-error" id="profile-phone-error" role="alert">{errorFor('phoneNumber')}</span>
             ) : (
-              <span className="field-hint">
+              <span className="field-hint" id="profile-phone-hint">
                 {phoneDigits > 0
                   ? `${phoneDigits} digits entered.`
                   : 'Optional. Used for case notifications.'}
@@ -407,8 +399,15 @@ export default function ProfilePage() {
                 <label>
                   National ID number
                   <input
+                    aria-describedby={
+                      errorFor('nidNumber')
+                        ? 'profile-nid-error'
+                        : undefined
+                    }
+                    aria-invalid={errorFor('nidNumber') !== null}
+                    id="profile-nid"
                     type="text"
-                    maxLength={MAX_IDENTIFIER}
+                    maxLength={MAX_IDENTIFIER_LENGTH}
                     value={form.nidNumber}
                     onChange={(event) =>
                       update('nidNumber', normalizeIdentifier(event.target.value))
@@ -417,15 +416,22 @@ export default function ProfilePage() {
                     disabled={saving}
                   />
                   {errorFor('nidNumber') && (
-                    <span className="field-error">{errorFor('nidNumber')}</span>
+                    <span className="field-error" id="profile-nid-error" role="alert">{errorFor('nidNumber')}</span>
                   )}
                 </label>
 
                 <label>
                   Citizenship number
                   <input
+                    aria-describedby={
+                      errorFor('citizenshipNumber')
+                        ? 'profile-citizenship-error'
+                        : undefined
+                    }
+                    aria-invalid={errorFor('citizenshipNumber') !== null}
+                    id="profile-citizenship"
                     type="text"
-                    maxLength={MAX_IDENTIFIER}
+                    maxLength={MAX_IDENTIFIER_LENGTH}
                     value={form.citizenshipNumber}
                     onChange={(event) =>
                       update(
@@ -437,7 +443,11 @@ export default function ProfilePage() {
                     disabled={saving}
                   />
                   {errorFor('citizenshipNumber') && (
-                    <span className="field-error">
+                    <span
+                      className="field-error"
+                      id="profile-citizenship-error"
+                      role="alert"
+                    >
                       {errorFor('citizenshipNumber')}
                     </span>
                   )}
@@ -448,6 +458,11 @@ export default function ProfilePage() {
                 <label>
                   Age
                   <input
+                    aria-describedby={
+                      errorFor('age') ? 'profile-age-error' : undefined
+                    }
+                    aria-invalid={errorFor('age') !== null}
+                    id="profile-age"
                     type="number"
                     min={0}
                     max={150}
@@ -457,13 +472,14 @@ export default function ProfilePage() {
                     disabled={saving}
                   />
                   {errorFor('age') && (
-                    <span className="field-error">{errorFor('age')}</span>
+                    <span className="field-error" id="profile-age-error" role="alert">{errorFor('age')}</span>
                   )}
                 </label>
 
                 <label>
                   Gender
                   <select
+                    id="profile-gender"
                     value={form.gender}
                     onChange={(event) => update('gender', event.target.value)}
                     disabled={saving}
@@ -485,7 +501,14 @@ export default function ProfilePage() {
               <label>
                 Permanent address
                 <textarea
-                  maxLength={MAX_ADDRESS}
+                  aria-describedby={
+                    errorFor('permanentAddress')
+                      ? 'profile-permanent-address-error'
+                      : 'profile-permanent-address-hint'
+                  }
+                  aria-invalid={errorFor('permanentAddress') !== null}
+                  id="profile-permanent-address"
+                  maxLength={MAX_ADDRESS_LENGTH}
                   value={form.permanentAddress}
                   onChange={(event) =>
                     update('permanentAddress', event.target.value)
@@ -493,15 +516,31 @@ export default function ProfilePage() {
                   onBlur={() => markTouched('permanentAddress')}
                   disabled={saving}
                 />
-                <span className="field-hint">
-                  {form.permanentAddress.length}/{MAX_ADDRESS} characters
+                {errorFor('permanentAddress') && (
+                  <span
+                    className="field-error"
+                    id="profile-permanent-address-error"
+                    role="alert"
+                  >
+                    {errorFor('permanentAddress')}
+                  </span>
+                )}
+                <span className="field-hint" id="profile-permanent-address-hint">
+                  {form.permanentAddress.length}/{MAX_ADDRESS_LENGTH} characters
                 </span>
               </label>
 
               <label>
                 Temporary address
                 <textarea
-                  maxLength={MAX_ADDRESS}
+                  aria-describedby={
+                    errorFor('temporaryAddress')
+                      ? 'profile-temporary-address-error'
+                      : 'profile-temporary-address-hint'
+                  }
+                  aria-invalid={errorFor('temporaryAddress') !== null}
+                  id="profile-temporary-address"
+                  maxLength={MAX_ADDRESS_LENGTH}
                   value={form.temporaryAddress}
                   onChange={(event) =>
                     update('temporaryAddress', event.target.value)
@@ -509,8 +548,17 @@ export default function ProfilePage() {
                   onBlur={() => markTouched('temporaryAddress')}
                   disabled={saving}
                 />
-                <span className="field-hint">
-                  {form.temporaryAddress.length}/{MAX_ADDRESS} characters
+                {errorFor('temporaryAddress') && (
+                  <span
+                    className="field-error"
+                    id="profile-temporary-address-error"
+                    role="alert"
+                  >
+                    {errorFor('temporaryAddress')}
+                  </span>
+                )}
+                <span className="field-hint" id="profile-temporary-address-hint">
+                  {form.temporaryAddress.length}/{MAX_ADDRESS_LENGTH} characters
                 </span>
               </label>
             </>

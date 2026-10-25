@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,8 @@ public sealed class NotificationsController(
 {
     [HttpGet]
     public async Task<ActionResult<NotificationPageResponse>> GetPage(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 20,
         [FromQuery] bool? unreadOnly = null,
         CancellationToken cancellationToken = default)
     {

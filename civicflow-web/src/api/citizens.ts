@@ -1,5 +1,6 @@
 import { authFetch } from "../auth";
-import { readApiErrorDetails } from "../api-error";
+import { ApiError } from "../api-client";
+import { readApiErrorMessage } from "../api-error";
 import type { CaseStatus } from "../domain";
 
 export interface CitizenProfile {
@@ -100,15 +101,7 @@ export interface CitizenCaseQuery {
   sort?: CitizenCaseSort;
 }
 
-export class CitizenApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "CitizenApiError";
-    this.status = status;
-  }
-}
+export { ApiError as CitizenApiError };
 
 export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
   const response = await authFetch("/api/citizens/me");
@@ -118,9 +111,9 @@ export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
   }
 
   if (!response.ok) {
-    const { message } = await readApiErrorDetails(response)
+    const message = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       message ?? `Failed to fetch citizen profile: ${response.status}`,
       response.status,
     );
@@ -141,9 +134,9 @@ export async function saveMyCitizenProfile(
   });
 
   if (!response.ok) {
-    const { message } = await readApiErrorDetails(response)
+    const message = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       message ?? `Failed to save citizen profile: ${response.status}`,
       response.status,
     );
@@ -169,9 +162,9 @@ export async function getMyCases(
   );
 
   if (!response.ok) {
-    const { message } = await readApiErrorDetails(response)
+    const message = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       message ?? `Failed to fetch your requests: ${response.status}`,
       response.status,
     );
@@ -186,9 +179,9 @@ export async function getMyCase(id: string): Promise<CitizenCaseDetails> {
   );
 
   if (!response.ok) {
-    const { message } = await readApiErrorDetails(response)
+    const message = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       message ?? `Failed to fetch request details: ${response.status}`,
       response.status,
     );
@@ -210,9 +203,9 @@ export async function respondToMyCase(
   );
 
   if (!response.ok) {
-    const { message: errorMessage } = await readApiErrorDetails(response)
+    const errorMessage = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       errorMessage ?? `Your response could not be sent: ${response.status}`,
       response.status,
     );
@@ -231,9 +224,9 @@ export async function downloadMyCaseDocument(
   );
 
   if (!response.ok) {
-    const { message } = await readApiErrorDetails(response)
+    const message = await readApiErrorMessage(response)
 
-    throw new CitizenApiError(
+    throw new ApiError(
       message ?? `The document could not be downloaded: ${response.status}`,
       response.status,
     );

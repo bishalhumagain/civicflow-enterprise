@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
@@ -26,7 +27,9 @@ public sealed class AuthService(
         Func<string, string, string> linkBuilder,
         CancellationToken cancellationToken = default)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = TextNormalization.NormalizeEmail(request.Email);
+        var fullName = TextNormalization.NormalizeName(request.FullName);
+        var phoneNumber = PhoneNumbers.Normalize(request.PhoneNumber);
 
         var existing = await FindUserByEmailAsync(email, cancellationToken);
 
@@ -36,8 +39,10 @@ public sealed class AuthService(
             return new AuthOperationResult(true, GenericRegistrationMessage);
         }
 
-        var nid = request.NidNumber.Trim();
-        var citizenship = request.CitizenshipNumber.Trim();
+        var nid = TextNormalization.NormalizeOptionalIdentifier(
+            request.NidNumber) ?? string.Empty;
+        var citizenship = TextNormalization.NormalizeOptionalIdentifier(
+            request.CitizenshipNumber) ?? string.Empty;
 
         if (await dbContext.CitizenProfiles.AnyAsync(
                 profile => profile.NIDNumber == nid,
@@ -58,7 +63,7 @@ public sealed class AuthService(
         }
 
         var now = timeProvider.GetUtcNow();
-        var user = ApplicationUser.Create(request.FullName, email, now);
+        var user = ApplicationUser.Create(fullName, email, now);
 
         var createResult = await userManager.CreateAsync(
             user,
@@ -75,9 +80,9 @@ public sealed class AuthService(
 
         var profileRecord = CitizenProfile.Create(
             user.Id,
-            request.FullName,
+            fullName,
             email,
-            request.PhoneNumber,
+            phoneNumber,
             nid,
             citizenship,
             age: null,

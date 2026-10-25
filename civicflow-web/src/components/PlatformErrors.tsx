@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type ApplicationError } from '../domain'
+import { formatDateTime } from '../utils/format'
 
 type ErrorFilter = 'all' | 'unhandled' | 'handled'
 
@@ -95,7 +96,7 @@ export function PlatformErrors({
                       )}
                     </td>
                     <td>{error.userEmail ?? <span className="muted">Anonymous</span>}</td>
-                    <td>{new Date(error.occurredAt).toLocaleString()}</td>
+                    <td>{formatDateTime(error.occurredAt)}</td>
                     <td>
                       <span className={`status-pill ${error.isHandled ? 'resolved' : 'rejected'}`}>
                         <i />

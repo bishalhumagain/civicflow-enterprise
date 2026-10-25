@@ -21,7 +21,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 ### Complete and verified
 
 **Backend infrastructure:**
-- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 26 migrations
+- .NET 10 ASP.NET Core API with EF Core/PostgreSQL persistence and 27 migrations
 - Case creation, organization-scoped listing/detail access, status history, assignment history, citizen-visible updates, information requests, and audit attribution
 - Database-backed application identity, active organization membership, active organization checks, and explicit role rules
 - SuperAdmin cross-organization membership administration without automatic case access
@@ -30,7 +30,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 - Citizen case intake and full owner-scoped tracking: active organization selection, session-derived submitter attribution, optional arbitrary file attachments, paged/searchable/sortable own-case list, detail with citizen-visible timeline and documents, information requests and responses, and routing of the submitted case to an organization administrator for triage. Status changes notify the submitter and assigned staff; citizen-visible updates and information requests notify the submitter; citizen responses notify the assigned staff account
 - Per-case assignment roles (CaseWorker/Viewer) persisted in cases and assignment history
 - Organization administrators can invite staff but cannot grant OrganizationAdmin; platform administrators retain that provisioning privilege
-- xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, and document integration tests (383 tests; 380 run by default and 3 opt-in PostgreSQL RLS tests)
+- xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, and document integration tests (477 tests; 474 run by default and 3 opt-in PostgreSQL RLS tests)
 - Opt-in PostgreSQL RLS tests that apply the real migrations and probe tenant and citizen ownership policies with the runtime role
 - Five Playwright/Chromium browser journeys covering citizen submission/tracking, staff updates and information requests, confidentiality, pagination, cross-citizen isolation, session expiry, and CSRF rejection
 - Disposable Compose fixtures for PostgreSQL roles
@@ -72,7 +72,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 | **File storage** | Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready. |
 | **Test infrastructure** | Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. PostgreSQL RLS tests and Playwright browser journeys exist but are opt-in and require a disposable database; they are not yet wired into CI. |
 | **PAT scopes** | Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented. |
-| **Browser-level verification** | A five-test Playwright suite now verifies the citizen tracking and staff update journeys, cross-citizen isolation, session expiry, and CSRF rejection in Chromium against disposable PostgreSQL. Portal sign-in, invitation redemption, platform administration, and the PAT UI still rely on integration tests, HTTP runs, TypeScript compilation, lint, and a production build. |
+| **Browser-level verification** | An eight-test Playwright suite now verifies the citizen tracking and staff update journeys, cross-citizen isolation, session expiry, CSRF rejection, registration and intake field validation, normalized payloads, and click stability in Chromium against disposable PostgreSQL. Portal sign-in, invitation redemption, platform administration, and the PAT UI still rely on integration tests, HTTP runs, TypeScript compilation, lint, and a production build. |
 | **Audit trail** | Append-only and read-only through the API; retention, export, and alerting policies are not implemented. The audit event table is intentionally not RLS-protected (platform reads are gated by the super-administrator check, organization reads are scoped in the query service). |
 | **Multi-organization** | An account that holds both a citizen and a staff role may use both of those portals; a super administrator may only use the platform portal. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`. |
 | **Email delivery** | Invitation delivery uses the development `LoggingEmailSender`; a real SMTP/provider implementation is still required for production delivery, and the emailed link is logged at `Information` level locally. |
@@ -183,7 +183,7 @@ These tests remain deferred selectively; existing security assertions must not b
 |---|---|---|---|
 | Exhaustive real-login permutation matrix (lockout, revocation, CSRF) | Medium | Requires a repeatable disposable database and email sink | Automated real-service harness is available |
 | Browser-level run of the invitation redemption flow | Medium | The Playwright runner exists but the onboarding journey is not yet automated | The `/setup-password` contract is stable and CI has a disposable database |
-| Full browser automation for login and all frontend workflows | Medium | The current five-test suite covers citizen tracking and staff updates, not every surface | Remaining admin/onboarding workflows are prioritized for automation |
+| Full browser automation for login and all frontend workflows | Medium | The current eight-test suite covers citizen tracking, staff updates, and input validation, not every surface | Remaining admin/onboarding workflows are prioritized for automation |
 | Visual regression and responsive screenshot suite | Low | Does not protect authorization or data correctness | Core workflow and deployment demo are stable |
 | Load/stress testing | Medium | Requires representative deployment topology and traffic model | Production-like environment and performance targets exist |
 | Malware scanner outage/retry/recovery scenarios | High | Provider and failure contract are not selected | Scanner adapter and operational policy are approved |

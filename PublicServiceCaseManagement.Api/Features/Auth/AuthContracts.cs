@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Auth;
 
@@ -9,21 +10,24 @@ public static class AuthRoutes
 
 public sealed record RegisterRequest(
     [Required]
-    [StringLength(150, MinimumLength = 1)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
     [Required]
     [EmailAddress]
     [StringLength(254)]
     string Email,
     [Required]
-    [Phone]
-    [StringLength(32)]
+    [NotWhiteSpace]
+    [PhoneNumber]
     string PhoneNumber,
     [Required]
-    [StringLength(64, MinimumLength = 1)]
+    [NotWhiteSpace]
+    [StringLength(50, MinimumLength = 1)]
     string NidNumber,
     [Required]
-    [StringLength(64, MinimumLength = 1)]
+    [NotWhiteSpace]
+    [StringLength(50, MinimumLength = 1)]
     string CitizenshipNumber,
     [Required]
     [StringLength(128, MinimumLength = 12)]
@@ -37,7 +41,7 @@ public sealed record LoginRequest(
     [Required]
     [StringLength(128, MinimumLength = 1)]
     string Password,
-    [StringLength(128)]
+    [StringLength(64)]
     string? OrganizationId = null);
 
 /// <summary>
@@ -125,6 +129,7 @@ public sealed record ResetPasswordRequest(
     [StringLength(254)]
     string Email,
     [Required]
+    [StringLength(2048, MinimumLength = 1)]
     string Token,
     [Required]
     [StringLength(128, MinimumLength = 12)]

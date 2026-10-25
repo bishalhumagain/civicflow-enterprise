@@ -267,13 +267,9 @@ public sealed class PlatformDirectoryService(
                 "The account is not associated with any organization membership.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.FullName) ||
-            request.FullName.Trim().Length > 150)
-        {
-            throw new ArgumentException(
-                "Full name is required and must not exceed 150 characters.",
-                nameof(request.FullName));
-        }
+        var fullName = Domain.TextNormalization.NormalizeName(
+            request.FullName,
+            nameof(request.FullName));
 
         var phoneNumber = Domain.PhoneNumbers.Normalize(
             request.PhoneNumber,
@@ -281,7 +277,7 @@ public sealed class PlatformDirectoryService(
 
         var now = timeProvider.GetUtcNow();
 
-        user.FullName = request.FullName.Trim();
+        user.FullName = fullName;
         user.PhoneNumber = phoneNumber;
         user.UpdatedAt = now;
 
@@ -327,13 +323,9 @@ public sealed class PlatformDirectoryService(
             throw new KeyNotFoundException("The citizen profile does not exist.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.FullName) ||
-            request.FullName.Trim().Length > 150)
-        {
-            throw new ArgumentException(
-                "Full name is required and must not exceed 150 characters.",
-                nameof(request.FullName));
-        }
+        var fullName = Domain.TextNormalization.NormalizeName(
+            request.FullName,
+            nameof(request.FullName));
 
         if (request.Age is < 0 or > 150)
         {
@@ -342,7 +334,8 @@ public sealed class PlatformDirectoryService(
                 nameof(request.Age));
         }
 
-        var nid = request.NIDNumber?.Trim();
+        var nid = Domain.TextNormalization.NormalizeOptionalIdentifier(
+            request.NIDNumber);
         if (!string.IsNullOrWhiteSpace(nid) &&
             await dbContext.CitizenProfiles.AnyAsync(
                 candidate => candidate.Id != profile.Id &&
@@ -353,7 +346,8 @@ public sealed class PlatformDirectoryService(
                 "A citizen profile with this NID number already exists.");
         }
 
-        var citizenship = request.CitizenshipNumber?.Trim();
+        var citizenship = Domain.TextNormalization.NormalizeOptionalIdentifier(
+            request.CitizenshipNumber);
         if (!string.IsNullOrWhiteSpace(citizenship) &&
             await dbContext.CitizenProfiles.AnyAsync(
                 candidate => candidate.Id != profile.Id &&
@@ -367,10 +361,10 @@ public sealed class PlatformDirectoryService(
         var now = timeProvider.GetUtcNow();
 
         profile.Update(
-            request.FullName,
+            fullName,
             request.PhoneNumber,
-            request.NIDNumber,
-            request.CitizenshipNumber,
+            nid,
+            citizenship,
             request.Age,
             request.Gender,
             request.PermanentAddress,

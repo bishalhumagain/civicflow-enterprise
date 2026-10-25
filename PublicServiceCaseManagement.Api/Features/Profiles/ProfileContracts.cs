@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
+
 namespace PublicServiceCaseManagement.Api.Features.Profiles;
 
 public static class ProfileRoutes
@@ -57,11 +60,21 @@ public sealed record ProfileContext(
 /// changed through a verified re-confirmation flow.
 /// </summary>
 public sealed record UpdateProfileRequest(
+    [Required]
+    [NotWhiteSpace(ErrorMessage = "Full name is required.")]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
+    [PhoneNumber]
     string? PhoneNumber = null,
+    [StringLength(50)]
     string? NIDNumber = null,
+    [StringLength(50)]
     string? CitizenshipNumber = null,
+    [Range(0, 150)]
     int? Age = null,
+    [StringLength(20)]
     string? Gender = null,
+    [StringLength(500)]
     string? PermanentAddress = null,
+    [StringLength(500)]
     string? TemporaryAddress = null);

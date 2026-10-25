@@ -1,6 +1,22 @@
 import { useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
 import { Icon } from './Icon'
+import { formatDateTime, formatFileSize } from '../utils/format'
+import {
+  MAX_CASE_DESCRIPTION_LENGTH,
+  MAX_CASE_TITLE_LENGTH,
+  MAX_CASE_UPDATE_LENGTH,
+  MAX_FILE_SIZE_BYTES,
+  MAX_STATUS_EXPLANATION_LENGTH,
+  MIN_CASE_DESCRIPTION_LENGTH,
+  MIN_CASE_TITLE_LENGTH,
+  normalizeMultiline,
+  normalizeWhitespace,
+  validateCaseDescription,
+  validateCaseTitle,
+  validateCaseUpdate,
+  validateFile,
+} from '../utils/validation'
 import {
   statusLabels,
   statusOptions,
@@ -88,6 +104,7 @@ export function CaseDetails({
   const [statusExplanationVisible, setStatusExplanationVisible] =
     useState(false)
   const [documentVisible, setDocumentVisible] = useState(false)
+  const [documentError, setDocumentError] = useState<string | null>(null)
   const [updateKind, setUpdateKind] =
     useState<CaseUpdateKind>('PublicUpdate')
   const [updateMessage, setUpdateMessage] = useState('')
@@ -112,6 +129,9 @@ export function CaseDetails({
     ? pendingStatus.status
     : caseRecord.status
   const statusChanged = selectedStatus !== caseRecord.status
+  const editTitleError = validateCaseTitle(editTitle)
+  const editDescriptionError = validateCaseDescription(editDescription)
+  const updateError = validateCaseUpdate(updateMessage)
 
   return (
     <aside className="detail-card">
@@ -129,12 +149,17 @@ export function CaseDetails({
           className="case-edit-form"
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault()
-            void onUpdate(editTitle.trim(), editDescription.trim()).then((saved) => {
+            if (editTitleError !== null || editDescriptionError !== null) return
+
+            const normalizedTitle = normalizeWhitespace(editTitle)
+            const normalizedDescription = normalizeMultiline(editDescription)
+
+            void onUpdate(normalizedTitle, normalizedDescription).then((saved) => {
               if (saved) {
                 setCaseDraft({
                   caseId: caseRecord.id,
-                  title: editTitle.trim(),
-                  description: editDescription.trim(),
+                  title: normalizedTitle,
+                  description: normalizedDescription,
                 })
               }
             })
@@ -143,8 +168,13 @@ export function CaseDetails({
           <label>
             Case title
             <input
-              maxLength={200}
-              minLength={3}
+              aria-describedby={
+                editTitleError !== null ? 'case-edit-title-error' : undefined
+              }
+              aria-invalid={editTitleError !== null}
+              id="case-edit-title"
+              maxLength={MAX_CASE_TITLE_LENGTH}
+              minLength={MIN_CASE_TITLE_LENGTH}
               onChange={(event) => setCaseDraft({
                 caseId: caseRecord.id,
                 title: event.target.value,
@@ -154,11 +184,23 @@ export function CaseDetails({
               value={editTitle}
             />
           </label>
+          {editTitleError !== null && (
+            <span className="field-error" id="case-edit-title-error" role="alert">
+              {editTitleError}
+            </span>
+          )}
           <label>
             Description
             <textarea
-              maxLength={5000}
-              minLength={10}
+              aria-describedby={
+                editDescriptionError !== null
+                  ? 'case-edit-description-error'
+                  : undefined
+              }
+              aria-invalid={editDescriptionError !== null}
+              id="case-edit-description"
+              maxLength={MAX_CASE_DESCRIPTION_LENGTH}
+              minLength={MIN_CASE_DESCRIPTION_LENGTH}
               onChange={(event) => setCaseDraft({
                 caseId: caseRecord.id,
                 title: editTitle,
@@ -168,11 +210,22 @@ export function CaseDetails({
               value={editDescription}
             />
           </label>
+          {editDescriptionError !== null && (
+            <span
+              className="field-error"
+              id="case-edit-description-error"
+              role="alert"
+            >
+              {editDescriptionError}
+            </span>
+          )}
           <button
             className="secondary-button"
             disabled={
               actionLoading ||
               caseRecord.id.startsWith('demo-') ||
+              editTitleError !== null ||
+              editDescriptionError !== null ||
               (editTitle.trim() === caseRecord.title &&
                 editDescription.trim() === caseRecord.description)
             }
@@ -225,14 +278,20 @@ export function CaseDetails({
           <label>
             Explanation <small className="muted">(optional)</small>
             <textarea
+              aria-describedby="status-explanation-hint"
               disabled={actionLoading || !canEditCase}
-              maxLength={2000}
+              id="status-explanation"
+              maxLength={MAX_STATUS_EXPLANATION_LENGTH}
               onChange={(event) => setStatusExplanation(event.target.value)}
               placeholder="Record why the case is moving to this status."
               rows={3}
               value={statusExplanation}
             />
           </label>
+          <small className="muted" id="status-explanation-hint">
+            {statusExplanation.length}/{MAX_STATUS_EXPLANATION_LENGTH} characters.
+            Explanations are internal unless shared below.
+          </small>
           <label className="checkbox-control">
             <input
               checked={statusExplanationVisible}
@@ -319,17 +378,32 @@ export function CaseDetails({
               <span>Share new documents with the citizen</span>
             </label>
             <label className="upload-control">
-              Attach supporting document
+              Attach supporting document (maximum{" "}
+              {formatFileSize(MAX_FILE_SIZE_BYTES)})
               <input
                 disabled={actionLoading || !canEditCase}
+                aria-describedby={
+                  documentError !== null ? 'case-document-error' : undefined
+                }
+                aria-invalid={documentError !== null}
                 type="file"
                 onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void onUpload(file, documentVisible)
+                  const file = event.target.files?.[0] ?? null
+                  const validationError = validateFile(file)
+                  setDocumentError(validationError)
+                  if (file !== null && validationError === null) {
+                    void onUpload(file, documentVisible)
+                  }
                   event.currentTarget.value = ''
                 }}
               />
             </label>
+
+            {documentError !== null && (
+              <p className="field-error" id="case-document-error" role="alert">
+                {documentError}
+              </p>
+            )}
 
             {documents.length === 0 ? (
               <p className="muted">No documents attached.</p>
@@ -345,7 +419,7 @@ export function CaseDetails({
                     >
                       {document.originalFileName}
                     </button>{' '}
-                    <small>{Math.ceil(document.sizeBytes / 1024)} KB</small>{' '}
+                    <small>{formatFileSize(document.sizeBytes)}</small>{' '}
                     <span
                       className={
                         document.isVisibleToCitizen
@@ -376,8 +450,8 @@ export function CaseDetails({
                 className="case-update-form"
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
                   event.preventDefault()
-                  const message = updateMessage.trim()
-                  if (!message) return
+                  const message = normalizeMultiline(updateMessage)
+                  if (message.length === 0 || updateError !== null) return
                   setSendingUpdate(true)
                   void onAddUpdate(updateKind, message)
                     .then((saved) => {
@@ -405,8 +479,13 @@ export function CaseDetails({
                 <label>
                   Message
                   <textarea
+                    aria-describedby={
+                      updateError !== null ? 'case-update-error' : undefined
+                    }
+                    aria-invalid={updateError !== null}
                     disabled={sendingUpdate}
-                    maxLength={4000}
+                    id="case-update-message"
+                    maxLength={MAX_CASE_UPDATE_LENGTH}
                     minLength={1}
                     onChange={(event) => setUpdateMessage(event.target.value)}
                     placeholder={
@@ -419,6 +498,18 @@ export function CaseDetails({
                     value={updateMessage}
                   />
                 </label>
+                {updateError !== null && (
+                  <span
+                    className="field-error"
+                    id="case-update-error"
+                    role="alert"
+                  >
+                    {updateError}
+                  </span>
+                )}
+                <small className="muted">
+                  {updateMessage.length}/{MAX_CASE_UPDATE_LENGTH} characters
+                </small>
                 <p className="muted form-hint">
                   {updateKind === 'InternalNote'
                     ? 'Internal notes never appear in the citizen timeline or API responses.'
@@ -428,7 +519,11 @@ export function CaseDetails({
                 </p>
                 <button
                   className="secondary-button"
-                  disabled={sendingUpdate || updateMessage.trim().length === 0}
+                  disabled={
+                    sendingUpdate ||
+                    updateMessage.trim().length === 0 ||
+                    updateError !== null
+                  }
                   type="submit"
                 >
                   <Icon className="button-icon" name="save" />
@@ -465,7 +560,7 @@ export function CaseDetails({
                       </span>
                     </div>
                     <p>{update.message}</p>
-                    <small>{new Date(update.createdAt).toLocaleString()}</small>
+                    <small>{formatDateTime(update.createdAt)}</small>
                   </li>
                 ))}
               </ul>
@@ -484,7 +579,7 @@ export function CaseDetails({
               <span className="timeline-dot" />
               <span>
                 <strong>{statusLabels[item.previousStatus]} → {statusLabels[item.newStatus]}</strong>
-                <small>{new Date(item.changedAt).toLocaleString()}</small>
+                <small>{formatDateTime(item.changedAt)}</small>
                 {item.explanation && (
                   <span className="timeline-explanation">
                     {item.explanation}{' '}
@@ -523,7 +618,7 @@ export function CaseDetails({
                     ? ` (was ${item.previousRole})`
                     : ''}
                 </strong>
-                <small>{new Date(item.assignedAt).toLocaleString()}</small>
+                <small>{formatDateTime(item.assignedAt)}</small>
               </span>
             </p>
           ))

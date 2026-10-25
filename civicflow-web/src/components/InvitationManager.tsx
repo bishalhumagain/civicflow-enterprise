@@ -6,7 +6,43 @@ import {
   invitationRoles,
   invitationStatus,
 } from './invitation-utils'
+import { formatDateTime } from '../utils/format'
+import {
+  MAX_EMAIL_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_PHONE_LENGTH,
+  normalizeEmail,
+  normalizeOptional,
+  normalizeWhitespace,
+  sanitizePhoneInput,
+  validateEmail,
+  validateName,
+  validatePhone,
+} from '../utils/validation'
 import { Icon } from './Icon'
+
+type InvitationField = "fullName" | "email" | "phoneNumber"
+
+type InvitationErrors = Partial<Record<InvitationField, string>>
+
+function validateInvitation(
+  fullName: string,
+  email: string,
+  phoneNumber: string,
+): InvitationErrors {
+  const errors: InvitationErrors = {}
+
+  const nameError = validateName(fullName)
+  if (nameError !== null) errors.fullName = nameError
+
+  const emailError = validateEmail(email)
+  if (emailError !== null) errors.email = emailError
+
+  const phoneError = validatePhone(phoneNumber)
+  if (phoneError !== null) errors.phoneNumber = phoneError
+
+  return errors
+}
 
 /**
  * Invitation form and pending-invitation list shared by the staff directory
@@ -40,14 +76,32 @@ export function InvitationManager({
   const [email, setEmail] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [role, setRole] = useState('CaseWorker')
+  const [touched, setTouched] = useState<Partial<Record<InvitationField, boolean>>>({})
+  const [submitted, setSubmitted] = useState(false)
+
+  const errors = validateInvitation(fullName, email, phoneNumber)
+
+  function errorFor(field: InvitationField): string | null {
+    if (submitted === false && touched[field] !== true) return null
+    return errors[field] ?? null
+  }
+
+  function markTouched(field: InvitationField) {
+    setTouched((current) => ({ ...current, [field]: true }))
+  }
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setSubmitted(true)
+
+    const currentErrors = validateInvitation(fullName, email, phoneNumber)
+
+    if (Object.keys(currentErrors).length > 0) return
 
     const invited = await onInvite(
-      fullName.trim(),
-      email.trim(),
-      phoneNumber.trim(),
+      normalizeWhitespace(fullName),
+      normalizeEmail(email),
+      normalizeOptional(phoneNumber) ?? "",
       role,
     )
 
@@ -56,38 +110,93 @@ export function InvitationManager({
       setEmail('')
       setPhoneNumber('')
       setRole('CaseWorker')
+      setTouched({})
+      setSubmitted(false)
     }
   }
 
+  const fullNameError = errorFor("fullName")
+  const emailError = errorFor("email")
+  const phoneError = errorFor("phoneNumber")
+
   return (
     <>
-      <form className="case-card inline-form" onSubmit={handleInvite}>
+      <form className="case-card inline-form" noValidate onSubmit={handleInvite}>
         <input
-          required
-          minLength={1}
-          maxLength={150}
-          placeholder="Full name"
-          value={fullName}
+          aria-describedby={
+            fullNameError !== null ? "invitation-full-name-error" : undefined
+          }
+          aria-invalid={fullNameError !== null}
+          aria-label="Full name"
+          disabled={loading || disabled}
+          id="invitation-full-name"
+          maxLength={MAX_NAME_LENGTH}
+          onBlur={() => markTouched("fullName")}
           onChange={(event) => setFullName(event.target.value)}
-        />
-        <input
+          placeholder="Full name"
           required
-          type="email"
-          maxLength={254}
-          placeholder="Email address"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          value={fullName}
         />
+        {fullNameError !== null && (
+          <span
+            className="field-error"
+            id="invitation-full-name-error"
+            role="alert"
+          >
+            {fullNameError}
+          </span>
+        )}
         <input
-          aria-label="Phone number"
-          type="tel"
-          maxLength={30}
-          placeholder="Phone number (optional)"
-          value={phoneNumber}
-          onChange={(event) => setPhoneNumber(event.target.value)}
+          aria-describedby={
+            emailError !== null ? "invitation-email-error" : undefined
+          }
+          aria-invalid={emailError !== null}
+          aria-label="Email address"
+          autoCapitalize="none"
+          disabled={loading || disabled}
+          id="invitation-email"
+          inputMode="email"
+          maxLength={MAX_EMAIL_LENGTH}
+          onBlur={() => markTouched("email")}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email address"
+          required
+          spellCheck={false}
+          type="email"
+          value={email}
         />
+        {emailError !== null && (
+          <span className="field-error" id="invitation-email-error" role="alert">
+            {emailError}
+          </span>
+        )}
+        <input
+          aria-describedby={
+            phoneError !== null ? "invitation-phone-error" : undefined
+          }
+          aria-invalid={phoneError !== null}
+          aria-label="Phone number"
+          disabled={loading || disabled}
+          id="invitation-phone"
+          inputMode="tel"
+          maxLength={MAX_PHONE_LENGTH}
+          onBlur={() => markTouched("phoneNumber")}
+          onChange={(event) =>
+            setPhoneNumber(sanitizePhoneInput(event.target.value))
+          }
+          placeholder="Phone number (optional)"
+          type="tel"
+          value={phoneNumber}
+        />
+        {phoneError !== null && (
+          <span className="field-error" id="invitation-phone-error" role="alert">
+            {phoneError}
+          </span>
+        )}
         <select
           aria-label="Role"
+          disabled={loading || disabled}
+          id="invitation-role"
           value={role}
           onChange={(event) => setRole(event.target.value)}
         >
@@ -126,7 +235,7 @@ export function InvitationManager({
                   <span style={{ display: 'block' }}>{invitation.email}</span>
                   <small className="muted">
                     {invitation.role} · expires{' '}
-                    {new Date(invitation.expiresAt).toLocaleString()}
+                    {formatDateTime(invitation.expiresAt)}
                   </small>
                   {invitation.phoneNumber && (
                     <small className="muted">{invitation.phoneNumber}</small>

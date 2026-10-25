@@ -58,6 +58,17 @@ export async function readApiErrorDetails(
   }
 }
 
+/**
+ * Reads a user-facing error message from a failed response and falls back to
+ * the status-specific message when the API did not return a usable one.
+ */
+export async function readApiErrorMessage(
+  response: Response,
+): Promise<string> {
+  const { message } = await readApiErrorDetails(response);
+  return message ?? fallbackApiErrorMessage(response.status);
+}
+
 export function fallbackApiErrorMessage(status: number): string {
   if (status === 400) {
     return 'The request could not be processed. Check the entered details and try again.'

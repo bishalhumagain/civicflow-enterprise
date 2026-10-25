@@ -1,40 +1,16 @@
 import { authFetch } from "../auth";
+import { ApiError } from "../api-client";
+import { readApiErrorMessage } from "../api-error";
 import type { PlatformCitizen, PlatformCitizenUpdate } from "../domain";
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.error === "string" && body.error.length > 0) {
-      return body.error;
-    }
-  } catch {
-    // ignore malformed bodies
-  }
-  return fallback;
-}
-
-export class CitizenAdminApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "CitizenAdminApiError";
-    this.status = status;
-  }
-}
+export { ApiError as CitizenAdminApiError };
 
 export async function getPlatformCitizens(): Promise<PlatformCitizen[]> {
   const response = await authFetch("/api/platform/citizens");
 
   if (!response.ok) {
-    throw new CitizenAdminApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch citizen profiles: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -58,11 +34,8 @@ export async function updateCitizenProfile(
   );
 
   if (!response.ok) {
-    throw new CitizenAdminApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update citizen profile: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -82,11 +55,8 @@ export async function toggleCitizenAccountActive(
   );
 
   if (!response.ok) {
-    throw new CitizenAdminApiError(
-      await readErrorMessage(
-        response,
-        `Failed to toggle citizen account status: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }

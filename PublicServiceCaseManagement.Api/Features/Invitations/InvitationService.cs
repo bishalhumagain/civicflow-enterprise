@@ -44,7 +44,8 @@ public sealed class InvitationService(
     {
         var role = ParseRole(request.Role);
         var email = NormalizeEmail(request.Email);
-        var fullName = request.FullName.Trim();
+        var fullName = Domain.TextNormalization.NormalizeName(
+            request.FullName);
 
         var organization = await dbContext.Organizations
             .SingleOrDefaultAsync(
@@ -650,25 +651,25 @@ public sealed class InvitationService(
 
     private static OrganizationRole ParseRole(string role)
     {
-        if (!Enum.TryParse<OrganizationRole>(
-                role,
-                ignoreCase: true,
-                out var parsed) ||
-            !Enum.IsDefined(parsed) ||
-            !AllowedRoles.Contains(
-                parsed.ToString(),
-                StringComparer.Ordinal))
+        var normalized = role.Trim();
+        var match = AllowedRoles.FirstOrDefault(candidate =>
+            string.Equals(
+                candidate,
+                normalized,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
         {
             throw new ArgumentException(
                 "The role must be one of: Viewer, CaseWorker, OrganizationAdmin.",
                 nameof(role));
         }
 
-        return parsed;
+        return Enum.Parse<OrganizationRole>(match, ignoreCase: true);
     }
 
     private static string NormalizeEmail(string email) =>
-        email.Trim().ToLowerInvariant();
+        Domain.TextNormalization.NormalizeEmail(email);
 
     private static InvitationResponse ToResponse(
         AccountInvitation invitation,

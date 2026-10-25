@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AccountInvitation, Membership, Organization, OrganizationType } from '../domain'
+import { normalizeWhitespace, validateRequired } from '../utils/validation'
 import { InvitationManager } from './InvitationManager'
 import { Icon } from './Icon'
+import { formatDate } from '../utils/format'
 import {
   activateOrganization,
   createOrganization,
@@ -140,12 +142,27 @@ export function OrganizationAdministration({
   // ── Organizations handlers ─────────────────────────────────────────────
   async function handleCreateOrganization(e: React.FormEvent) {
     e.preventDefault()
+
+    const name = normalizeWhitespace(newOrgName)
+    const code = normalizeWhitespace(newOrgCode).toUpperCase()
+    const nameError = validateRequired(name, "Organization name")
+
+    if (nameError !== null) {
+      setError(nameError)
+      return
+    }
+
+    if (code.length === 0) {
+      setError("Organization code is required.")
+      return
+    }
+
     await run(
       'create',
       async () => {
         await createOrganization(
-          newOrgName.trim(),
-          newOrgCode.trim(),
+          name,
+          code,
           newOrgTypeId || undefined,
         )
         setNewOrgName('')
@@ -158,13 +175,27 @@ export function OrganizationAdministration({
   }
 
   async function handleUpdateOrganization(org: Organization) {
+    const name = normalizeWhitespace(editedName)
+    const code = normalizeWhitespace(editedCode).toUpperCase()
+    const nameError = validateRequired(name, "Organization name")
+
+    if (nameError !== null) {
+      setError(nameError)
+      return
+    }
+
+    if (code.length === 0) {
+      setError("Organization code is required.")
+      return
+    }
+
     await run(
       `update-${org.id}`,
       async () => {
         await updateOrganization(
           org.id,
-          editedName.trim(),
-          editedCode.trim(),
+          name,
+          code,
           editedTypeId || undefined,
         )
         setEditingOrg(null)
@@ -221,10 +252,25 @@ export function OrganizationAdministration({
   // ── Organization type handlers ─────────────────────────────────────────
   async function handleCreateType(e: React.FormEvent) {
     e.preventDefault()
+
+    const name = normalizeWhitespace(newTypeName)
+    const code = normalizeWhitespace(newTypeCode).toUpperCase()
+    const nameError = validateRequired(name, "Organization type name")
+
+    if (nameError !== null) {
+      setError(nameError)
+      return
+    }
+
+    if (code.length === 0) {
+      setError("Organization type code is required.")
+      return
+    }
+
     await run(
       'type-create',
       async () => {
-        await createOrganizationType(newTypeName.trim(), newTypeCode.trim())
+        await createOrganizationType(name, code)
         setNewTypeName('')
         setNewTypeCode('')
         setShowTypeForm(false)
@@ -243,13 +289,27 @@ export function OrganizationAdministration({
   }
 
   async function handleUpdateType(item: OrganizationType) {
+    const name = normalizeWhitespace(editedTypeName)
+    const code = normalizeWhitespace(editedTypeCode).toUpperCase()
+    const nameError = validateRequired(name, "Organization type name")
+
+    if (nameError !== null) {
+      setError(nameError)
+      return
+    }
+
+    if (code.length === 0) {
+      setError("Organization type code is required.")
+      return
+    }
+
     await run(
       `type-update-${item.id}`,
       async () => {
         await updateOrganizationType(
           item.id,
-          editedTypeName.trim(),
-          editedTypeCode.trim(),
+          name,
+          code,
         )
         setEditingTypeId(null)
         await loadTypes()
@@ -361,6 +421,7 @@ export function OrganizationAdministration({
             <input
               required
               maxLength={200}
+              aria-label="Organization name"
               placeholder="Organization name"
               value={newOrgName}
               onChange={(e) => setNewOrgName(e.target.value)}
@@ -368,6 +429,7 @@ export function OrganizationAdministration({
             <input
               required
               maxLength={50}
+              aria-label="Organization code"
               placeholder="Code"
               value={newOrgCode}
               onChange={(e) => setNewOrgCode(e.target.value)}
@@ -414,6 +476,7 @@ export function OrganizationAdministration({
                       <>
                         <td>
                           <input
+                            aria-label="Organization name"
                             required
                             maxLength={200}
                             value={editedName}
@@ -422,6 +485,7 @@ export function OrganizationAdministration({
                         </td>
                         <td>
                           <input
+                            aria-label="Organization code"
                             required
                             maxLength={50}
                             value={editedCode}
@@ -448,7 +512,7 @@ export function OrganizationAdministration({
                           )}
                         </td>
                         <td>{org.isActive ? 'Active' : 'Inactive'}</td>
-                        <td>{new Date(org.createdAt).toLocaleDateString()}</td>
+                        <td>{formatDate(org.createdAt)}</td>
                         <td>
                           <button
                             className="primary-button"
@@ -485,7 +549,7 @@ export function OrganizationAdministration({
                             {org.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td>{new Date(org.createdAt).toLocaleDateString()}</td>
+                        <td>{formatDate(org.createdAt)}</td>
                         <td>
                           <button
                             className="secondary-button"
@@ -576,6 +640,7 @@ export function OrganizationAdministration({
             <input
               required
               maxLength={200}
+              aria-label="Organization type name"
               placeholder="Type name"
               value={newTypeName}
               onChange={(e) => setNewTypeName(e.target.value)}
@@ -583,6 +648,7 @@ export function OrganizationAdministration({
             <input
               required
               maxLength={50}
+              aria-label="Organization type code"
               placeholder="Code"
               value={newTypeCode}
               onChange={(e) => setNewTypeCode(e.target.value)}
@@ -630,6 +696,7 @@ export function OrganizationAdministration({
                         <>
                           <td>
                             <input
+                              aria-label="Organization type name"
                               required
                               maxLength={200}
                               value={editedTypeName}
@@ -638,6 +705,7 @@ export function OrganizationAdministration({
                           </td>
                           <td>
                             <input
+                              aria-label="Organization type code"
                               required
                               maxLength={50}
                               value={editedTypeCode}
@@ -646,7 +714,7 @@ export function OrganizationAdministration({
                           </td>
                           <td>{item.organizationCount}</td>
                           <td>{item.isActive ? 'Active' : 'Inactive'}</td>
-                          <td>{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td>{formatDate(item.createdAt)}</td>
                           <td>
                             <button
                               className="primary-button"
@@ -691,7 +759,7 @@ export function OrganizationAdministration({
                               {item.isActive ? 'Active' : 'Inactive'}
                             </span>
                           </td>
-                          <td>{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td>{formatDate(item.createdAt)}</td>
                           <td>
                             <button
                               className="secondary-button"
@@ -864,7 +932,7 @@ export function OrganizationAdministration({
                               {membership.isActive ? 'Active' : 'Inactive'}
                             </span>
                           </td>
-                          <td>{new Date(membership.createdAt).toLocaleDateString()}</td>
+                          <td>{formatDate(membership.createdAt)}</td>
                           <td>
                             <button
                               className="secondary-button"

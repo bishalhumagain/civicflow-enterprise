@@ -3,6 +3,7 @@ import type { AuditEvent } from '../domain'
 import { auditCategories } from '../domain'
 import { emptyAuditFilters, type AuditFilters } from './audit-utils'
 import { Icon } from './Icon'
+import { formatDateTime } from '../utils/format'
 
 /**
  * Read-only view of the audit trail. The component never writes anything, it
@@ -160,7 +161,7 @@ export function AuditLog({
               <tbody>
                 {events.map((event) => (
                   <tr key={event.id}>
-                    <td>{new Date(event.occurredAt).toLocaleString()}</td>
+                    <td>{formatDateTime(event.occurredAt)}</td>
                     <td><strong>{event.category}</strong></td>
                     <td><strong>{event.action}</strong></td>
                     <td>

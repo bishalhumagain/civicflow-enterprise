@@ -42,7 +42,7 @@ public sealed class Organization
         Guid organizationTypeId = default)
     {
         if (string.IsNullOrWhiteSpace(name) ||
-            name.Trim().Length > 200)
+            TextNormalization.CollapseWhitespace(name).Length > 200)
         {
             throw new ArgumentException(
                 "Organization name is required and must not exceed 200 characters.",
@@ -58,7 +58,7 @@ public sealed class Organization
         }
 
         return new Organization(
-            name.Trim(),
+            TextNormalization.CollapseWhitespace(name),
             code.Trim().ToUpperInvariant(),
             ResolveTypeId(organizationTypeId),
             now);
@@ -93,7 +93,7 @@ public sealed class Organization
         Guid organizationTypeId = default)
     {
         if (string.IsNullOrWhiteSpace(name) ||
-            name.Trim().Length > 200)
+            TextNormalization.CollapseWhitespace(name).Length > 200)
         {
             throw new ArgumentException(
                 "Organization name is required and must not exceed 200 characters.",
@@ -108,7 +108,7 @@ public sealed class Organization
                 nameof(code));
         }
 
-        Name = name.Trim();
+        Name = TextNormalization.CollapseWhitespace(name);
         Code = code.Trim().ToUpperInvariant();
         OrganizationTypeId = ResolveTypeId(organizationTypeId);
         UpdatedAt = now;

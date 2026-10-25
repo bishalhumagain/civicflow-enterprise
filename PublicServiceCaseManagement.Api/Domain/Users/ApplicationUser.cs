@@ -61,7 +61,7 @@ public sealed class ApplicationUser : IdentityUser<Guid>
         return new ApplicationUser
         {
             Id = Guid.NewGuid(),
-            FullName = fullName.Trim(),
+            FullName = TextNormalization.NormalizeName(fullName),
             Email = normalizedEmail,
             UserName = normalizedEmail,
             NormalizedEmail = normalizedEmail.ToUpperInvariant(),

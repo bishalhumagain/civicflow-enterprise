@@ -15,6 +15,8 @@ import {
     statusOptions,
     type CaseStatus,
 } from '../domain'
+import {formatDate, formatDateTime, formatFileSize, formatNumber} from '../utils/format'
+import {MAX_CASE_UPDATE_LENGTH, normalizeMultiline, validateCaseUpdate} from '../utils/validation'
 import {StatusPill} from './StatusPill'
 import {StatCard} from './StatCard'
 
@@ -176,10 +178,11 @@ export function CitizenDashboard({
         event.preventDefault()
         if (!selected) return
 
-        const message = responseText.trim()
+        const message = normalizeMultiline(responseText)
+        const validationError = validateCaseUpdate(message)
 
-        if (!message) {
-            setResponseError('Enter a response before sending it.')
+        if (validationError !== null) {
+            setResponseError(validationError)
             return
         }
 
@@ -266,7 +269,7 @@ export function CitizenDashboard({
                 />
                 <StatCard
                     label="My requests"
-                    value={loading ? '…' : String(totalCount)}
+                    value={loading ? '…' : formatNumber(totalCount)}
                     detail={statsDetail}
                     tone="purple"
                 />
@@ -321,11 +324,11 @@ export function CitizenDashboard({
                             </div>
                             <div>
                                 <dt>Submitted</dt>
-                                <dd>{new Date(selected.createdAt).toLocaleString()}</dd>
+                                <dd>{formatDateTime(selected.createdAt)}</dd>
                             </div>
                             <div>
                                 <dt>Last updated</dt>
-                                <dd>{new Date(selected.updatedAt).toLocaleString()}</dd>
+                                <dd>{formatDateTime(selected.updatedAt)}</dd>
                             </div>
                         </dl>
 
@@ -346,7 +349,7 @@ export function CitizenDashboard({
                                     <div>
                                         <strong>Request submitted</strong>
                                         <time dateTime={selected.createdAt}>
-                                            {new Date(selected.createdAt).toLocaleString()}
+                                            {formatDateTime(selected.createdAt)}
                                         </time>
                                     </div>
                                 </li>
@@ -361,7 +364,7 @@ export function CitizenDashboard({
                                                 <p>{entry.explanation}</p>
                                             ) : null}
                                             <time dateTime={entry.changedAt}>
-                                                {new Date(entry.changedAt).toLocaleString()}
+                                                {formatDateTime(entry.changedAt)}
                                             </time>
                                         </div>
                                     </li>
@@ -385,7 +388,7 @@ export function CitizenDashboard({
                                             <strong>{updateKindLabels[update.kind]}</strong>
                                             <p>{update.message}</p>
                                             <time dateTime={update.createdAt}>
-                                                {new Date(update.createdAt).toLocaleString()}
+                                                {formatDateTime(update.createdAt)}
                                             </time>
                                         </li>
                                     ))}
@@ -405,7 +408,7 @@ export function CitizenDashboard({
                                                 <strong>{document.originalFileName}</strong>
                                                 <span className="muted">
                                                     {formatFileSize(document.sizeBytes)} ·
-                                                    {' '}{new Date(document.uploadedAt).toLocaleDateString()}
+                                                    {' '}{formatDate(document.uploadedAt)}
                                                 </span>
                                             </div>
                                             <button
@@ -430,21 +433,35 @@ export function CitizenDashboard({
                                         Your message
                                     </label>
                                     <textarea
+                                        aria-describedby={
+                                            responseError !== null
+                                                ? "citizen-response-error citizen-response-hint"
+                                                : "citizen-response-hint"
+                                        }
+                                        aria-invalid={responseError !== null}
                                         id="citizen-response-message"
-                                        maxLength={4000}
+                                        maxLength={MAX_CASE_UPDATE_LENGTH}
                                         minLength={1}
-                                        onChange={(event) => setResponseText(event.target.value)}
+                                        onChange={(event) => {
+                                            setResponseText(event.target.value)
+                                            setResponseError(null)
+                                        }}
                                         placeholder="Provide the requested details or add context for the case team."
                                         required
                                         rows={4}
                                         value={responseText}
                                     />
                                     {responseError ? (
-                                        <div className="error-banner" role="alert">{responseError}</div>
+                                        <div className="error-banner" id="citizen-response-error" role="alert">
+                                            {responseError}
+                                        </div>
                                     ) : null}
+                                    <small className="muted" id="citizen-response-hint">
+                                        {responseText.length}/{MAX_CASE_UPDATE_LENGTH} characters
+                                    </small>
                                     <button
                                         className="primary-button"
-                                        disabled={responding}
+                                        disabled={responding || validateCaseUpdate(responseText) !== null}
                                         type="submit"
                                     >
                                         {responding ? 'Sending…' : 'Send response'}
@@ -483,6 +500,7 @@ export function CitizenDashboard({
                                 </label>
                                 <input
                                     id="citizen-case-search"
+                                    maxLength={200}
                                     placeholder="Search by title or reference…"
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
@@ -585,10 +603,10 @@ export function CitizenDashboard({
                                         <p className="muted">Reference: {item.referenceNumber}</p>
                                         <p className="muted">Department: {item.organizationName}</p>
                                         <p className="muted">
-                                            Submitted: {new Date(item.createdAt).toLocaleDateString()}
+                                            Submitted: {formatDate(item.createdAt)}
                                         </p>
                                         <p className="muted">
-                                            Updated: {new Date(item.updatedAt).toLocaleString()}
+                                            Updated: {formatDateTime(item.updatedAt)}
                                         </p>
                                         <button
                                             className="primary-button"
@@ -660,10 +678,4 @@ export function CitizenDashboard({
             </div>
         </>
     )
-}
-
-function formatFileSize(sizeBytes: number): string {
-    if (sizeBytes < 1024) return `${sizeBytes} B`
-    if (sizeBytes < 1024 * 1024) return `${Math.ceil(sizeBytes / 1024)} KB`
-    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
 }

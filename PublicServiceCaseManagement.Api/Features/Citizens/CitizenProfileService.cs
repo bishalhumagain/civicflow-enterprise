@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
@@ -32,25 +33,31 @@ public sealed class CitizenProfileService : ICitizenProfileService
         if (applicationUserId == Guid.Empty)
             throw new ArgumentException("Application user ID is required.", nameof(applicationUserId));
 
+        var email = TextNormalization.NormalizeEmail(
+            request.Email,
+            nameof(request.Email));
+        var nid = TextNormalization.NormalizeOptionalIdentifier(
+            request.NIDNumber);
+        var cid = TextNormalization.NormalizeOptionalIdentifier(
+            request.CitizenshipNumber);
+
         var existing = await _dbContext.CitizenProfiles
             .FirstOrDefaultAsync(p => p.ApplicationUserId == applicationUserId, cancellationToken);
 
         if (existing is not null)
             throw new InvalidOperationException("A citizen profile already exists for this user.");
 
-        if (await _dbContext.CitizenProfiles.AnyAsync(p => p.Email == request.Email.Trim(), cancellationToken))
+        if (await _dbContext.CitizenProfiles.AnyAsync(p => p.Email == email, cancellationToken))
             throw new InvalidOperationException("A citizen profile with this email already exists.");
 
-        if (!string.IsNullOrWhiteSpace(request.NIDNumber))
+        if (!string.IsNullOrWhiteSpace(nid))
         {
-            var nid = request.NIDNumber.Trim();
             if (await _dbContext.CitizenProfiles.AnyAsync(p => p.NIDNumber == nid, cancellationToken))
                 throw new InvalidOperationException("A citizen profile with this NID number already exists.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CitizenshipNumber))
+        if (!string.IsNullOrWhiteSpace(cid))
         {
-            var cid = request.CitizenshipNumber.Trim();
             if (await _dbContext.CitizenProfiles.AnyAsync(p => p.CitizenshipNumber == cid, cancellationToken))
                 throw new InvalidOperationException("A citizen profile with this citizenship number already exists.");
         }
@@ -61,8 +68,8 @@ public sealed class CitizenProfileService : ICitizenProfileService
             request.FullName,
             request.Email,
             request.PhoneNumber,
-            request.NIDNumber,
-            request.CitizenshipNumber,
+            nid,
+            cid,
             request.Age,
             request.Gender,
             request.PermanentAddress,
@@ -103,16 +110,19 @@ public sealed class CitizenProfileService : ICitizenProfileService
         if (profile is null)
             return null;
 
-        if (!string.IsNullOrWhiteSpace(request.NIDNumber))
+        var nid = TextNormalization.NormalizeOptionalIdentifier(
+            request.NIDNumber);
+        var cid = TextNormalization.NormalizeOptionalIdentifier(
+            request.CitizenshipNumber);
+
+        if (!string.IsNullOrWhiteSpace(nid))
         {
-            var nid = request.NIDNumber.Trim();
             if (await _dbContext.CitizenProfiles.AnyAsync(p => p.NIDNumber == nid && p.Id != profile.Id, cancellationToken))
                 throw new InvalidOperationException("A citizen profile with this NID number already exists.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CitizenshipNumber))
+        if (!string.IsNullOrWhiteSpace(cid))
         {
-            var cid = request.CitizenshipNumber.Trim();
             if (await _dbContext.CitizenProfiles.AnyAsync(p => p.CitizenshipNumber == cid && p.Id != profile.Id, cancellationToken))
                 throw new InvalidOperationException("A citizen profile with this citizenship number already exists.");
         }
@@ -121,8 +131,8 @@ public sealed class CitizenProfileService : ICitizenProfileService
         profile.Update(
             fullName: null,
             request.PhoneNumber,
-            request.NIDNumber,
-            request.CitizenshipNumber,
+            nid,
+            cid,
             request.Age,
             request.Gender,
             request.PermanentAddress,

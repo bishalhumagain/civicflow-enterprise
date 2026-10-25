@@ -1,5 +1,7 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Threading;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 using System.Threading.Tasks;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
@@ -20,23 +22,43 @@ public sealed record CitizenProfileResponse(
     DateTimeOffset UpdatedAt);
 
 public sealed record CreateCitizenProfileRequest(
+    [Required]
+    [NotWhiteSpace]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
+    [Required]
+    [EmailAddress]
+    [StringLength(254)]
     string Email,
+    [PhoneNumber]
     string? PhoneNumber,
+    [StringLength(50)]
     string? NIDNumber,
+    [StringLength(50)]
     string? CitizenshipNumber,
+    [Range(0, 150)]
     int? Age,
+    [StringLength(20)]
     string? Gender,
+    [StringLength(500)]
     string? PermanentAddress,
+    [StringLength(500)]
     string? TemporaryAddress);
 
 public sealed record UpdateCitizenProfileRequest(
+    [PhoneNumber]
     string? PhoneNumber,
+    [StringLength(50)]
     string? NIDNumber,
+    [StringLength(50)]
     string? CitizenshipNumber,
+    [Range(0, 150)]
     int? Age,
+    [StringLength(20)]
     string? Gender,
+    [StringLength(500)]
     string? PermanentAddress,
+    [StringLength(500)]
     string? TemporaryAddress);
 
 public interface ICitizenProfileService

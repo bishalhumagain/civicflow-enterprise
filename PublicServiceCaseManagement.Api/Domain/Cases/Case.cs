@@ -78,8 +78,8 @@ public sealed class Case
         return new Case(
             organizationId,
             referenceNumber.Trim(),
-            title.Trim(),
-            description.Trim(),
+            TextNormalization.CollapseWhitespace(title),
+            TextNormalization.NormalizeMultiline(description),
             now,
             submittedByUserId);
     }
@@ -92,8 +92,8 @@ public sealed class Case
         EnsureCaseIsEditable();
         ValidateDetails(title, description);
 
-        Title = title.Trim();
-        Description = description.Trim();
+        Title = TextNormalization.CollapseWhitespace(title);
+        Description = TextNormalization.NormalizeMultiline(description);
         UpdatedAt = now;
     }
 
@@ -212,15 +212,18 @@ public sealed class Case
         string title,
         string description)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Length > 200)
+        var normalizedTitle = TextNormalization.CollapseWhitespace(title);
+        var normalizedDescription = TextNormalization.NormalizeMultiline(description);
+
+        if (normalizedTitle.Length == 0 || normalizedTitle.Length > 200)
         {
             throw new ArgumentException(
                 "Title is required and must not exceed 200 characters.",
                 nameof(title));
         }
 
-        if (string.IsNullOrWhiteSpace(description) ||
-            description.Length > 5000)
+        if (normalizedDescription.Length == 0 ||
+            normalizedDescription.Length > 5000)
         {
             throw new ArgumentException(
                 "Description is required and must not exceed 5000 characters.",

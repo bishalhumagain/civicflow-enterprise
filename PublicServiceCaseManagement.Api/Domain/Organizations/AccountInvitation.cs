@@ -164,8 +164,8 @@ public sealed class AccountInvitation
 
         return new AccountInvitation(
             organizationId,
-            email.Trim().ToLowerInvariant(),
-            fullName.Trim(),
+            TextNormalization.NormalizeEmail(email, nameof(email)),
+            TextNormalization.NormalizeName(fullName),
             PhoneNumbers.Normalize(phoneNumber),
             organizationRole,
             tokenHash,

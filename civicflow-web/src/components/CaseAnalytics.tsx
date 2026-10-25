@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react'
+import { formatNumber } from '../utils/format'
 import {statusLabels, statusOptions, type CaseStatistics, type CaseStatus} from '../domain'
 
 const statusColors: Record<string, string> = {
@@ -62,7 +63,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                         <div>
                             <h2>Cases by status</h2>
                             <p className="muted">Current distribution
-                                · {statistics.totalCases.toLocaleString()} total</p>
+                                · {formatNumber(statistics.totalCases)} total</p>
                         </div>
                     </header>
                     {statistics.totalCases === 0 ? (
@@ -83,7 +84,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                                         >
                                             <span style={{width: `${percentage}%`, background: item.color}}/>
                                         </div>
-                                        <strong>{item.value.toLocaleString()}</strong>
+                                        <strong>{formatNumber(item.value)}</strong>
                                     </div>
                                 )
                             })}
@@ -129,7 +130,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                                     return result
                                 }, {offset: 0, circles: []}).circles}
                                 <text className="donut-total" textAnchor="middle" x="60" y="57">
-                                    {priorityTotal.toLocaleString()}
+                                    {formatNumber(priorityTotal)}
                                 </text>
                                 <text className="donut-caption" textAnchor="middle" x="60" y="73">cases</text>
                             </svg>
@@ -137,7 +138,7 @@ export function CaseAnalytics({statistics}: { statistics: CaseStatistics }) {
                                 {priorities.map((item) => (
                                     <li key={item.label}>
                                         <span><i style={{background: item.color}}/>{item.label}</span>
-                                        <strong>{item.value.toLocaleString()}</strong>
+                                        <strong>{formatNumber(item.value)}</strong>
                                     </li>
                                 ))}
                             </ul>
@@ -174,7 +175,7 @@ function SummaryCard({label, value, detail}: { label: string; value: number; det
             <span className="summary-indicator" aria-hidden="true"/>
             <div>
                 <span>{label}</span>
-                <strong>{value.toLocaleString()}</strong>
+                <strong>{formatNumber(value)}</strong>
                 <small>{detail}</small>
             </div>
         </article>
@@ -193,7 +194,7 @@ function ActivityBar({label, value, max, color}: { label: string; value: number;
             >
                 <span style={{width: `${percentage}%`, background: color}}/>
             </div>
-            <strong>{value.toLocaleString()}</strong>
+            <strong>{formatNumber(value)}</strong>
         </div>
     )
 }

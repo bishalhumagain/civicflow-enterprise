@@ -1,19 +1,22 @@
 using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations;
 
 public sealed record CreateInvitationRequest(
     [Required]
-    [StringLength(150, MinimumLength = 1)]
+    [NotWhiteSpace]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
     [Required]
     [EmailAddress]
     [StringLength(254)]
     string Email,
-    [Phone]
-    [StringLength(30)]
+    [PhoneNumber]
     string? PhoneNumber,
     [Required]
+    [NotWhiteSpace]
+    [StringLength(32)]
     string Role);
 
 public sealed record InvitationResponse(

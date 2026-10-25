@@ -1,40 +1,16 @@
 import { authFetch } from "../auth";
+import { ApiError } from "../api-client";
+import { readApiErrorMessage } from "../api-error";
 import type { AccountInvitation, Membership, Organization } from "../domain";
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.error === "string" && body.error.length > 0) {
-      return body.error;
-    }
-  } catch {
-    // ignore malformed bodies
-  }
-  return fallback;
-}
-
-export class OrganizationApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "OrganizationApiError";
-    this.status = status;
-  }
-}
+export { ApiError as OrganizationApiError };
 
 export async function getOrganizations(): Promise<Organization[]> {
   const response = await authFetch("/api/organizations");
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch organizations: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -60,11 +36,8 @@ export async function createOrganization(
   });
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to create organization: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -91,11 +64,8 @@ export async function updateOrganization(
   });
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update organization: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -109,11 +79,8 @@ export async function activateOrganization(id: string): Promise<Organization> {
   });
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to activate organization: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -127,11 +94,8 @@ export async function deactivateOrganization(id: string): Promise<Organization> 
   });
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to deactivate organization: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -145,11 +109,8 @@ export async function deleteOrganization(id: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to delete organization: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -172,11 +133,8 @@ export async function updateMembershipRole(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update membership role: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -197,11 +155,8 @@ export async function setMembershipActive(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update membership status: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -227,11 +182,8 @@ export async function transferMembership(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to transfer membership: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -247,11 +199,8 @@ export async function getInvitations(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch invitations: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -280,11 +229,8 @@ export async function createInvitation(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to create invitation: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -304,11 +250,8 @@ export async function resendInvitation(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to resend invitation: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -328,11 +271,8 @@ export async function revokeInvitation(
   );
 
   if (!response.ok) {
-    throw new OrganizationApiError(
-      await readErrorMessage(
-        response,
-        `Failed to revoke invitation: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }

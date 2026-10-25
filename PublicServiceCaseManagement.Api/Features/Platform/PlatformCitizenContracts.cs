@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
+
 namespace PublicServiceCaseManagement.Api.Features.Platform;
 
 /// <summary>
@@ -28,11 +31,21 @@ public sealed record PlatformCitizenSummary(
 /// identity and requires re-verification.
 /// </summary>
 public sealed record UpdatePlatformCitizenRequest(
+    [Required]
+    [NotWhiteSpace]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
+    [PhoneNumber]
     string? PhoneNumber,
+    [StringLength(50)]
     string? NIDNumber,
+    [StringLength(50)]
     string? CitizenshipNumber,
+    [Range(0, 150)]
     int? Age,
+    [StringLength(20)]
     string? Gender,
+    [StringLength(500)]
     string? PermanentAddress,
+    [StringLength(500)]
     string? TemporaryAddress);

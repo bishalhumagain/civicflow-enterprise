@@ -80,8 +80,8 @@ public sealed class StaffMember
 
         return new StaffMember(
             organizationId,
-            fullName.Trim(),
-            email.Trim(),
+            TextNormalization.NormalizeName(fullName),
+            TextNormalization.NormalizeEmail(email, nameof(email)),
             PhoneNumbers.Normalize(phoneNumber),
             now);
     }
@@ -110,7 +110,7 @@ public sealed class StaffMember
                 nameof(fullName));
         }
 
-        FullName = fullName.Trim();
+        FullName = TextNormalization.NormalizeName(fullName);
         PhoneNumber = PhoneNumbers.Normalize(phoneNumber);
         UpdatedAt = now;
     }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api'
 import { Icon } from './Icon'
+import { formatDateTime } from '../utils/format'
 
 type JobSummary = {
   id: string
@@ -131,7 +132,7 @@ export function BackgroundJobsPage() {
                       </span>
                     </td>
                     <td>{job.attemptCount} / {job.maxAttempts}</td>
-                    <td><span>{new Date(job.createdAt).toLocaleString()}</span><small>{job.lastAttemptAt ? new Date(job.lastAttemptAt).toLocaleString() : 'Not attempted'}</small></td>
+                    <td><span>{formatDateTime(job.createdAt)}</span><small>{job.lastAttemptAt ? formatDateTime(job.lastAttemptAt) : 'Not attempted'}</small></td>
                     <td>{job.errorCode && <><strong>{job.errorCode}</strong><span>{job.errorDetails}</span></>}</td>
                     <td>
                       {job.status === 'Failed' && (

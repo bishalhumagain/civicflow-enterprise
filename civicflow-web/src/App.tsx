@@ -11,6 +11,17 @@ import {
     type SignInPortal,
 } from './auth'
 import './App.css'
+import { formatDateTime, formatNumber } from './utils/format'
+import {
+    MAX_CASE_DESCRIPTION_LENGTH,
+    MAX_CASE_TITLE_LENGTH,
+    MIN_CASE_DESCRIPTION_LENGTH,
+    MIN_CASE_TITLE_LENGTH,
+    normalizeMultiline,
+    normalizeWhitespace,
+    validateCaseDescription,
+    validateCaseTitle,
+} from './utils/validation'
 import { Icon, type IconName } from './components/Icon'
 
 import {
@@ -248,6 +259,7 @@ function App() {
     const [showCreateForm, setShowCreateForm] = useState(false)
     const [newTitle, setNewTitle] = useState('')
     const [newDescription, setNewDescription] = useState('')
+    const [caseFormSubmitted, setCaseFormSubmitted] = useState(false)
     const [viewSelection, setViewSelection] = useState<WorkspaceView>(
         () => readRememberedWorkspaceView() ?? 'citizen-dashboard',
     )
@@ -1134,8 +1146,17 @@ function App() {
 
     async function submitCase(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
+        setCaseFormSubmitted(true)
 
-        if (!currentUser || !organizationId || !newTitle.trim() || !newDescription.trim()) return
+        if (!currentUser || !organizationId) return
+
+        const titleError = validateCaseTitle(newTitle)
+        const descriptionError = validateCaseDescription(newDescription)
+
+        if (titleError !== null || descriptionError !== null) {
+            setError(titleError ?? descriptionError)
+            return
+        }
 
         setActionLoading(true)
         setError(null)
@@ -1144,8 +1165,8 @@ function App() {
             const created = await requestJson<CaseRecord>('/api/cases', {
                 method: 'POST',
                 body: JSON.stringify({
-                    title: newTitle.trim(),
-                    description: newDescription.trim(),
+                    title: normalizeWhitespace(newTitle),
+                    description: normalizeMultiline(newDescription),
                 }),
             })
 
@@ -1153,6 +1174,7 @@ function App() {
             setSelectedCaseId(created.id)
             setNewTitle('')
             setNewDescription('')
+            setCaseFormSubmitted(false)
             setShowCreateForm(false)
             setRetryVersion((version) => version + 1)
             showToast('Case created.', 'success')
@@ -1560,9 +1582,7 @@ function App() {
 
     if (!currentUser && route === 'forgot-password') {
         return (
-            <ForgotPasswordPage
-                onSignIn={handleCitizenSignIn}
-            />
+            <ForgotPasswordPage />
         )
     }
 
@@ -1976,28 +1996,52 @@ function App() {
                                     </div>
 
                                     {showCreateForm && (
-                                        <form className="case-card create-form" onSubmit={submitCase}>
+                                        <form className="case-card create-form" noValidate onSubmit={submitCase}>
                                             <h2>Create case</h2>
-                                            <label>
+                                            <label htmlFor="staff-case-title">
                                                 Title
                                                 <input
+                                                    aria-describedby={
+                                                        caseFormSubmitted && validateCaseTitle(newTitle) !== null
+                                                            ? 'staff-case-title-error'
+                                                            : undefined
+                                                    }
+                                                    aria-invalid={caseFormSubmitted && validateCaseTitle(newTitle) !== null}
+                                                    id="staff-case-title"
                                                     required
-                                                    minLength={3}
-                                                    maxLength={200}
+                                                    minLength={MIN_CASE_TITLE_LENGTH}
+                                                    maxLength={MAX_CASE_TITLE_LENGTH}
                                                     value={newTitle}
                                                     onChange={(event) => setNewTitle(event.target.value)}
                                                 />
                                             </label>
-                                            <label>
+                                            {caseFormSubmitted && validateCaseTitle(newTitle) !== null && (
+                                                <span className="field-error" id="staff-case-title-error" role="alert">
+                                                    {validateCaseTitle(newTitle)}
+                                                </span>
+                                            )}
+                                            <label htmlFor="staff-case-description">
                                                 Description
                                                 <textarea
+                                                    aria-describedby={
+                                                        caseFormSubmitted && validateCaseDescription(newDescription) !== null
+                                                            ? 'staff-case-description-error'
+                                                            : undefined
+                                                    }
+                                                    aria-invalid={caseFormSubmitted && validateCaseDescription(newDescription) !== null}
+                                                    id="staff-case-description"
                                                     required
-                                                    minLength={10}
-                                                    maxLength={5000}
+                                                    minLength={MIN_CASE_DESCRIPTION_LENGTH}
+                                                    maxLength={MAX_CASE_DESCRIPTION_LENGTH}
                                                     value={newDescription}
                                                     onChange={(event) => setNewDescription(event.target.value)}
                                                 />
                                             </label>
+                                            {caseFormSubmitted && validateCaseDescription(newDescription) !== null && (
+                                                <span className="field-error" id="staff-case-description-error" role="alert">
+                                                    {validateCaseDescription(newDescription)}
+                                                </span>
+                                            )}
                                             <div>
                                                 <button className="primary-button" disabled={actionLoading}
                                                         type="submit">
@@ -2014,25 +2058,25 @@ function App() {
                                     <div className="stat-grid">
                                         <StatCard
                                             label="Visible cases"
-                                            value={String(visibleCases.length)}
+                                            value={formatNumber(visibleCases.length)}
                                             detail={dataSourceLabel}
                                             tone="blue"
                                         />
                                         <StatCard
                                             label="Needs review"
-                                            value={String(cases.filter((item) => item.status === 'Submitted' || item.status === 'UnderReview').length)}
+                                            value={formatNumber(cases.filter((item) => item.status === 'Submitted' || item.status === 'UnderReview').length)}
                                             detail="Submitted or under review"
                                             tone="amber"
                                         />
                                         <StatCard
                                             label="In progress"
-                                            value={String(cases.filter((item) => item.status === 'InProgress').length)}
+                                            value={formatNumber(cases.filter((item) => item.status === 'InProgress').length)}
                                             detail="Active workflow"
                                             tone="purple"
                                         />
                                         <StatCard
                                             label="Resolved"
-                                            value={String(cases.filter((item) => item.status === 'Resolved' || item.status === 'Closed').length)}
+                                            value={formatNumber(cases.filter((item) => item.status === 'Resolved' || item.status === 'Closed').length)}
                                             detail="Resolved or closed"
                                             tone="green"
                                         />
@@ -2042,7 +2086,7 @@ function App() {
                                         <div>
                                             <h2>Cases</h2>
                                             <span
-                                                className="muted">Showing {visibleCases.length} of {cases.length}</span>
+                                                className="muted">Showing {formatNumber(visibleCases.length)} of {formatNumber(cases.length)}</span>
                                         </div>
                                     </div>
 
@@ -2053,6 +2097,7 @@ function App() {
                                                     <Icon className="search-icon" name="search" />
                                                     <input
                                                         aria-label="Search cases"
+                                                        maxLength={200}
                                                         placeholder="Search cases…"
                                                         value={search}
                                                         onChange={(event) => setSearch(event.target.value)}
@@ -2111,7 +2156,7 @@ function App() {
                                   <i/>{item.priority}
                                 </span>
                                                                 </td>
-                                                                <td>{new Date(item.createdAt).toLocaleString()}</td>
+                                                                <td>{formatDateTime(item.createdAt)}</td>
                                                             </tr>
                                                         ))}
                                                         </tbody>

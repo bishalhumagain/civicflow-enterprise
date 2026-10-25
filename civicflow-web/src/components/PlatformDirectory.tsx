@@ -8,6 +8,23 @@ import type {
   PlatformUserOrganization,
 } from '../domain'
 import { Icon } from './Icon'
+import { formatDate } from '../utils/format'
+import {
+  MAX_ADDRESS_LENGTH,
+  MAX_GENDER_LENGTH,
+  MAX_IDENTIFIER_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_PHONE_LENGTH,
+  normalizeOptional,
+  normalizeOptionalIdentifier,
+  normalizeWhitespace,
+  sanitizePhoneInput,
+  validateAge,
+  validateIdentifier,
+  validateLength,
+  validateName,
+  validatePhone,
+} from '../utils/validation'
 import {
   toggleCitizenAccountActive,
   updateCitizenProfile,
@@ -86,85 +103,239 @@ function CitizenEditor({
   const [gender, setGender] = useState(citizen.gender ?? '')
   const [permanentAddress, setPermanentAddress] = useState(citizen.permanentAddress ?? '')
   const [temporaryAddress, setTemporaryAddress] = useState(citizen.temporaryAddress ?? '')
+  const [submitted, setSubmitted] = useState(false)
+
+  const errors = {
+    fullName: validateName(fullName),
+    phoneNumber: validatePhone(phoneNumber),
+    nidNumber: validateIdentifier(nidNumber, "NID number"),
+    citizenshipNumber: validateIdentifier(
+      citizenshipNumber,
+      "Citizenship number",
+    ),
+    age: validateAge(age),
+    gender: validateLength(gender, "Gender", MAX_GENDER_LENGTH),
+    permanentAddress: validateLength(
+      permanentAddress,
+      "Permanent address",
+      MAX_ADDRESS_LENGTH,
+    ),
+    temporaryAddress: validateLength(
+      temporaryAddress,
+      "Temporary address",
+      MAX_ADDRESS_LENGTH,
+    ),
+  }
+  const hasErrors = Object.values(errors).some((value) => value !== null)
+
+  function showError(field: keyof typeof errors): string | null {
+    return submitted ? errors[field] : null
+  }
 
   return (
     <tr>
       <td colSpan={10}>
         <form
           className="inline-form"
+          noValidate
           style={{ flexWrap: 'wrap', gap: 8 }}
           onSubmit={(event) => {
             event.preventDefault()
+            setSubmitted(true)
+
+            if (hasErrors) return
+
             void onSave({
-              fullName: fullName.trim(),
-              phoneNumber: phoneNumber.trim() || null,
-              nidNumber: nidNumber.trim() || null,
-              citizenshipNumber: citizenshipNumber.trim() || null,
-              age: age.trim() ? Number(age) : null,
-              gender: gender.trim() || null,
-              permanentAddress: permanentAddress.trim() || null,
-              temporaryAddress: temporaryAddress.trim() || null,
+              fullName: normalizeWhitespace(fullName),
+              phoneNumber: normalizeOptional(phoneNumber),
+              nidNumber: normalizeOptionalIdentifier(nidNumber),
+              citizenshipNumber: normalizeOptionalIdentifier(citizenshipNumber),
+              age: age.trim().length > 0 ? Number.parseInt(age, 10) : null,
+              gender: normalizeOptional(gender),
+              permanentAddress: normalizeOptional(permanentAddress),
+              temporaryAddress: normalizeOptional(temporaryAddress),
             })
           }}
         >
           <input
+            aria-describedby={
+              showError("fullName") !== null
+                ? "platform-citizen-name-error"
+                : undefined
+            }
+            aria-invalid={showError("fullName") !== null}
             aria-label="Full name"
-            required
-            maxLength={150}
-            value={fullName}
+            id="platform-citizen-name"
+            maxLength={MAX_NAME_LENGTH}
             onChange={(event) => setFullName(event.target.value)}
+            required
+            value={fullName}
           />
+          {showError("fullName") !== null && (
+            <span className="field-error" id="platform-citizen-name-error" role="alert">
+              {errors.fullName}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("phoneNumber") !== null
+                ? "platform-citizen-phone-error"
+                : undefined
+            }
+            aria-invalid={showError("phoneNumber") !== null}
             aria-label="Phone number"
-            maxLength={30}
+            id="platform-citizen-phone"
+            inputMode="tel"
+            maxLength={MAX_PHONE_LENGTH}
+            onChange={(event) =>
+              setPhoneNumber(sanitizePhoneInput(event.target.value))
+            }
             placeholder="Phone number"
+            type="tel"
             value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
           />
+          {showError("phoneNumber") !== null && (
+            <span className="field-error" id="platform-citizen-phone-error" role="alert">
+              {errors.phoneNumber}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("nidNumber") !== null
+                ? "platform-citizen-nid-error"
+                : undefined
+            }
+            aria-invalid={showError("nidNumber") !== null}
             aria-label="NID number"
-            maxLength={50}
+            id="platform-citizen-nid"
+            maxLength={MAX_IDENTIFIER_LENGTH}
+            onChange={(event) => setNidNumber(event.target.value.toUpperCase())}
             placeholder="NID number"
             value={nidNumber}
-            onChange={(event) => setNidNumber(event.target.value)}
           />
+          {showError("nidNumber") !== null && (
+            <span className="field-error" id="platform-citizen-nid-error" role="alert">
+              {errors.nidNumber}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("citizenshipNumber") !== null
+                ? "platform-citizen-citizenship-error"
+                : undefined
+            }
+            aria-invalid={showError("citizenshipNumber") !== null}
             aria-label="Citizenship number"
-            maxLength={50}
+            id="platform-citizen-citizenship"
+            maxLength={MAX_IDENTIFIER_LENGTH}
+            onChange={(event) =>
+              setCitizenshipNumber(event.target.value.toUpperCase())
+            }
             placeholder="Citizenship number"
             value={citizenshipNumber}
-            onChange={(event) => setCitizenshipNumber(event.target.value)}
           />
+          {showError("citizenshipNumber") !== null && (
+            <span
+              className="field-error"
+              id="platform-citizen-citizenship-error"
+              role="alert"
+            >
+              {errors.citizenshipNumber}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("age") !== null ? "platform-citizen-age-error" : undefined
+            }
+            aria-invalid={showError("age") !== null}
             aria-label="Age"
-            type="number"
-            min={0}
+            id="platform-citizen-age"
+            inputMode="numeric"
             max={150}
-            placeholder="Age"
-            value={age}
+            min={0}
             onChange={(event) => setAge(event.target.value)}
+            placeholder="Age"
+            type="number"
+            value={age}
           />
+          {showError("age") !== null && (
+            <span className="field-error" id="platform-citizen-age-error" role="alert">
+              {errors.age}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("gender") !== null
+                ? "platform-citizen-gender-error"
+                : undefined
+            }
+            aria-invalid={showError("gender") !== null}
             aria-label="Gender"
-            maxLength={20}
+            id="platform-citizen-gender"
+            maxLength={MAX_GENDER_LENGTH}
+            onChange={(event) => setGender(event.target.value)}
             placeholder="Gender"
             value={gender}
-            onChange={(event) => setGender(event.target.value)}
           />
+          {showError("gender") !== null && (
+            <span className="field-error" id="platform-citizen-gender-error" role="alert">
+              {errors.gender}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("permanentAddress") !== null
+                ? "platform-citizen-permanent-error"
+                : undefined
+            }
+            aria-invalid={showError("permanentAddress") !== null}
             aria-label="Permanent address"
-            maxLength={500}
+            id="platform-citizen-permanent"
+            maxLength={MAX_ADDRESS_LENGTH}
+            onChange={(event) => setPermanentAddress(event.target.value)}
             placeholder="Permanent address"
             value={permanentAddress}
-            onChange={(event) => setPermanentAddress(event.target.value)}
           />
+          {showError("permanentAddress") !== null && (
+            <span
+              className="field-error"
+              id="platform-citizen-permanent-error"
+              role="alert"
+            >
+              {errors.permanentAddress}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showError("temporaryAddress") !== null
+                ? "platform-citizen-temporary-error"
+                : undefined
+            }
+            aria-invalid={showError("temporaryAddress") !== null}
             aria-label="Temporary address"
-            maxLength={500}
+            id="platform-citizen-temporary"
+            maxLength={MAX_ADDRESS_LENGTH}
+            onChange={(event) => setTemporaryAddress(event.target.value)}
             placeholder="Temporary address"
             value={temporaryAddress}
-            onChange={(event) => setTemporaryAddress(event.target.value)}
           />
+          {showError("temporaryAddress") !== null && (
+            <span
+              className="field-error"
+              id="platform-citizen-temporary-error"
+              role="alert"
+            >
+              {errors.temporaryAddress}
+            </span>
+          )}
+
           <button className="primary-button" disabled={busy} type="submit">
             Save
           </button>
@@ -195,35 +366,79 @@ function StaffEditor({
 }) {
   const [fullName, setFullName] = useState(user.fullName)
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber ?? '')
+  const [submitted, setSubmitted] = useState(false)
+
+  const fullNameError = validateName(fullName)
+  const phoneError = validatePhone(phoneNumber)
+  const hasErrors = fullNameError !== null || phoneError !== null
+
+  function showNameError(): string | null {
+    return submitted ? fullNameError : null
+  }
+
+  function showPhoneError(): string | null {
+    return submitted ? phoneError : null
+  }
 
   return (
     <tr>
       <td colSpan={8}>
         <form
           className="inline-form"
+          noValidate
           style={{ flexWrap: 'wrap', gap: 8 }}
           onSubmit={(event) => {
             event.preventDefault()
+            setSubmitted(true)
+
+            if (hasErrors) return
+
             void onSave({
-              fullName: fullName.trim(),
-              phoneNumber: phoneNumber.trim() || null,
+              fullName: normalizeWhitespace(fullName),
+              phoneNumber: normalizeOptional(phoneNumber),
             })
           }}
         >
           <input
+            aria-describedby={
+              showNameError() !== null ? "platform-staff-name-error" : undefined
+            }
+            aria-invalid={showNameError() !== null}
             aria-label="Full name"
-            required
-            maxLength={150}
-            value={fullName}
+            id="platform-staff-name"
+            maxLength={MAX_NAME_LENGTH}
             onChange={(event) => setFullName(event.target.value)}
+            required
+            value={fullName}
           />
+          {showNameError() !== null && (
+            <span className="field-error" id="platform-staff-name-error" role="alert">
+              {fullNameError}
+            </span>
+          )}
+
           <input
+            aria-describedby={
+              showPhoneError() !== null ? "platform-staff-phone-error" : undefined
+            }
+            aria-invalid={showPhoneError() !== null}
             aria-label="Phone number"
-            maxLength={30}
+            id="platform-staff-phone"
+            inputMode="tel"
+            maxLength={MAX_PHONE_LENGTH}
+            onChange={(event) =>
+              setPhoneNumber(sanitizePhoneInput(event.target.value))
+            }
             placeholder="Phone number"
+            type="tel"
             value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
           />
+          {showPhoneError() !== null && (
+            <span className="field-error" id="platform-staff-phone-error" role="alert">
+              {phoneError}
+            </span>
+          )}
+
           <button className="primary-button" disabled={busy} type="submit">
             Save
           </button>
@@ -625,6 +840,7 @@ export function PlatformDirectory({
         <div className="admin-row" style={{ marginBottom: 16 }}>
           <input
             aria-label="Search directory"
+            maxLength={200}
             type="search"
             placeholder="Search by name, email, phone, type, organization or role…"
             value={searchQuery}
@@ -724,8 +940,8 @@ export function PlatformDirectory({
                         <td>{citizen.nidNumber ?? '—'}</td>
                         <td>{citizen.gender ?? '—'}</td>
                         <td>{citizen.age ?? '—'}</td>
-                        <td>{new Date(citizen.createdAt).toLocaleDateString()}</td>
-                        <td>{new Date(citizen.updatedAt).toLocaleDateString()}</td>
+                        <td>{formatDate(citizen.createdAt)}</td>
+                        <td>{formatDate(citizen.updatedAt)}</td>
                         <td>
                           <button
                             className="secondary-button"
@@ -821,7 +1037,7 @@ export function PlatformDirectory({
                         </span>
                       </td>
                       <td>{user.platformRole}</td>
-                      <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td>{formatDate(user.createdAt)}</td>
                       <td>
                         <button
                           className="secondary-button"
@@ -930,7 +1146,7 @@ export function PlatformDirectory({
                           ))
                         )}
                       </td>
-                      <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td>{formatDate(user.createdAt)}</td>
                       <td>
                         <button
                           className="secondary-button"

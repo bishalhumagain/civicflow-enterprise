@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../api'
 import { Icon } from './Icon'
+import { formatDateTime } from '../utils/format'
 
 type NotificationItem = {
   id: string
@@ -149,7 +150,7 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
                   <div>
                     <strong>{item.title}</strong>
                     <p>{item.message}</p>
-                    <small>{new Date(item.createdAt).toLocaleString()}</small>
+                    <small>{formatDateTime(item.createdAt)}</small>
                   </div>
                   {!item.isRead && (
                     <button

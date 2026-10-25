@@ -192,6 +192,20 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 - A persisted notification panel with unread count, paging, read state, and minute-level refresh
 - Loading states
 
+### Field Rules, Validation, and Display
+
+- Labels identify every field, and required fields are marked. Inline errors explain how to correct the value and are announced to assistive technology. Your entries are preserved when validation fails.
+- The API is authoritative; the form checks only provide immediate feedback. A request is never treated as successful until the server confirms it.
+- Names are trimmed and repeated spaces are collapsed (maximum 150 characters). Email addresses are trimmed and stored in lower case. NID and citizenship numbers are trimmed and stored in upper case. Optional blank fields are stored as empty, not as a string of spaces.
+- Phone numbers are optional unless a form marks them required. They accept 6–30 characters with at least 6 digits; digits, spaces, and `+ - ( ) . /` are allowed.
+- Case titles must be 3–200 characters, descriptions 10–5,000 characters, updates and citizen responses 1–4,000 characters, and status explanations at most 2,000 characters. The counter under a long text box shows the current length.
+- Citizen age must be between 0 and 150. Gender is at most 20 characters, and each address field is at most 500 characters.
+- Passwords must be 12–128 characters and include upper case, lower case, a digit, a symbol, and at least six different characters.
+- Dates and times are displayed in the `en-GB` format in the `Asia/Kathmandu` time zone. A missing or invalid value appears as `—`, never as a raw `null` or an invented zero.
+- File sizes use binary units. Case attachments may be any declared type up to 10 MB, must be non-empty, and declared PDF/PNG/JPEG/GIF files must match their content signature. Malware scanning is not provided.
+
+Full rules are in [Validation and Formatting](VALIDATION-AND-FORMATTING.md).
+
 ### Notifications
 
 The Notifications button in the workspace header shows your unread count and a paginated list of your own notifications. The count refreshes approximately once per minute. Use “Mark read” for an individual item or “Mark all read.” Case submission, assignment, and status updates are currently supported; a status change notifies both the case submitter and the staff member assigned to the case (CaseWorker or Viewer). Staff with organization access can use “Open case” to switch to the normal case workspace; its organization and assignment checks remain authoritative. Citizen notifications do not link into the staff case workspace because citizens track their requests from their own dashboard instead. The notification list does not grant access to a case.
@@ -289,12 +303,12 @@ The Organizations view is split into three inner tabs for platform administrator
 5. Search by reference or title, filter by status, change the sort order (recently updated, oldest update, newest, oldest), and page through longer lists
 6. Select **View details** on a request to open its full description and citizen-visible timeline, then **Back to my requests** to return
 
-**Submit a case:** Open **Public intake**, select the responsible active organization, enter a title and description, and optionally attach a supporting file. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission, the request is routed to an organization administrator for triage, and you can track it from **My requests**. Staff-created cases instead derive their organization from the signed-in staff membership.
+**Submit a case:** Open **Public intake**, select the responsible active organization, enter a title (3–200 characters) and description (10–5,000 characters), and optionally attach a supporting file (any declared type, up to 10 MB). Leading and trailing spaces are removed and repeated spaces in the title are collapsed before the request is sent. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission, the request is routed to an organization administrator for triage, and you can track it from **My requests**. Staff-created cases instead derive their organization from the signed-in staff membership.
 
 **Citizen Profile workflow:**
 1. Sign in through the **Citizen Portal**
 2. Open **My profile** in the navigation (or the dashboard action card)
-3. Provide **Full Name** and **Email** (required); optionally add phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
+3. Provide **Full Name** and **Email** (required); optionally add phone number, NID number, citizenship number, age (0–150), gender, and permanent/temporary addresses. Names collapse repeated spaces; identifiers are upper-cased; phone numbers must be 6–30 characters with at least 6 digits
 4. Submit to create the profile; submitting again updates the existing profile
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
 
@@ -529,7 +543,8 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | "This organization still holds cases" | Cases are still assigned to the organization | Resolve or move the cases, then delete the organization |
 | "Organization not found" | The organization was already deleted | Refresh the list |
 | "The audit log is not available for this account" | Audit access requires a platform administrator or an organization administrator | Sign in with the appropriate role |
-| Case creation/update fails | Network/API issues or permissions | Check connection and permissions; retry |
+| Case creation/update fails | Network/API issues, permissions, or an invalid field | Check connection and permissions; correct the highlighted field. Titles must be 3–200 characters and descriptions 10–5,000 characters |
+| Upload rejected as empty or invalid | The file is empty, over 10 MB, has an invalid name, or its content does not match the declared PDF/PNG/JPEG/GIF type | Choose a non-empty file under 10 MB with a normal file name and the correct media type |
 
 **Tips:**
 - Watch for toast notifications — they provide real-time feedback
@@ -577,7 +592,7 @@ Authorization: Bearer civicflow_pat_<publicId>_<secret>
 | **Citizen tracking scope** | Citizens cannot edit a submitted request, add attachments after submission, or reopen a closed/rejected request. Tracking is available in the web portal only; there is no dedicated mobile app or push channel. |
 | **Environment dependent** | Many features require proper backend/frontend configuration |
 | **No offline support** | Requires network connectivity |
-| **File restrictions** | Case attachments accept any file type up to 10 MB; malware scanning is not provided |
+| **File restrictions** | Case attachments accept any declared file type up to 10 MB, but must be non-empty and have a valid file name. Declared PDF/PNG/JPEG/GIF content must match its magic signature. Malware scanning and content sanitization are not provided |
 | **Role enforcement** | UI may show options that API will reject if permissions insufficient |
 | **Audit trail** | Append-only and read-only; no retention, export, or alerting policies implemented |
 | **Error tracking** | No automated alerting on new errors; manual review required |

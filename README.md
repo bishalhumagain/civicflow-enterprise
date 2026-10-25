@@ -137,6 +137,7 @@ The platform is built around three core principles:
 | **Citizen tracking** | Searchable/filterable/sortable request list with paging, a detail view with a citizen-visible timeline, information-request responses, document downloads, and loading/error/retry/empty states. |
 | **Profile management** | Unified self-service profile for citizens and staff. |
 | **Theme and branding** | Complete light and dark themes with a persisted preference and system-theme fallback. The public and workspace headers use the configured application name, and every footer is generated from that same value. |
+| **Validation and formatting** | Shared backend and frontend rules for trimming, canonical email/identifier casing, phone shape, field bounds, file signatures, accessible field errors, and locale/time-zone-aware display formatting. See [Validation & Formatting](docs/VALIDATION-AND-FORMATTING.md). |
 
 ---
 
@@ -190,7 +191,7 @@ The platform is built around three core principles:
 │   │   ├── Organizations/                   #   Org context, resolvers, transaction middleware
 │   │   └── Persistence/                    #   DbContext, design-time factory
 │   └── Migrations/                         # 26 EF Core migrations
-├── PublicServiceCaseManagement.Tests/       # xUnit test project (383 tests; 3 opt-in PostgreSQL RLS)
+├── PublicServiceCaseManagement.Tests/       # xUnit test project (477 tests; 3 opt-in PostgreSQL RLS)
 ├── civicflow-web/                           # React + Vite frontend
 │   ├── e2e/                                # Playwright browser journeys + disposable DB seeding
 │   ├── playwright.config.ts                # Serial Chromium E2E runner (API + Vite)
@@ -298,6 +299,10 @@ The organization workspace obtains active memberships from `GET /api/organizatio
 - **SuperAdmin**: Organizations (three inner tabs: organization types, organizations, and members + invitations with a type/organization filter), directory, audit log, error tracker, background jobs, access tokens
 
 **Key components**: `OrganizationAdministration`, `InvitationManager`, `StaffDirectory`, `PlatformDirectory`, `PlatformErrors`, `AuditLog`, `CaseDetails`, `CitizenDashboard`, `ProfilePage`, `StatCard`, `StatusPill`, `Toast`.
+
+### Validation, Normalization & Display Conventions
+
+The same rules are applied at every layer. Request DTOs carry DataAnnotations, domain factories enforce invariants, and PostgreSQL CHECK constraints added by `AddValidationConstraints` protect the critical bounds from direct writes. `Domain/TextNormalization.cs`, `Domain/PhoneNumbers.cs`, and `Infrastructure/Validation/ValidationAttributes.cs` are the backend source of truth; `utils/validation.ts` and `utils/format.ts` mirror them for immediate, accessible form feedback. The server always revalidates, so client normalization is never treated as a security control. Display formatting uses the explicit `en-GB` locale and `Asia/Kathmandu` time zone, binary file-size units, upper-case references, and the `—` fallback for missing values. Full field limits, upload signature rules, and the change checklist live in [Validation & Formatting](docs/VALIDATION-AND-FORMATTING.md).
 
 ### Authentication & Authorization
 
@@ -411,6 +416,7 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | **Audit logging** | All auth, account, invitation, membership, organization, staff, case, and token events persisted asynchronously and fail-safe |
 | **Error tracking** | Unhandled exceptions persisted with full context; reviewable by super admins |
 | **Enumeration safety** | Registration and password-recovery responses do not disclose whether an email exists |
+| **Input validation** | Server-authoritative DataAnnotations plus domain invariants and 27 PostgreSQL CHECK constraints; shared frontend validators provide accessible feedback only. Uploaded files of declared PDF/PNG/JPEG/GIF types must match their magic signature; other declared types remain allowed because the contract is arbitrary-file. |
 
 ---
 
@@ -484,7 +490,7 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 
 | Method | Path | Authorization | Description |
 |---|---|---|---|
-| POST | `/api/cases` | Active CaseWorker or OrganizationAdmin membership | Create a case in the selected organization |
+| POST | `/api/cases` | Active CaseWorker or OrganizationAdmin membership | Create a case in the selected organization. Title is 3–200 characters after whitespace collapsing; description is 10–5,000 characters after trimming |
 | GET | `/api/cases` | Active organization membership | Organization admins list all cases in their organization; staff list only cases assigned to themselves (paged) |
 | GET | `/api/cases/{id}` | Active organization membership | Organization admins read any case in their organization; staff read only cases assigned to them |
 | PATCH | `/api/cases/{id}/status` | OrganizationAdmin, or assigned CaseWorker | Change status only for a case the caller may edit; optionally add an explanation and mark it citizen-visible. Viewer assignments are read-only |
@@ -495,11 +501,11 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 | GET | `/api/cases/{id}/updates` | Active organization membership | List all staff-visible updates for an accessible case, including internal notes |
 | PATCH | `/api/cases/{id}/assignment` | OrganizationAdmin | Assign to active staff in the selected organization; specify case role `CaseWorker` or `Viewer` |
 | GET | `/api/cases/{id}/assignment-history` | Active organization membership | Read assignment history for an accessible case |
-| POST | `/api/cases/{id}/documents` | OrganizationAdmin, or assigned CaseWorker | Upload a document (multipart, 10 MB) with optional `visibleToCitizen` (default false); Viewer assignments are read-only |
+| POST | `/api/cases/{id}/documents` | OrganizationAdmin, or assigned CaseWorker | Upload a document (multipart, 10 MB, non-empty, validated file name) with optional `visibleToCitizen` (default false); declared PDF/PNG/JPEG/GIF content must match its signature. Viewer assignments are read-only |
 | GET | `/api/cases/{id}/documents` | Active organization membership | List documents for an accessible case |
 | GET | `/api/cases/{id}/documents/{docId}` | Active organization membership | Download documents for an accessible case |
 
-Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. A citizen-submitted case is routed to an organization administrator for triage: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned until an admin assigns it. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, documents, and updates; Viewer assignees may read cases, history, and updates only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
+Case text is trimmed and normalized before persistence: titles collapse internal whitespace, descriptions preserve line breaks, and empty or whitespace-only required values are rejected with `400`. Staff-created cases always use the authenticated organization context; clients cannot select another organization in the request body. A CaseWorker-created case is assigned to that staff member. A citizen-submitted case is routed to an organization administrator for triage: assigned to an active admin staff member when one exists, otherwise every active admin is notified and the case stays unassigned until an admin assigns it. Only organization administrators can assign/reassign cases. Case assignment history records both staff member and per-case role. CaseWorker assignees may update case details, status, documents, and updates; Viewer assignees may read cases, history, and updates only. Organization administrators can manage all cases in their organization and are the only users allowed to permanently delete a case after confirming the action.
 
 Staff communication is intentionally split by visibility: a public update and the fact of a status change are citizen-visible, an internal note is not, and an explanation is citizen-visible only when staff explicitly request it. Documents are internal unless uploaded with `visibleToCitizen=true`. An information request moves the case to `AwaitingInformation` and notifies the submitter; the citizen's response adds a `CitizenResponse` entry, returns the case to `UnderReview` with a visible history entry, and notifies the assigned staff account.
 
@@ -510,7 +516,7 @@ Staff communication is intentionally split by visibility: a public update and th
 | GET | `/api/citizens/organizations` | CitizenClient | List active organizations available for case submission |
 | GET | `/api/citizens/cases` | CitizenClient | List the caller's cases with `page`, `pageSize`, `search`, `status`, and `sort` (`updated_desc`, `updated_asc`, `created_desc`, `created_asc`) |
 | GET | `/api/citizens/cases/{id}` | CitizenClient | Read one owned case with citizen-visible status history, updates, documents, `canRespond`, and `awaitingInformation` |
-| POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title`, `description`, and optional `additionalDocument` (any file type, max 10 MB) |
+| POST | `/api/citizens/cases` | CitizenClient | Submit a case as multipart form data with selected active `organizationId`, `title` (3–200), `description` (10–5,000), and optional `additionalDocument` (any declared file type, non-empty, max 10 MB) |
 | POST | `/api/citizens/cases/{id}/responses` | CitizenClient | Respond to an information request (message 1–4,000 characters); returns an `AwaitingInformation` case to `UnderReview` |
 | GET | `/api/citizens/cases/{id}/documents` | CitizenClient | List the case's citizen-visible documents |
 | GET | `/api/citizens/cases/{id}/documents/{documentId}` | CitizenClient | Download a citizen-visible document; non-visible or other-citizen documents return `404` |
@@ -735,7 +741,7 @@ Verification, password-reset, and invitation messages are sent through `IEmailSe
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**383 tests** (380 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
+**477 tests** (474 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
 
 | Category | What's tested |
 |---|---|
@@ -756,6 +762,7 @@ dotnet test PublicServiceCaseManagement.sln --configuration Release
 | **Memberships** | CRUD, role changes |
 | **Audit** | Persistence, fail-safe behavior, query filtering/paging/scoping |
 | **Profile** | Unified profile: citizen/staff GET/PUT, duplicate NID (409), business-endpoint gating, superadmin exclusion, create-on-update |
+| **Validation and normalization** | Shared text, phone, and email normalization; custom validation attributes; trimmed-length, allowed-value, and GUID boundaries; registration, profile, case, and pagination payload validation; PDF/image signature and empty-file rejection; normalized persistence through real Identity registration |
 | **Domain unit tests** | Case state machine, status transitions, editability, phone validation, citizen profile validation |
 
 ### Frontend Tests
@@ -769,7 +776,7 @@ npm run typecheck:e2e   # TypeScript check for the Playwright suite
 
 ### Browser E2E Tests
 
-The Playwright suite runs five serial Chromium journeys against a disposable PostgreSQL database. It seeds confirmed citizen/staff accounts, an organization, and staff membership, then exercises real cookie and anti-forgery sessions:
+The Playwright suite runs eight serial Chromium journeys against a disposable PostgreSQL database. It seeds confirmed citizen/staff accounts, an organization, and staff membership, then exercises real cookie and anti-forgery sessions:
 
 ```bash
 cd civicflow-web
@@ -828,6 +835,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 | **[docs/DELIVERY-ROADMAP.md](docs/DELIVERY-ROADMAP.md)** | Implementation-first roadmap: completed baseline, active delivery, deferred work |
 | **[docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.md)** | Verification evidence: test coverage, over-HTTP results, acceptance checklist |
 | **[docs/RLS-DESIGN.md](docs/RLS-DESIGN.md)** | PostgreSQL row-level security design and verification |
+| **[docs/VALIDATION-AND-FORMATTING.md](docs/VALIDATION-AND-FORMATTING.md)** | Field rules, normalization, database constraints, file restrictions, display formats, and the change checklist |
 | **[docs/RELEASE-VERIFICATION.md](docs/RELEASE-VERIFICATION.md)** | Release signing workflow, provenance, GPG verification |
 | **[docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md)** | How to maintain documentation as the project evolves |
 
@@ -857,7 +865,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 ### Implemented and Verified
 
-- Backend API with EF Core/PostgreSQL and 26 migrations
+- Backend API with EF Core/PostgreSQL and 27 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
 - Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
@@ -876,7 +884,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 383 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
+- 477 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
 - 5 Playwright browser end-to-end journeys (verified against disposable PostgreSQL)
 - CI pipeline (GitHub Actions)
 

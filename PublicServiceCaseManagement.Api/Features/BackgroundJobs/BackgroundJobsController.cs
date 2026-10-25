@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -32,13 +33,13 @@ public sealed class BackgroundJobsController(
 
     [HttpGet]
     public async Task<ActionResult<BackgroundJobPageResponse>> GetPage(
-        [FromQuery] string? status,
-        [FromQuery] string? type,
+        [FromQuery, StringLength(32)] string? status,
+        [FromQuery, StringLength(100)] string? type,
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
-        [FromQuery] string? correlationId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? correlationId,
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
         CancellationToken cancellationToken = default)
     {
         if (page is < 1 or > 1_000_000 || pageSize is < 1 or > 100)

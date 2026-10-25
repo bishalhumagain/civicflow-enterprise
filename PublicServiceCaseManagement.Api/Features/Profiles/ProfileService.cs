@@ -221,14 +221,19 @@ public sealed class ProfileService(
                 candidate => candidate.ApplicationUserId == user.Id,
                 cancellationToken);
 
+        var nidNumber = TextNormalization.NormalizeOptionalIdentifier(
+            request.NIDNumber);
+        var citizenshipNumber = TextNormalization.NormalizeOptionalIdentifier(
+            request.CitizenshipNumber);
+
         if (profile is null)
         {
             // Registration normally creates the row; create-on-update covers
             // accounts that were provisioned without a citizen profile.
             await EnsureIdentifiersAreUniqueAsync(
                 null,
-                request.NIDNumber,
-                request.CitizenshipNumber,
+                nidNumber,
+                citizenshipNumber,
                 cancellationToken);
 
             profile = CitizenProfile.Create(
@@ -236,8 +241,8 @@ public sealed class ProfileService(
                 fullName,
                 user.Email ?? string.Empty,
                 phoneNumber,
-                request.NIDNumber,
-                request.CitizenshipNumber,
+                nidNumber,
+                citizenshipNumber,
                 request.Age,
                 request.Gender,
                 request.PermanentAddress,
@@ -251,8 +256,8 @@ public sealed class ProfileService(
 
         await EnsureIdentifiersAreUniqueAsync(
             profile,
-            request.NIDNumber,
-            request.CitizenshipNumber,
+            nidNumber,
+            citizenshipNumber,
             cancellationToken);
 
         var previousPhoneNumber = profile.PhoneNumber;
@@ -260,8 +265,8 @@ public sealed class ProfileService(
         profile.Update(
             fullName,
             phoneNumber,
-            request.NIDNumber,
-            request.CitizenshipNumber,
+            nidNumber,
+            citizenshipNumber,
             request.Age,
             request.Gender,
             request.PermanentAddress,
@@ -411,27 +416,6 @@ public sealed class ProfileService(
     private static bool HasRole(IReadOnlyList<string> roles, string role) =>
         roles.Any(candidate => string.Equals(candidate, role, StringComparison.OrdinalIgnoreCase));
 
-    private static string NormalizeFullName(string? value)
-    {
-        var collapsed = string.Join(
-            ' ',
-            (value ?? string.Empty)
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-
-        if (collapsed.Length == 0)
-        {
-            throw new ArgumentException(
-                "Full name is required.",
-                nameof(value));
-        }
-
-        if (collapsed.Length > 150)
-        {
-            throw new ArgumentException(
-                "Full name must not exceed 150 characters.",
-                nameof(value));
-        }
-
-        return collapsed;
-    }
+    private static string NormalizeFullName(string? value) =>
+        TextNormalization.NormalizeName(value);
 }

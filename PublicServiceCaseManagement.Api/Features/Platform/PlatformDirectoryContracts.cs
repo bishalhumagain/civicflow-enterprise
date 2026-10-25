@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using PublicServiceCaseManagement.Api.Infrastructure.Validation;
+
 namespace PublicServiceCaseManagement.Api.Features.Platform;
 
 /// <summary>
@@ -53,7 +56,11 @@ public sealed record PlatformStaffSummary(
 /// organization context.
 /// </summary>
 public sealed record UpdatePlatformStaffRequest(
+    [Required]
+    [NotWhiteSpace]
+    [TrimmedStringLength(150, MinimumLength = 1)]
     string FullName,
+    [PhoneNumber]
     string? PhoneNumber);
 
 /// <summary>

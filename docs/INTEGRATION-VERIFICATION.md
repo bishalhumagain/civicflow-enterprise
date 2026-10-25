@@ -17,7 +17,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite contains 383 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie flow. Three PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. A five-test Playwright/Chromium suite exercises the citizen and staff tracking journeys against a disposable PostgreSQL database. The default `dotnet test` run reports 380 passed and 3 skipped.
+The automated suite contains 477 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie flow. Three PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. An eight-test Playwright/Chromium suite exercises the citizen and staff tracking journeys plus field validation and normalization against a disposable PostgreSQL database. The default `dotnet test` run reports 474 passed and 3 skipped.
 
 ### Authentication lifecycle
 
@@ -246,7 +246,7 @@ Sign-in failures confirmed to return the machine-readable codes `email_not_confi
 
 ### Browser end-to-end verification
 
-The Playwright suite in `civicflow-web/e2e` runs five serial Chromium journeys against a disposable PostgreSQL database:
+The Playwright suite in `civicflow-web/e2e` runs eight serial Chromium journeys against a disposable PostgreSQL database:
 
 1. **Citizen submission and display** — a citizen signs in through the real cookie/CSRF flow, submits a request with an attachment to an active organization, sees the reference number, and opens the tracking detail with its status timeline and downloadable document.
 2. **Staff case work** — an organization administrator signs in, finds the case, records a citizen-visible status explanation, observes an invalid transition error, posts a public update, posts a confidential internal note, requests information, uploads a citizen-visible and an internal document, and verifies the staff-visible history.
@@ -254,7 +254,11 @@ The Playwright suite in `civicflow-web/e2e` runs five serial Chromium journeys a
 4. **Cross-citizen isolation and session expiry** — a second citizen cannot search, read, or mutate the first citizen's case through the API (all return `404`), cannot call a staff endpoint (`403`), and is returned to the landing page after the session is invalidated (`401`).
 5. **CSRF rejection** — a mutation with an invalid anti-forgery token returns `400` with the stable `antiforgery_invalid` code.
 
-Result of the recorded run: **5 passed** (5.9 seconds). The browser suite seeds confirmed users, a demo organization, staff membership, and citizen profiles directly into the disposable database; it does not use production data or a real mail provider.
+6. **Input validation and accessible errors** — the registration form blocks blank, malformed, and short values with field-specific messages, normalizes padded names, mixed-case emails, phone numbers, NID, and citizenship numbers before calling the API, and preserves entered values.
+7. **Public intake validation and normalization** — the intake form reports organization, title, and details errors with accessible message IDs and submits normalized title and detail text through the multipart API without padded whitespace.
+8. **Click stability** — public-intake action buttons keep focus stable so a blur-triggered validation message cannot move the target between pointer-down and click.
+
+Result of the recorded run: **8 passed** (7.0 seconds). The browser suite seeds confirmed users, a demo organization, staff membership, and citizen profiles directly into the disposable database; it does not use production data or a real mail provider.
 
 ---
 

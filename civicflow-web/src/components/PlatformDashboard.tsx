@@ -1,4 +1,5 @@
 import type {CaseStatistics, PlatformOverview} from '../domain'
+import { formatNumber } from '../utils/format'
 import {CaseAnalytics} from './CaseAnalytics'
 import {StatCard} from './StatCard'
 
@@ -36,14 +37,14 @@ export function PlatformDashboard({
 
             {overview && (
                 <section aria-label="Platform accounts and organizations" className="stat-grid platform-overview-grid">
-                    <StatCard label="Organizations" value={overview.organizationCount.toLocaleString()}
-                              detail={`${overview.activeOrganizationCount.toLocaleString()} active`} tone="blue"/>
-                    <StatCard label="User accounts" value={overview.userCount.toLocaleString()}
-                              detail={`${overview.activeUserCount.toLocaleString()} active`} tone="green"/>
-                    <StatCard label="Staff memberships" value={overview.staffCount.toLocaleString()}
-                              detail={`${overview.activeStaffCount.toLocaleString()} active`} tone="purple"/>
-                    <StatCard label="Pending invitations" value={overview.pendingInvitationCount.toLocaleString()}
-                              detail={`${overview.invitationCount.toLocaleString()} total invitations`} tone="amber"/>
+                    <StatCard label="Organizations" value={formatNumber(overview.organizationCount)}
+                              detail={`${formatNumber(overview.activeOrganizationCount)} active`} tone="blue"/>
+                    <StatCard label="User accounts" value={formatNumber(overview.userCount)}
+                              detail={`${formatNumber(overview.activeUserCount)} active`} tone="green"/>
+                    <StatCard label="Staff memberships" value={formatNumber(overview.staffCount)}
+                              detail={`${formatNumber(overview.activeStaffCount)} active`} tone="purple"/>
+                    <StatCard label="Pending invitations" value={formatNumber(overview.pendingInvitationCount)}
+                              detail={`${formatNumber(overview.invitationCount)} total invitations`} tone="amber"/>
                 </section>
             )}
 

@@ -1,3 +1,5 @@
+using PublicServiceCaseManagement.Api.Domain;
+
 namespace PublicServiceCaseManagement.Api.Domain.Users;
 
 public sealed class CitizenProfile
@@ -63,24 +65,24 @@ public sealed class CitizenProfile
     {
         if (applicationUserId == Guid.Empty)
             throw new ArgumentException("Application user ID is required.", nameof(applicationUserId));
-        if (string.IsNullOrWhiteSpace(fullName) || fullName.Trim().Length > 150)
-            throw new ArgumentException("Full name is required and must not exceed 150 characters.", nameof(fullName));
-        if (string.IsNullOrWhiteSpace(email) || email.Trim().Length > 254)
+        var normalizedName = TextNormalization.NormalizeName(fullName);
+        var normalizedEmail = TextNormalization.NormalizeEmail(email, nameof(email));
+        if (normalizedEmail.Length > 254)
             throw new ArgumentException("A valid email address is required.", nameof(email));
         if (age.HasValue && (age.Value < 0 || age.Value > 150))
             throw new ArgumentException("Age must be between 0 and 150.", nameof(age));
 
         return new CitizenProfile(
             applicationUserId,
-            fullName.Trim(),
-            email.Trim(),
-            phoneNumber?.Trim(),
-            nidNumber?.Trim(),
-            citizenshipNumber?.Trim(),
+            normalizedName,
+            normalizedEmail,
+            PhoneNumbers.Normalize(phoneNumber),
+            TextNormalization.NormalizeOptionalIdentifier(nidNumber),
+            TextNormalization.NormalizeOptionalIdentifier(citizenshipNumber),
             age,
-            gender?.Trim(),
-            permanentAddress?.Trim(),
-            temporaryAddress?.Trim(),
+            TextNormalization.NormalizeOptional(gender),
+            TextNormalization.NormalizeOptional(permanentAddress),
+            TextNormalization.NormalizeOptional(temporaryAddress),
             now);
     }
 
@@ -100,19 +102,17 @@ public sealed class CitizenProfile
 
         if (!string.IsNullOrWhiteSpace(fullName))
         {
-            if (fullName.Trim().Length > 150)
-                throw new ArgumentException("Full name must not exceed 150 characters.", nameof(fullName));
-
-            FullName = fullName.Trim();
+            FullName = TextNormalization.NormalizeName(fullName);
         }
 
-        PhoneNumber = phoneNumber?.Trim();
-        NIDNumber = nidNumber?.Trim();
-        CitizenshipNumber = citizenshipNumber?.Trim();
+        PhoneNumber = PhoneNumbers.Normalize(phoneNumber);
+        NIDNumber = TextNormalization.NormalizeOptionalIdentifier(nidNumber);
+        CitizenshipNumber = TextNormalization.NormalizeOptionalIdentifier(
+            citizenshipNumber);
         Age = age;
-        Gender = gender?.Trim();
-        PermanentAddress = permanentAddress?.Trim();
-        TemporaryAddress = temporaryAddress?.Trim();
+        Gender = TextNormalization.NormalizeOptional(gender);
+        PermanentAddress = TextNormalization.NormalizeOptional(permanentAddress);
+        TemporaryAddress = TextNormalization.NormalizeOptional(temporaryAddress);
         UpdatedAt = now;
     }
 }

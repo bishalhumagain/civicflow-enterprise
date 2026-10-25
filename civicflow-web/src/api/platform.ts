@@ -1,40 +1,16 @@
 import { authFetch } from "../auth";
+import { ApiError } from "../api-client";
+import { readApiErrorMessage } from "../api-error";
 import type { PlatformOverview, PlatformStaff, PlatformStaffUpdate, PlatformUser } from "../domain";
 
-async function readErrorMessage(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.error === "string" && body.error.length > 0) {
-      return body.error;
-    }
-  } catch {
-    // ignore malformed bodies
-  }
-  return fallback;
-}
-
-export class PlatformApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "PlatformApiError";
-    this.status = status;
-  }
-}
+export { ApiError as PlatformApiError };
 
 export async function getPlatformOverview(): Promise<PlatformOverview> {
   const response = await authFetch("/api/platform/overview");
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch platform overview: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -46,11 +22,8 @@ export async function getPlatformUsers(): Promise<PlatformUser[]> {
   const response = await authFetch("/api/platform/users");
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch platform users: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -62,11 +35,8 @@ export async function getPlatformStaff(): Promise<PlatformStaff[]> {
   const response = await authFetch("/api/platform/staff");
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to fetch platform staff: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -90,11 +60,8 @@ export async function updatePlatformStaff(
   );
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to update staff account: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -108,11 +75,8 @@ export async function activatePlatformUser(userId: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to activate user: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -124,11 +88,8 @@ export async function deactivatePlatformUser(userId: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to deactivate user: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
@@ -144,11 +105,8 @@ export async function changePlatformRole(userId: string, platformRole: string): 
   });
 
   if (!response.ok) {
-    throw new PlatformApiError(
-      await readErrorMessage(
-        response,
-        `Failed to change platform role: ${response.status}`,
-      ),
+    throw new ApiError(
+      await readApiErrorMessage(response),
       response.status,
     );
   }
