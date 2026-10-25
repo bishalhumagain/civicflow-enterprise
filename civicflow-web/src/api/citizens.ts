@@ -3,34 +3,6 @@ import { ApiError } from "../api-client";
 import { readApiErrorMessage } from "../api-error";
 import type { CaseStatus } from "../domain";
 
-export interface CitizenProfile {
-  id: string;
-  applicationUserId: string;
-  fullName: string;
-  email: string;
-  phoneNumber?: string | null;
-  nidNumber?: string | null;
-  citizenshipNumber?: string | null;
-  age?: number | null;
-  gender?: string | null;
-  permanentAddress?: string | null;
-  temporaryAddress?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateCitizenProfileRequest {
-  fullName: string;
-  email: string;
-  phoneNumber?: string;
-  nidNumber?: string;
-  citizenshipNumber?: string;
-  age?: number | null;
-  gender?: string;
-  permanentAddress?: string;
-  temporaryAddress?: string;
-}
-
 export type CitizenCaseKind =
   | "PublicUpdate"
   | "InformationRequest"
@@ -102,48 +74,6 @@ export interface CitizenCaseQuery {
 }
 
 export { ApiError as CitizenApiError };
-
-export async function getMyCitizenProfile(): Promise<CitizenProfile | null> {
-  const response = await authFetch("/api/citizens/me");
-
-  if (response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    const message = await readApiErrorMessage(response)
-
-    throw new ApiError(
-      message ?? `Failed to fetch citizen profile: ${response.status}`,
-      response.status,
-    );
-  }
-
-  return (await response.json()) as CitizenProfile;
-}
-
-export async function saveMyCitizenProfile(
-  request: CreateCitizenProfileRequest,
-): Promise<CitizenProfile> {
-  const response = await authFetch("/api/citizens/me", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    const message = await readApiErrorMessage(response)
-
-    throw new ApiError(
-      message ?? `Failed to save citizen profile: ${response.status}`,
-      response.status,
-    );
-  }
-
-  return (await response.json()) as CitizenProfile;
-}
 
 export async function getMyCases(
   query: CitizenCaseQuery = {},

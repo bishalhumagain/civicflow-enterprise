@@ -5,19 +5,6 @@ import type { PlatformCitizen, PlatformCitizenUpdate } from "../domain";
 
 export { ApiError as CitizenAdminApiError };
 
-export async function getPlatformCitizens(): Promise<PlatformCitizen[]> {
-  const response = await authFetch("/api/platform/citizens");
-
-  if (!response.ok) {
-    throw new ApiError(
-      await readApiErrorMessage(response),
-      response.status,
-    );
-  }
-
-  return (await response.json()) as PlatformCitizen[];
-}
-
 export async function updateCitizenProfile(
   userId: string,
   request: PlatformCitizenUpdate,

@@ -25,6 +25,8 @@ appsettings.json
 /artifacts/
 
 # Local agent/tool configuration
+.qoder/
+.devin/
 .vtcode/
 vtcode.toml
 skills/

@@ -1,48 +1,9 @@
 import { authFetch } from "../auth";
 import { ApiError } from "../api-client";
 import { readApiErrorMessage } from "../api-error";
-import type { PlatformOverview, PlatformStaff, PlatformStaffUpdate, PlatformUser } from "../domain";
+import type { PlatformStaffUpdate, PlatformUser } from "../domain";
 
 export { ApiError as PlatformApiError };
-
-export async function getPlatformOverview(): Promise<PlatformOverview> {
-  const response = await authFetch("/api/platform/overview");
-
-  if (!response.ok) {
-    throw new ApiError(
-      await readApiErrorMessage(response),
-      response.status,
-    );
-  }
-
-  return (await response.json()) as PlatformOverview;
-}
-
-export async function getPlatformUsers(): Promise<PlatformUser[]> {
-  const response = await authFetch("/api/platform/users");
-
-  if (!response.ok) {
-    throw new ApiError(
-      await readApiErrorMessage(response),
-      response.status,
-    );
-  }
-
-  return (await response.json()) as PlatformUser[];
-}
-
-export async function getPlatformStaff(): Promise<PlatformStaff[]> {
-  const response = await authFetch("/api/platform/staff");
-
-  if (!response.ok) {
-    throw new ApiError(
-      await readApiErrorMessage(response),
-      response.status,
-    );
-  }
-
-  return (await response.json()) as PlatformStaff[];
-}
 
 export async function updatePlatformStaff(
   userId: string,

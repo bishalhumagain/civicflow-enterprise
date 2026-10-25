@@ -444,27 +444,6 @@ export async function resetPassword(
   return payload ?? { succeeded: true, message: 'Password reset.' }
 }
 
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string,
-): Promise<AuthOperationResult> {
-  const response = await authFetch('/api/auth/change-password', {
-    method: 'POST',
-    body: JSON.stringify({ currentPassword, newPassword }),
-  })
-
-  const payload = await safeJson<AuthOperationResult>(response)
-
-  if (!response.ok) {
-    throw new AuthApiError(
-      payload?.message ?? 'Password change failed.',
-      response.status,
-    )
-  }
-
-  return payload ?? { succeeded: true, message: 'Password changed.' }
-}
-
 /**
  * Details of a pending invitation, shown before the invitee chooses a
  * password. The lookup never returns the token or a password.
