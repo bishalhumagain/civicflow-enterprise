@@ -59,6 +59,10 @@ async function openCitizenDashboard(page: Page): Promise<void> {
   await expect(
     page.getByRole('heading', { name: /Welcome back, E2E/ }),
   ).toBeVisible()
+  await page.getByRole('button', { name: 'My cases', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: 'My cases', exact: true }),
+  ).toBeVisible()
 }
 
 async function getCsrfToken(page: Page): Promise<string> {
@@ -156,7 +160,7 @@ test('citizen submits a request and opens its tracking detail', async ({
   await page.getByRole('button', { name: 'Track this request' }).click()
 
   await expect(
-    page.getByRole('heading', { name: 'Request details' }),
+    page.getByRole('heading', { name: 'Case details' }),
   ).toBeVisible()
   const detail = page.locator('article.citizen-case-detail')
   await expect(detail.getByRole('heading', { name: title })).toBeVisible()
@@ -168,7 +172,7 @@ test('citizen submits a request and opens its tracking detail', async ({
     detail.getByRole('heading', { name: 'Status timeline' }),
   ).toBeVisible()
   await expect(
-    detail.getByText('Request submitted', { exact: true }),
+    detail.getByText('Case submitted', { exact: true }),
   ).toBeVisible()
   await expect(
     detail.locator('.citizen-document-list').getByText(citizenDocumentName),
@@ -355,7 +359,7 @@ test('citizen sees only permitted timeline data and can answer the information r
 }) => {
   await openCitizenDashboard(page)
 
-  const search = page.getByLabel('Search my requests')
+  const search = page.getByLabel('Search my cases')
   await search.fill(title)
   const card = page
     .locator('.citizen-request-grid article')
@@ -421,30 +425,30 @@ test('citizen sees only permitted timeline data and can answer the information r
   ).toHaveCount(0)
 
   await detail
-    .getByRole('button', { name: 'Back to my requests' })
+    .getByRole('button', { name: 'Back to my cases' })
     .first()
     .click()
 
-  await page.getByLabel('Search my requests').fill(runId)
+  await page.getByLabel('Search my cases').fill(runId)
   await expect(card).toBeVisible()
   await page
-    .getByLabel('Filter my requests by status')
+    .getByLabel('Filter my cases by status')
     .selectOption('UnderReview')
   await expect(card).toBeVisible()
 
   await page
-    .getByLabel('Filter my requests by status')
+    .getByLabel('Filter my cases by status')
     .selectOption('Resolved')
   await expect(
-    page.getByText('No requests match the current search and filters.'),
+    page.getByText('No cases match the current search and filters.'),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Clear filters' }).click()
 
-  await page.getByLabel('Sort my requests').selectOption('created_asc')
-  await expect(page.getByLabel('Sort my requests')).toHaveValue('created_asc')
+  await page.getByLabel('Sort my cases').selectOption('created_asc')
+  await expect(page.getByLabel('Sort my cases')).toHaveValue('created_asc')
 
   await createCitizenCasesViaApi(page, pagingPrefix, 12)
-  await page.getByLabel('Search my requests').fill(pagingPrefix)
+  await page.getByLabel('Search my cases').fill(pagingPrefix)
   await expect(page.getByText(/Showing 10 of 12/)).toBeVisible()
   await expect(page.locator('.pagination')).toContainText('Page 1 of 2')
 
@@ -466,9 +470,9 @@ test('another citizen cannot read, mutate, or infer the case', async ({
       page.getByRole('heading', { name: /Welcome back, E2E/ }),
     ).toBeVisible()
 
-    await page.getByLabel('Search my requests').fill(title)
+    await page.getByLabel('Search my cases').fill(title)
     await expect(
-      page.getByText('No requests match the current search and filters.'),
+      page.getByText('No cases match the current search and filters.'),
     ).toBeVisible()
 
     const caseResponse = await page.request.get(

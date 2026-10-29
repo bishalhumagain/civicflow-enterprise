@@ -110,7 +110,7 @@ Invitations expire (72 hours by default) and stop working after the first succes
 1. On the landing page (`/`), choose **Sign in** (existing account) or **Register** (new account) in the **Citizen Portal**
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
 3. Confirm your email using the verification link, then sign in. If you need another verification email, open **Forgot password**, enter the account email, and choose **Resend verification email**. In Development the one-time link appears in the API console; otherwise it is emailed.
-4. After signing in, you land on your **citizen dashboard**, which shows your account status and the actions available to you
+4. After signing in, you land on your **citizen dashboard**, which shows your account status, recent cases, and the actions available to you; use **My cases** in the navigation to track all submissions
 5. Open **My profile** to create or update your profile
 6. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
 7. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
@@ -154,7 +154,8 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 
 | Navigation entry | Description |
 |---|---|
-| **Dashboard** | Citizen dashboard with account status, available actions, and the **My requests** tracking list (default view) |
+| **Dashboard** | Citizen overview with account status, recent cases, and quick actions (default view) |
+| **My cases** | Track submitted cases, open details, view staff updates, download shared documents, and respond to information requests |
 | **Public intake** | Submit a public service request |
 | **My profile** | Create or update your own citizen profile |
 | **Access tokens** | Create, list, and revoke personal access tokens for API clients |
@@ -293,17 +294,17 @@ The Organizations view is split into three inner tabs for platform administrator
 
 ### Citizen User
 
-**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, public case submission, their own profile, and access tokens. Case lists for other people, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, then follow each request from **My requests** with search, status filtering, sorting, and paging.
+**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, my cases, public case submission, their own profile, and access tokens. Case lists for other people, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, then follow each request from **My cases** with search, status filtering, sorting, and paging.
 
-**Citizen Dashboard workflow:**
+**Citizen workspace workflow:**
 1. Sign in through the **Citizen Portal**
-2. The dashboard opens and shows your account status, the portal you are signed in to, and the available actions
+2. The dashboard opens and shows your account status, the portal you are signed in to, your three most recent cases, and quick actions
 3. Use the action cards to open **Public intake**, **My profile**, or **Access tokens**
-4. Review **My requests**, which shows only requests you submitted, with reference number, title, organization, current status, and last update time
-5. Search by reference or title, filter by status, change the sort order (recently updated, oldest update, newest, oldest), and page through longer lists
-6. Select **View details** on a request to open its full description and citizen-visible timeline, then **Back to my requests** to return
+4. Open **My cases** in the navigation to see every request you submitted, with reference number, title, organization, current status, and last update time
+5. In **My cases**, search by reference or title, filter by status, change the sort order (recently updated, oldest update, newest, oldest), and page through longer lists
+6. Select **View details** on a request to open its full description and citizen-visible timeline, then **Back to my cases** to return
 
-**Submit a case:** Open **Public intake**, select the responsible active organization, enter a title (3–200 characters) and description (10–5,000 characters), and optionally attach a supporting file (any declared type, up to 10 MB). Leading and trailing spaces are removed and repeated spaces in the title are collapsed before the request is sent. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission, the request is routed to an organization administrator for triage, and you can track it from **My requests**. Staff-created cases instead derive their organization from the signed-in staff membership.
+**Submit a case:** Open **Public intake**, select the responsible active organization, enter a title (3–200 characters) and description (10–5,000 characters), and optionally attach a supporting file (any declared type, up to 10 MB). Leading and trailing spaces are removed and repeated spaces in the title are collapsed before the request is sent. The API validates the organization and records the citizen identity from the session. You receive a case reference after submission, the request is routed to an organization administrator for triage, and you can track it from **My cases**. Staff-created cases instead derive their organization from the signed-in staff membership.
 
 **Citizen Profile workflow:**
 1. Sign in through the **Citizen Portal**
@@ -421,19 +422,19 @@ Citizens and organization members are distinct: an account appears in the Citize
 4. Use **Recent case activity** to compare the weekly and monthly created/resolved counts returned by the API. The dashboard does not estimate daily trends.
 5. Individual staff workload is not included in the current statistics API. Use **Cases** to review assignments.
 
-Citizen accounts have their own dashboard rather than the organization/platform statistics dashboard. Citizens submit requests from **Public intake** and follow them from **My requests**; see [5.11 Tracking a Citizen Request](#511-tracking-a-citizen-request).
+Citizen accounts have their own dashboard rather than the organization/platform statistics dashboard. Citizens submit requests from **Public intake** and follow them from **My cases**; see [5.11 Tracking a Citizen Request](#511-tracking-a-citizen-request).
 
 ### 5.11 Tracking a Citizen Request
 
-Citizens track their own requests from **My requests** on the citizen dashboard. The list is always limited to the signed-in account; it never shows another citizen's request, and the API returns `404` for a case the signed-in citizen did not submit.
+Citizens track their own requests from **My cases**. The list is always limited to the signed-in account; it never shows another citizen's request, and the API returns `404` for a case the signed-in citizen did not submit. The dashboard links to the same section through its recent-case cards and **View all my cases**, and case notifications open the relevant case directly in **My cases**.
 
-1. Sign in through the **Citizen Portal** and open the dashboard
-2. In **My requests**, search by reference number or title, filter by status, sort by last update or creation date, and page through the results
+1. Sign in through the **Citizen Portal** and open **My cases**
+2. In **My cases**, search by reference number or title, filter by status, sort by last update or creation date, and page through the results
 3. Select **View details** to open the request. The detail shows the reference number, title, description, responsible organization, current status, and submission/update timestamps
 4. Read the **timeline**. Every status transition is listed with its previous and new status and timestamp. Staff explanations appear only when the staff member chose to make them citizen-visible; internal staff notes and internal-only documents are never included
 5. Download a listed attachment. Only documents that staff explicitly marked as visible to the citizen are listed and downloadable
 6. If the case is **Awaiting information**, the detail explains what is needed and shows a response form. Enter your answer and submit it; the response is added to the timeline and the case returns to **Under review**. The assigned staff member is notified
-7. Use **Back to my requests** to return to the list
+7. Use **Back to my cases** to return to the list
 
 The detail view shows a loading state while data is fetched and an error message with a **Retry** control if the request fails. An empty list means no request matches the current search or filter. Closed and rejected cases remain readable but cannot receive a response.
 

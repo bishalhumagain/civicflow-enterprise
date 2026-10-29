@@ -2,6 +2,7 @@ export type CaseStatus = 'Submitted' | 'UnderReview' | 'Assigned' | 'InProgress'
 export type CasePriority = 'Critical' | 'High' | 'Normal' | 'Low'
 export type WorkspaceView =
   | 'citizen-dashboard'
+  | 'citizen-cases'
   | 'citizen'
   | 'profile'
   | 'cases'

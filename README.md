@@ -135,7 +135,7 @@ The platform is built around three core principles:
 | **Toast notifications** | Success/error/info/warning feedback for all actions. |
 | **Invitation management UI** | Send, resend, revoke, list (pending/accepted/expired/revoked). |
 | **Audit log UI** | Shared component with category/action/text/date-range filters and pagination. |
-| **Citizen tracking** | Searchable/filterable/sortable request list with paging, a detail view with a citizen-visible timeline, information-request responses, document downloads, and loading/error/retry/empty states. |
+| **Citizen tracking** | Dedicated **My cases** navigation section with a searchable/filterable/sortable request list, paging, a detail view with a citizen-visible timeline, information-request responses, document downloads, and loading/error/retry/empty states. The dashboard shows recent cases and links into the full list; notifications open the relevant case in **My cases**. |
 | **Profile management** | Unified self-service profile for citizens and staff. |
 | **Theme and branding** | Complete light and dark themes with a persisted preference and system-theme fallback. The public and workspace headers use the configured application name, and every footer is generated from that same value. |
 | **Validation and formatting** | Shared backend and frontend rules for trimming, canonical email/identifier casing, phone shape, field bounds, file signatures, accessible field errors, and locale/time-zone-aware display formatting. See [Validation & Formatting](docs/VALIDATION-AND-FORMATTING.md). |

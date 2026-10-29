@@ -198,7 +198,7 @@ function App() {
         const views: WorkspaceView[] = []
 
         if (citizenAccess) {
-            views.push('citizen-dashboard', 'citizen')
+            views.push('citizen-dashboard', 'citizen-cases', 'citizen')
         }
 
         if (organizationAccess) {
@@ -244,6 +244,7 @@ function App() {
 
         if (citizenAccess) {
             items.push({view: 'citizen-dashboard', label: 'Dashboard', icon: 'dashboard'})
+            items.push({view: 'citizen-cases', label: 'My cases', icon: 'cases'})
             items.push({view: 'citizen', label: 'Public intake', icon: 'intake'})
         }
 
@@ -976,6 +977,12 @@ function App() {
     const handleForgotPassword = () => goToRoute(FORGOT_PASSWORD_PATH, 'forgot-password')
     const handleVerifyEmail = () => goToRoute(VERIFY_EMAIL_PATH, 'verify-email')
 
+    const openCitizenCase = (caseId: string | null = null) => {
+        setCitizenInitialCaseId(caseId)
+        setCitizenCasesVersion((version) => version + 1)
+        setViewSelection('citizen-cases')
+    }
+
     const completeSignIn = (user: AuthUser, portal: SignInPortal) => {
         setCurrentUser(user)
         setActivePortal(portal)
@@ -1631,6 +1638,7 @@ function App() {
 
     const viewLabels: Record<WorkspaceView, string> = {
         'citizen-dashboard': 'Dashboard',
+        'citizen-cases': 'My cases',
         citizen: 'Public intake',
         profile: 'My profile',
         cases: 'Cases',
@@ -1726,11 +1734,7 @@ function App() {
                                     setSelectedCaseId(caseId)
                                 }
                                 : citizenAccess
-                                    ? (caseId) => {
-                                        setCitizenInitialCaseId(caseId)
-                                        setCitizenCasesVersion((version) => version + 1)
-                                        setViewSelection('citizen-dashboard')
-                                    }
+                                    ? openCitizenCase
                                     : undefined}
                         />
                         <ProfileMenu
@@ -1765,25 +1769,24 @@ function App() {
                                 </div>
                             )}
 
-                            {activeView === 'citizen-dashboard' ? (
+                            {activeView === 'citizen-dashboard' ||
+                            activeView === 'citizen-cases' ? (
                                 <CitizenDashboard
-                                    key={citizenCasesVersion}
+                                    key={`${activeView}-${citizenCasesVersion}`}
+                                    mode={activeView === 'citizen-cases' ? 'cases' : 'dashboard'}
                                     fullName={currentUser.fullName}
                                     email={currentUser.email}
                                     emailConfirmed={currentUser.emailConfirmed}
                                     onOpenIntake={() => setViewSelection('citizen')}
                                     onOpenProfile={() => setViewSelection('profile')}
+                                    onOpenCases={openCitizenCase}
                                     initialCaseId={citizenInitialCaseId}
                                     onInitialCaseOpened={() => setCitizenInitialCaseId(null)}
                                 />
                             ) : activeView === 'citizen' ? (
                                 <CitizenIntake
                                     onSubmitted={() => setCitizenCasesVersion((version) => version + 1)}
-                                    onTrackCase={(caseId) => {
-                                        setCitizenInitialCaseId(caseId)
-                                        setCitizenCasesVersion((version) => version + 1)
-                                        setViewSelection('citizen-dashboard')
-                                    }}
+                                    onTrackCase={openCitizenCase}
                                 />
                             ) : activeView === 'profile' ? (
                                 <ProfilePage/>
@@ -2177,12 +2180,14 @@ function App() {
                                 </>
                             ) : (
                                 <CitizenDashboard
-                                    key={citizenCasesVersion}
+                                    key={`citizen-dashboard-${citizenCasesVersion}`}
+                                    mode="dashboard"
                                     fullName={currentUser.fullName}
                                     email={currentUser.email}
                                     emailConfirmed={currentUser.emailConfirmed}
                                     onOpenIntake={() => setViewSelection('citizen')}
                                     onOpenProfile={() => setViewSelection('profile')}
+                                    onOpenCases={openCitizenCase}
                                     initialCaseId={citizenInitialCaseId}
                                     onInitialCaseOpened={() => setCitizenInitialCaseId(null)}
                                 />

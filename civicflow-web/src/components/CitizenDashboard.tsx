@@ -21,11 +21,13 @@ import {StatusPill} from './StatusPill'
 import {StatCard} from './StatCard'
 
 export type CitizenDashboardProps = {
+    mode: 'dashboard' | 'cases'
     fullName: string
     email: string
     emailConfirmed: boolean
     onOpenIntake: () => void
     onOpenProfile: () => void
+    onOpenCases: (caseId?: string) => void
     initialCaseId?: string | null
     onInitialCaseOpened?: () => void
 }
@@ -43,11 +45,13 @@ type StatusFilter = 'All' | CaseStatus
  * signed-in citizen; the UI never accepts a citizen identifier from input.
  */
 export function CitizenDashboard({
+                                     mode,
                                      fullName,
                                      email,
                                      emailConfirmed,
                                      onOpenIntake,
                                      onOpenProfile,
+                                     onOpenCases,
                                      initialCaseId,
                                      onInitialCaseOpened,
                                  }: CitizenDashboardProps) {
@@ -76,6 +80,8 @@ export function CitizenDashboard({
     const filtersActive = search.trim().length > 0 || statusFilter !== 'All'
 
     useEffect(() => {
+        if (search === debouncedSearch) return
+
         const timer = window.setTimeout(() => {
             setDebouncedSearch(search)
             setPage(1)
@@ -83,7 +89,7 @@ export function CitizenDashboard({
             setError(null)
         }, 300)
         return () => window.clearTimeout(timer)
-    }, [search])
+    }, [search, debouncedSearch])
 
     useEffect(() => {
         let mounted = true
@@ -108,7 +114,7 @@ export function CitizenDashboard({
                 if (!mounted) return
                 setError(reason instanceof Error
                     ? reason.message
-                    : 'Failed to load your requests. Refresh the page and try again.')
+                    : 'Failed to load your cases. Refresh the page and try again.')
             })
             .finally(() => {
                 if (mounted) setLoading(false)
@@ -132,7 +138,7 @@ export function CitizenDashboard({
         } catch (reason: unknown) {
             setDetailError(reason instanceof Error
                 ? reason.message
-                : 'Failed to load request details. Try again.')
+                : 'Failed to load case details. Try again.')
         } finally {
             setDetailLoading(false)
         }
@@ -237,58 +243,75 @@ export function CitizenDashboard({
     const visibleCount = pageData?.items.length ?? 0
 
     const statsDetail = useMemo(() => {
-        if (loading) return 'Loading your requests'
+        if (loading) return 'Loading your cases'
         if (filtersActive) return 'Matching the current filters'
-        return 'All requests on your account'
+        return 'All cases on your account'
     }, [filtersActive, loading])
 
     return (
         <>
-            <div className="page-heading">
-                <div>
-                    <p className="eyebrow">CITIZEN PORTAL</p>
-                    <h1>Welcome back, {firstName}</h1>
-                    <p className="muted">
-                        Submit service requests and follow their progress.
-                    </p>
+            {mode === 'dashboard' ? (
+                <>
+                    <div className="page-heading">
+                        <div>
+                            <p className="eyebrow">CITIZEN PORTAL</p>
+                            <h1>Welcome back, {firstName}</h1>
+                            <p className="muted">
+                                Submit service requests and follow their progress.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="stat-grid citizen-stat-grid">
+                        <StatCard
+                            icon={emailConfirmed ? 'check' : 'alert'}
+                            label="Account status"
+                            value={emailConfirmed ? 'Verified' : 'Pending'}
+                            detail={emailConfirmed ? 'Email address confirmed' : 'Confirm your email address'}
+                            tone={emailConfirmed ? 'green' : 'amber'}
+                        />
+                        <StatCard
+                            icon="profile"
+                            label="Signed in as"
+                            value={email}
+                            detail="Citizen account"
+                            tone="blue"
+                        />
+                        <StatCard
+                            icon="cases"
+                            label="My cases"
+                            value={loading ? '…' : formatNumber(totalCount)}
+                            detail={statsDetail}
+                            tone="purple"
+                        />
+                    </div>
+                </>
+            ) : (
+                <div className="page-heading">
+                    <div>
+                        <p className="eyebrow">CITIZEN PORTAL</p>
+                        <h1>My cases</h1>
+                        <p className="muted">
+                            Track your submitted cases and respond to updates from the case team.
+                        </p>
+                    </div>
+                    <button className="primary-button" onClick={onOpenIntake} type="button">
+                        Submit new case
+                    </button>
                 </div>
-            </div>
+            )}
 
-            <div className="stat-grid citizen-stat-grid">
-                <StatCard
-                    icon={emailConfirmed ? 'check' : 'alert'}
-                    label="Account status"
-                    value={emailConfirmed ? 'Verified' : 'Pending'}
-                    detail={emailConfirmed ? 'Email address confirmed' : 'Confirm your email address'}
-                    tone={emailConfirmed ? 'green' : 'amber'}
-                />
-                <StatCard
-                    icon="profile"
-                    label="Signed in as"
-                    value={email}
-                    detail="Citizen account"
-                    tone="blue"
-                />
-                <StatCard
-                    icon="cases"
-                    label="My requests"
-                    value={loading ? '…' : formatNumber(totalCount)}
-                    detail={statsDetail}
-                    tone="purple"
-                />
-            </div>
-
-            {selected ? (
+            {selected && mode === 'cases' ? (
                 <>
                     <div className="section-heading">
                         <div>
-                            <h2>Request details</h2>
+                            <h2>Case details</h2>
                             <span className="muted">
                                 {selected.referenceNumber} · {selected.organizationName}
                             </span>
                         </div>
                         <button className="secondary-button" onClick={closeCase} type="button">
-                            Back to my requests
+                            Back to my cases
                         </button>
                     </div>
 
@@ -350,7 +373,7 @@ export function CitizenDashboard({
                                 <li>
                                     <span className="citizen-timeline-dot" aria-hidden="true"/>
                                     <div>
-                                        <strong>Request submitted</strong>
+                                        <strong>Case submitted</strong>
                                         <time dateTime={selected.createdAt}>
                                             {formatDateTime(selected.createdAt)}
                                         </time>
@@ -473,12 +496,12 @@ export function CitizenDashboard({
                             </section>
                         ) : (
                             <p className="muted">
-                                This request is closed, so new responses are no longer accepted.
+                                This case is closed, so new responses are no longer accepted.
                             </p>
                         )}
 
                         <button className="primary-button" onClick={closeCase} type="button">
-                            Back to my requests
+                            Back to my cases
                         </button>
                     </article>
                 </>
@@ -486,74 +509,87 @@ export function CitizenDashboard({
                 <>
                     <div className="section-heading">
                         <div>
-                            <h2>My requests</h2>
+                            <h2>{mode === 'cases' ? 'Submitted cases' : 'Recent cases'}</h2>
                             <span className="muted">
                                 {loading
-                                    ? 'Loading your tracked requests'
-                                    : `Showing ${visibleCount} of ${totalCount}`}
+                                    ? 'Loading your tracked cases'
+                                    : mode === 'cases'
+                                        ? `Showing ${visibleCount} of ${totalCount}`
+                                        : `${formatNumber(totalCount)} submitted`}
                             </span>
                         </div>
+                        {mode === 'dashboard' && totalCount > 0 ? (
+                            <button
+                                className="secondary-button"
+                                onClick={() => onOpenCases()}
+                                type="button"
+                            >
+                                View all my cases
+                            </button>
+                        ) : null}
                     </div>
 
                     <section className="case-card citizen-request-list">
-                        <div className="case-toolbar">
-                            <div className="search">
-                                <label className="sr-only" htmlFor="citizen-case-search">
-                                    Search my requests
+                        {mode === 'cases' ? (
+                            <div className="case-toolbar">
+                                <div className="search">
+                                    <label className="sr-only" htmlFor="citizen-case-search">
+                                        Search my cases
+                                    </label>
+                                    <input
+                                        id="citizen-case-search"
+                                        maxLength={200}
+                                        placeholder="Search by title or reference…"
+                                        value={search}
+                                        onChange={(event) => setSearch(event.target.value)}
+                                    />
+                                </div>
+
+                                <label className="citizen-filter">
+                                    <span className="sr-only">Filter by status</span>
+                                    <select
+                                        aria-label="Filter my cases by status"
+                                        value={statusFilter}
+                                        onChange={(event) => {
+                                            setStatusFilter(event.target.value as StatusFilter)
+                                            setPage(1)
+                                            setLoading(true)
+                                            setError(null)
+                                        }}
+                                    >
+                                        <option value="All">All statuses</option>
+                                        {statusOptions.map((status) => (
+                                            <option key={status} value={status}>
+                                                {statusLabels[status]}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </label>
-                                <input
-                                    id="citizen-case-search"
-                                    maxLength={200}
-                                    placeholder="Search by title or reference…"
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                />
+
+                                <label className="citizen-filter">
+                                    <span className="sr-only">Sort cases</span>
+                                    <select
+                                        aria-label="Sort my cases"
+                                        value={sort}
+                                        onChange={(event) => {
+                                            setSort(event.target.value as CitizenCaseSort)
+                                            setPage(1)
+                                            setLoading(true)
+                                            setError(null)
+                                        }}
+                                    >
+                                        <option value="updated_desc">Recently updated</option>
+                                        <option value="updated_asc">Least recently updated</option>
+                                        <option value="created_desc">Newest first</option>
+                                        <option value="created_asc">Oldest first</option>
+                                    </select>
+                                </label>
                             </div>
-
-                            <label className="citizen-filter">
-                                <span className="sr-only">Filter by status</span>
-                                <select
-                                    aria-label="Filter my requests by status"
-                                    value={statusFilter}
-                                    onChange={(event) => {
-                                        setStatusFilter(event.target.value as StatusFilter)
-                                        setPage(1)
-                                        setLoading(true)
-                                        setError(null)
-                                    }}
-                                >
-                                    <option value="All">All statuses</option>
-                                    {statusOptions.map((status) => (
-                                        <option key={status} value={status}>
-                                            {statusLabels[status]}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className="citizen-filter">
-                                <span className="sr-only">Sort requests</span>
-                                <select
-                                    aria-label="Sort my requests"
-                                    value={sort}
-                                    onChange={(event) => {
-                                        setSort(event.target.value as CitizenCaseSort)
-                                        setPage(1)
-                                        setLoading(true)
-                                        setError(null)
-                                    }}
-                                >
-                                    <option value="updated_desc">Recently updated</option>
-                                    <option value="updated_asc">Least recently updated</option>
-                                    <option value="created_desc">Newest first</option>
-                                    <option value="created_asc">Oldest first</option>
-                                </select>
-                            </label>
-                        </div>
+                        ) : null}
 
                         {loading ? (
                             <p className="muted empty-state" role="status">
-                                Loading your requests…
+                                Loading your cases…
                             </p>
                         ) : error ? (
                             <div className="error-banner" role="alert">
@@ -574,8 +610,8 @@ export function CitizenDashboard({
                             <div className="empty-state citizen-empty-state">
                                 <p className="muted">
                                     {filtersActive
-                                        ? 'No requests match the current search and filters.'
-                                        : "You haven't submitted any service requests yet."}
+                                        ? 'No cases match the current search and filters.'
+                                        : "You haven't submitted any cases yet."}
                                 </p>
                                 {filtersActive ? (
                                     <button
@@ -591,58 +627,70 @@ export function CitizenDashboard({
                                         onClick={onOpenIntake}
                                         type="button"
                                     >
-                                        Submit your first request
+                                        Submit your first case
                                     </button>
                                 )}
                             </div>
                         ) : (
                             <div className="directory-grid citizen-request-grid">
-                                {pageData?.items.map((item) => (
-                                    <article className="case-card citizen-action-card" key={item.id}>
-                                        <div className="case-card-header">
-                                            <h3>{item.title}</h3>
-                                            <StatusPill status={item.status}/>
-                                        </div>
-                                        <p className="muted">Reference: {item.referenceNumber}</p>
-                                        <p className="muted">Department: {item.organizationName}</p>
-                                        <p className="muted">
-                                            Submitted: {formatDate(item.createdAt)}
-                                        </p>
-                                        <p className="muted">
-                                            Updated: {formatDateTime(item.updatedAt)}
-                                        </p>
-                                        <button
-                                            className="primary-button"
-                                            onClick={() => void openCase(item.id)}
-                                            type="button"
-                                            disabled={detailLoading}
-                                        >
-                                            {detailLoading ? 'Loading…' : 'View details'}
-                                        </button>
-                                    </article>
-                                ))}
+                                {pageData?.items
+                                    .slice(0, mode === 'cases' ? undefined : 3)
+                                    .map((item) => (
+                                        <article className="case-card citizen-action-card" key={item.id}>
+                                            <div className="case-card-header">
+                                                <h3>{item.title}</h3>
+                                                <StatusPill status={item.status}/>
+                                            </div>
+                                            <p className="muted">Reference: {item.referenceNumber}</p>
+                                            <p className="muted">Department: {item.organizationName}</p>
+                                            <p className="muted">
+                                                Submitted: {formatDate(item.createdAt)}
+                                            </p>
+                                            <p className="muted">
+                                                Updated: {formatDateTime(item.updatedAt)}
+                                            </p>
+                                            <button
+                                                className="primary-button"
+                                                onClick={() => {
+                                                    if (mode === 'cases') {
+                                                        void openCase(item.id)
+                                                    } else {
+                                                        onOpenCases(item.id)
+                                                    }
+                                                }}
+                                                type="button"
+                                                disabled={mode === 'cases' && detailLoading}
+                                            >
+                                                {mode === 'cases'
+                                                    ? (detailLoading ? 'Loading…' : 'View details')
+                                                    : 'Open case'}
+                                            </button>
+                                        </article>
+                                    ))}
                             </div>
                         )}
 
-                        <div className="pagination">
-                            <span>Page {currentPage} of {totalPages}</span>
-                            <span>
-                                <button
-                                    disabled={currentPage <= 1 || loading}
-                                    onClick={() => changePage(Math.max(1, currentPage - 1))}
-                                    type="button"
-                                >
-                                    Previous
-                                </button>
-                                <button
-                                    disabled={currentPage >= totalPages || loading}
-                                    onClick={() => changePage(Math.min(totalPages, currentPage + 1))}
-                                    type="button"
-                                >
-                                    Next
-                                </button>
-                            </span>
-                        </div>
+                        {mode === 'cases' ? (
+                            <div className="pagination">
+                                <span>Page {currentPage} of {totalPages}</span>
+                                <span>
+                                    <button
+                                        disabled={currentPage <= 1 || loading}
+                                        onClick={() => changePage(Math.max(1, currentPage - 1))}
+                                        type="button"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        disabled={currentPage >= totalPages || loading}
+                                        onClick={() => changePage(Math.min(totalPages, currentPage + 1))}
+                                        type="button"
+                                    >
+                                        Next
+                                    </button>
+                                </span>
+                            </div>
+                        ) : null}
                     </section>
 
                     {detailError ? (
@@ -651,34 +699,38 @@ export function CitizenDashboard({
                 </>
             )}
 
-            <div className="section-heading">
-                <div>
-                    <h2>Quick actions</h2>
-                    <span className="muted">Citizen self-service</span>
-                </div>
-            </div>
+            {mode === 'dashboard' ? (
+                <>
+                    <div className="section-heading">
+                        <div>
+                            <h2>Quick actions</h2>
+                            <span className="muted">Citizen self-service</span>
+                        </div>
+                    </div>
 
-            <div className="directory-grid">
-                <article className="case-card citizen-action-card">
-                    <h3>Request public assistance</h3>
-                    <p className="muted">
-                        Describe a local service issue and send it to the responsible team.
-                    </p>
-                    <button className="primary-button" onClick={onOpenIntake} type="button">
-                        Open public intake
-                    </button>
-                </article>
+                    <div className="directory-grid">
+                        <article className="case-card citizen-action-card">
+                            <h3>Request public assistance</h3>
+                            <p className="muted">
+                                Describe a local service issue and send it to the responsible team.
+                            </p>
+                            <button className="primary-button" onClick={onOpenIntake} type="button">
+                                Open public intake
+                            </button>
+                        </article>
 
-                <article className="case-card citizen-action-card">
-                    <h3>My profile</h3>
-                    <p className="muted">
-                        Review the contact details and identifiers attached to your account.
-                    </p>
-                    <button className="primary-button" onClick={onOpenProfile} type="button">
-                        Open my profile
-                    </button>
-                </article>
-            </div>
+                        <article className="case-card citizen-action-card">
+                            <h3>My profile</h3>
+                            <p className="muted">
+                                Review the contact details and identifiers attached to your account.
+                            </p>
+                            <button className="primary-button" onClick={onOpenProfile} type="button">
+                                Open my profile
+                            </button>
+                        </article>
+                    </div>
+                </>
+            ) : null}
         </>
     )
 }

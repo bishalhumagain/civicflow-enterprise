@@ -86,6 +86,7 @@ const WORKSPACE_VIEW_STORAGE_KEY = 'civicflow.workspaceView'
 
 const workspaceViews: WorkspaceView[] = [
     'citizen-dashboard',
+    'citizen-cases',
     'citizen',
     'profile',
     'cases',
