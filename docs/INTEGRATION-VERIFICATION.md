@@ -17,7 +17,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite contains 492 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie flow. Three PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. A nine-test Playwright/Chromium suite exercises the citizen and staff tracking journeys plus field validation, password-recovery validation, and normalization against a disposable PostgreSQL database. The default `dotnet test` run reports 489 passed and 3 skipped.
+The automated suite contains 518 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie, PAT, and JWT bearer flows. Four PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. A nine-test Playwright/Chromium suite exercises the citizen and staff tracking journeys plus field validation, password-recovery validation, and normalization against a disposable PostgreSQL database. The default `dotnet test` run reports 514 passed and 4 skipped.
 
 ### Authentication lifecycle
 
@@ -55,6 +55,19 @@ Covered by automated integration tests against the real bearer scheme:
 - A citizen token receives `403` on a staff endpoint
 - Revocation invalidates the credential immediately
 - Unknown, tampered, and expired tokens are rejected
+
+### JWT bearer flow
+
+Covered by automated integration tests against the real bearer schemes:
+- A valid PAT exchanges for a signed JWT at `POST /api/auth/token`
+- The response reports `access_token`, `token_type`, `expires_in`, and `expires_at`
+- A cookie session and anonymous request cannot mint a JWT
+- The JWT authenticates `me` without a cookie or CSRF token
+- The JWT preserves the owner's role policies while organization access remains database-resolved
+- An expired, tampered, wrong-issuer, wrong-audience, or unsigned JWT is rejected with `401`
+- A JWT for an inactive account is rejected
+- A bearer request cannot fall back to a cookie session
+- Swagger exposes the global `Bearer` security scheme
 
 ### Invitation lifecycle
 

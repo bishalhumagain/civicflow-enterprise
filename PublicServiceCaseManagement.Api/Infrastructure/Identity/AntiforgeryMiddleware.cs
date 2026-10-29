@@ -28,7 +28,16 @@ public sealed class AntiforgeryMiddleware(RequestDelegate next)
             "Security:RequireAntiforgery",
             defaultValue: true);
 
+        // CSRF protects ambient cookie authentication. A Bearer request is
+        // not ambient: browsers cannot attach an Authorization header
+        // cross-origin without a CORS preflight, so API clients (PAT or JWT)
+        // must not be forced to obtain a browser CSRF token.
+        var usesBearer = httpContext.Request.Headers.Authorization
+            .ToString()
+            .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+
         if (!required ||
+            usesBearer ||
             !httpContext.Request.Path.StartsWithSegments("/api") ||
             SafeMethods.Contains(httpContext.Request.Method))
         {

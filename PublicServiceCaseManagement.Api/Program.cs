@@ -1,12 +1,16 @@
 
 using System.Net;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using PublicServiceCaseManagement.Api.Configuration;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Audit;
@@ -67,7 +71,30 @@ builder.Services
     });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition(
+        "Bearer",
+        new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "Authorization",
+            Description =
+                "Enter a short-lived JWT access token, or a personal access " +
+                "token (civicflow_pat_...). Do not paste a cookie value."
+        });
+
+    options.AddSecurityRequirement(document =>
+        new Microsoft.OpenApi.OpenApiSecurityRequirement
+        {
+            [new Microsoft.OpenApi.OpenApiSecuritySchemeReference(
+                "Bearer",
+                document)] = []
+        });
+});
 
 builder.Services.AddDbContext<CivicFlowDbContext>((serviceProvider, options) =>
 {
@@ -105,12 +132,23 @@ builder.Services
     .AddDefaultTokenProviders();
 
 builder.Services
+    .AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .Validate(
+        options => options.IsValid,
+        "JWT configuration is invalid. Set Jwt:Issuer, Jwt:Audience, and a " +
+        "Jwt:SigningKey of at least 32 bytes; AccessTokenLifetimeMinutes " +
+        "must be between 1 and 60.")
+    .ValidateOnStart();
+
+builder.Services
     .AddAuthentication(options =>
     {
-        // A policy scheme picks the real handler per request: a bearer
-        // personal access token goes to the token handler, everything else
-        // uses the Identity application cookie. This keeps authorization
-        // policies identical for browser and API clients.
+        // A policy scheme picks the real handler per request: a personal
+        // access token goes to the PAT handler, any other bearer value goes
+        // to the JWT handler, and requests without a bearer header use the
+        // Identity application cookie. This keeps authorization policies
+        // identical for browser and API clients.
         options.DefaultScheme = "CivicFlowSmart";
         options.DefaultAuthenticateScheme = "CivicFlowSmart";
         options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
@@ -125,21 +163,120 @@ builder.Services
         PersonalAccessTokenAuthenticationHandler>(
         PersonalAccessTokenAuthenticationHandler.SchemeName,
         _ => { })
+    .AddJwtBearer()
     .AddPolicyScheme("CivicFlowSmart", "CivicFlowSmart", options =>
     {
         options.ForwardDefaultSelector = context =>
         {
             var authorization = context.Request.Headers.Authorization.ToString();
 
-            if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
-                authorization.Contains(
-                    PersonalAccessToken.TokenPrefix + "_",
-                    StringComparison.Ordinal))
+            if (!authorization.StartsWith(
+                    "Bearer ",
+                    StringComparison.OrdinalIgnoreCase))
             {
-                return PersonalAccessTokenAuthenticationHandler.SchemeName;
+                return IdentityConstants.ApplicationScheme;
             }
 
-            return IdentityConstants.ApplicationScheme;
+            // Personal access tokens are opaque and are exchanged for a JWT
+            // at /api/auth/token. Every other bearer value is a JWT and is
+            // validated by the JWT handler (malformed values fail closed).
+            return authorization.Contains(
+                PersonalAccessToken.TokenPrefix + "_",
+                StringComparison.Ordinal)
+                ? PersonalAccessTokenAuthenticationHandler.SchemeName
+                : JwtBearerDefaults.AuthenticationScheme;
+        };
+    });
+
+// Resolve JwtOptions through DI here so the validation parameters always use
+// the same effective configuration (including test/override providers) as the
+// token issuer, regardless of when configuration sources are added.
+builder.Services
+    .AddOptions<JwtBearerOptions>(
+        JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((options, jwt) =>
+    {
+        var settings = jwt.Value;
+
+        options.MapInboundClaims = false;
+        options.SaveToken = false;
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = settings.Issuer,
+            ValidateAudience = true,
+            ValidAudience = settings.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                System.Text.Encoding.UTF8.GetBytes(settings.SigningKey)),
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            // A JWT is short-lived, but authorization must still reflect the
+            // current account state. Re-read the active user and current
+            // roles so deactivation and role changes take effect immediately,
+            // matching the cookie and PAT schemes.
+            OnTokenValidated = async context =>
+            {
+                var identifier = context.Principal?
+                    .FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? context.Principal?.FindFirst("sub")?.Value;
+
+                if (!Guid.TryParse(identifier, out var userId) ||
+                    userId == Guid.Empty)
+                {
+                    context.Fail("The access token has no valid subject.");
+                    return;
+                }
+
+                var dbContext = context.HttpContext.RequestServices
+                    .GetRequiredService<CivicFlowDbContext>();
+
+                var user = await dbContext.ApplicationUsers
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(candidate => candidate.Id == userId);
+
+                if (user is null || !user.IsActive)
+                {
+                    context.Fail("The access token owner is inactive.");
+                    return;
+                }
+
+                var roles = await (
+                    from userRole in dbContext.Set<
+                        Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>()
+                    join role in dbContext.Set<
+                            Microsoft.AspNetCore.Identity.IdentityRole<Guid>>()
+                        on userRole.RoleId equals role.Id
+                    where userRole.UserId == user.Id
+                    select role.Name)
+                    .Where(name => name != null)
+                    .ToListAsync();
+
+                if (context.Principal?.Identity is ClaimsIdentity identity)
+                {
+                    foreach (var roleClaim in
+                             identity.FindAll(ClaimTypes.Role).ToList())
+                    {
+                        identity.RemoveClaim(roleClaim);
+                    }
+
+                    foreach (var role in roles)
+                    {
+                        identity.AddClaim(
+                            new Claim(ClaimTypes.Role, role!));
+                    }
+                }
+            }
         };
     });
 
@@ -319,6 +456,7 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
+builder.Services.AddScoped<IJwtAccessTokenIssuer, JwtAccessTokenIssuer>();
 if (isDevelopment)
 {
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();

@@ -2,7 +2,7 @@
 
 **A secure, multi-tenant public-service case management platform.**
 
-CivicFlow Enterprise helps government and public-service organizations intake, track, assign, and resolve citizen-submitted cases. It is built with a .NET 10 ASP.NET Core Web API backend, a React 19 + TypeScript + Vite frontend, and PostgreSQL 17 for persistence. The system uses first-party ASP.NET Core Identity for authentication (cookie-based sessions with CSRF protection), supports personal access tokens for API clients, and enforces organization-scoped data isolation through server-side authorization and PostgreSQL row-level security.
+CivicFlow Enterprise helps government and public-service organizations intake, track, assign, and resolve citizen-submitted cases. It is built with a .NET 10 ASP.NET Core Web API backend, a React 19 + TypeScript + Vite frontend, and PostgreSQL 17 for persistence. The system uses first-party ASP.NET Core Identity for authentication (cookie-based sessions with CSRF protection), supports personal access tokens and short-lived signed JWT access tokens for API clients, and enforces organization-scoped data isolation through server-side authorization and PostgreSQL row-level security.
 
 > **Repository**: [github.com/bishalhumagain/civicflow-enterprise](https://github.com/bishalhumagain/civicflow-enterprise.git)
 > **Owner**: Bishal Humagain
@@ -77,7 +77,8 @@ The platform is built around three core principles:
 | **Password policy** | 12+ characters, upper/lower/digit/non-alphanumeric, 6 unique characters. Account lockout after 5 failed attempts (15-minute window). |
 | **Password recovery** | Forgot-password/reset-password flow with enumeration-safe responses (no disclosure of whether an email exists). Accounts migrated from the former external identity provider have no local password hash; they must set a local password through this flow. |
 | **Personal access tokens (PATs)** | `Authorization: Bearer civicflow_pat_<id>_<secret>` for non-browser clients. Stored as SHA-256 hash, shown once at creation, revocable, optional expiry, max 25 per user. PATs carry the owner's roles and policies. |
-| **CSRF protection** | Anti-forgery cookie + `X-CSRF-TOKEN` header validated on all unsafe `/api/*` methods. |
+| **JWT access tokens** | API clients exchange a valid PAT at `POST /api/auth/token` for a short-lived (default 15-minute) HS256-signed JWT. Issuer, audience, signature, expiry, active account, and current roles are validated on every request. The token contains no passwords, PATs, security stamps, or organization authority. |
+| **CSRF protection** | Anti-forgery cookie + `X-CSRF-TOKEN` header validated on unsafe cookie-authenticated `/api/*` methods. Bearer requests are not ambient, so they are exempt (and a bearer header disables cookie authentication for that request). |
 | **Rate limiting** | Fixed-window: 20/min on auth endpoints, 8/5min on password endpoints. |
 
 ### Case Management
@@ -315,8 +316,46 @@ The same rules are applied at every layer. Request DTOs carry DataAnnotations, d
 |---|---|---|
 | **Cookie session** | (automatic, HttpOnly) | Browser-based SPA |
 | **Personal access token** | `Authorization: Bearer civicflow_pat_<publicId>_<secret>` | API clients, scripts, integrations |
+| **JWT access token** | `Authorization: Bearer <short-lived JWT>` | API clients that need a standard, time-bounded bearer credential |
 
-The `CivicFlowSmart` policy scheme inspects the `Authorization` header and routes to the PAT handler when `civicflow_pat_` is present, otherwise to the Identity cookie scheme.
+The `CivicFlowSmart` policy scheme inspects the `Authorization` header:
+
+- `Bearer civicflow_pat_*` routes to the PAT handler.
+- Any other `Bearer` value routes to the JWT handler; malformed tokens fail closed.
+- No `Authorization` header routes to the Identity application cookie.
+
+Cookie login, logout, security-stamp revalidation, portal-scoped sign-in, and
+CSRF behavior are unchanged. JWT and PAT callers receive the same role policies
+and database-backed organization resolution as cookie callers; they do not gain
+a bypass. The organization context is always resolved from the authenticated
+user's active membership for `X-Organization-Id`, never from a token claim.
+
+#### Exchanging a PAT for a JWT
+
+```http
+POST /api/auth/token
+Authorization: Bearer civicflow_pat_<publicId>_<secret>
+```
+
+```json
+{
+  "access_token": "<signed JWT>",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "expires_at": "2026-10-29T12:15:00+00:00"
+}
+```
+
+Only the PAT scheme can call this endpoint; a cookie session cannot mint a JWT.
+When the JWT expires, exchange the same PAT again. Revoking the PAT (or
+deactivating the account) prevents new JWTs; already-issued JWTs are
+short-lived, are rechecked against the active account and current roles on each
+request, and must be discarded by the client after logout.
+
+Configure the signing key with `Jwt:SigningKey` (environment variable
+`Jwt__SigningKey`) using at least 32 random bytes. The API refuses to start
+without it. Also set `Jwt:Issuer` and `Jwt:Audience`; never reuse the
+development key in production.
 
 #### Portal-Scoped Sign-In
 
@@ -408,7 +447,7 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 | **Lockout** | 5 failed attempts → 15-minute lockout |
 | **Email confirmation** | Required before sign-in |
 | **Session cookie** | HttpOnly, SameSite=Lax, 8h sliding. Dev: `civicflow.auth`, prod: `__Host-civicflow` (requires HTTPS) |
-| **CSRF** | Anti-forgery cookie + `X-CSRF-TOKEN` header, validated on unsafe `/api/*` |
+| **CSRF** | Anti-forgery cookie + `X-CSRF-TOKEN` header, validated on unsafe cookie-authenticated `/api/*`; bearer requests are exempt |
 | **Rate limiting** | Auth: 20/min, Password: 8/5min |
 | **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'`, COOP/COEP/CORP `same-origin`, `Permissions-Policy` |
 | **CORS** | Restricted to configured origins with credentials |
@@ -470,6 +509,7 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 | POST | `/api/auth/reset-password` | Anonymous | Reset password with token |
 | POST | `/api/auth/change-password` | Authenticated | Change password |
 | GET | `/api/auth/me` | Authenticated | Get current user info, roles, portal |
+| POST | `/api/auth/token` | Personal access token | Exchange a PAT for a short-lived signed JWT |
 
 **Login response codes**:
 
@@ -488,6 +528,17 @@ Apply the new migration before starting a worker-enabled deployment (`dotnet ef 
 | GET | `/api/auth/tokens` | Authenticated | List own tokens |
 | POST | `/api/auth/tokens` | Authenticated | Create token (returns plaintext once) |
 | DELETE | `/api/auth/tokens/{id}` | Authenticated | Revoke a token |
+
+### JWT Access Tokens (`/api/auth/token`)
+
+| Method | Path | Authorization | Description |
+|---|---|---|---|
+| POST | `/api/auth/token` | Personal access token only | Exchange a PAT for a short-lived JWT. Returns `access_token`, `token_type`, `expires_in`, and `expires_at`. Cookies and anonymous requests are rejected. |
+
+Use the returned JWT as `Authorization: Bearer <access_token>` on API calls.
+Swagger's **Authorize** button accepts either a JWT or a PAT in the same bearer
+field. Organization and role authorization are still enforced from the database
+on every request; the JWT does not grant cross-organization access.
 
 ### Cases (`/api/cases`)
 
@@ -669,6 +720,8 @@ Edit `appsettings.json`:
 - `Cors:AllowedOrigins` — add the frontend origin (default: `http://localhost:5173`)
 - `Frontend:BaseUrl` — the frontend URL (for invitation links)
 - `Application:Name` — product name shown in the header and copyright footer (default: `CivicFlow Enterprise`)
+- `Jwt:SigningKey` — at least 32 random bytes for signing short-lived access tokens (environment variable `Jwt__SigningKey`); the API refuses to start without it
+- `Jwt:Issuer` / `Jwt:Audience` — expected token issuer and audience (defaults: `CivicFlow` / `CivicFlow.Api`)
 - `SeedAdmin:Email` / `SeedAdmin:Password` / `SeedAdmin:FullName` — optional, for initial super-admin. The configured password is hashed by ASP.NET Core Identity; it is set when the account is first created and does not overwrite a later password change.
 
 > **Never commit `appsettings.json`** — it is gitignored. Use environment variables or .NET user-secrets for production.
@@ -744,7 +797,7 @@ Verification, password-reset, and invitation messages are sent through `IEmailSe
 dotnet test PublicServiceCaseManagement.sln --configuration Release
 ```
 
-**492 tests** (489 executed by default; 3 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
+**518 tests** (514 executed by default; 4 opt-in PostgreSQL RLS tests are skipped when no disposable database is configured) covering:
 
 | Category | What's tested |
 |---|---|
@@ -871,8 +924,8 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Backend API with EF Core/PostgreSQL and 27 migrations
 - ASP.NET Core Identity authentication (cookie sessions, email verification, password recovery, lockout)
 - Portal-scoped sign-in (citizen, organization, platform-admin) with wrong-portal rejection and session cleanup
-- Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth)
-- CSRF protection on all unsafe `/api/*` methods
+- Personal access tokens (SHA-256 hash, one-time plaintext, revocation, expiry, bearer auth) and short-lived HS256 JWT exchange for API clients
+- CSRF protection on unsafe cookie-authenticated `/api/*` methods; bearer requests are exempt
 - Rate limiting on auth/password endpoints
 - Security headers middleware
 - Organization scoping with PostgreSQL RLS on 6 tenant-owned tables, including citizen owner-scoped tracking reads and writes
@@ -887,7 +940,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 - Dashboard statistics (platform-wide and org-scoped)
 - Application error tracking (persisted, reviewable, mark-as-handled)
 - Frontend: all auth flows, role-specific workspaces, session restoration, toast notifications
-- 492 automated tests (unit + integration; 3 opt-in PostgreSQL RLS tests skipped without a disposable database)
+- 518 automated tests (unit + integration; 4 opt-in PostgreSQL RLS tests skipped without a disposable database)
 - 9 Playwright browser end-to-end journeys (verified against disposable PostgreSQL)
 - CI pipeline (GitHub Actions)
 
@@ -895,7 +948,7 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 
 - The Playwright E2E suite and the opt-in PostgreSQL RLS tests are not yet wired into CI; both require a disposable PostgreSQL fixture
 - Local file storage only (no object storage, malware scanning, or retention policy)
-- Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie flow, and the tracking browser suite runs against real PostgreSQL
+- Most API tests use EF Core InMemory with synthetic auth; a subset exercises real Identity cookie, PAT, and JWT bearer flows, and the tracking browser suite runs against real PostgreSQL
 - PostgreSQL tenant-boundary coverage is opt-in and skipped by the default test run when no disposable database is configured
 - Development does not deliver email. It writes one-time links (including sensitive tokens) to the API console automatically; use this only in a private Development environment. Use TLS-enabled SMTP for delivery outside Development.
 - Citizen case intake supports active-organization selection and optional arbitrary-file attachments; submitted cases are routed to an organization administrator for triage, and citizens can track each request's status and open its full detail with status history

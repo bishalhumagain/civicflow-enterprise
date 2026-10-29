@@ -30,7 +30,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 - Citizen case intake and full owner-scoped tracking: active organization selection, session-derived submitter attribution, optional arbitrary file attachments, paged/searchable/sortable own-case list, detail with citizen-visible timeline and documents, information requests and responses, and routing of the submitted case to an organization administrator for triage. Status changes notify the submitter and assigned staff; citizen-visible updates and information requests notify the submitter; citizen responses notify the assigned staff account
 - Per-case assignment roles (CaseWorker/Viewer) persisted in cases and assignment history
 - Organization administrators can invite staff but cannot grant OrganizationAdmin; platform administrators retain that provisioning privilege
-- xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, and document integration tests (492 tests; 489 run by default and 3 opt-in PostgreSQL RLS tests)
+- xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, JWT bearer, and document integration tests (518 tests; 514 run by default and 4 opt-in PostgreSQL RLS tests)
 - Opt-in PostgreSQL RLS tests that apply the real migrations and probe tenant and citizen ownership policies with the runtime role
 - Nine Playwright/Chromium browser journeys covering citizen submission/tracking, staff updates and information requests, confidentiality, pagination, cross-citizen isolation, session expiry, CSRF rejection, registration and intake validation, and password-recovery validation
 - Disposable Compose fixtures for PostgreSQL roles

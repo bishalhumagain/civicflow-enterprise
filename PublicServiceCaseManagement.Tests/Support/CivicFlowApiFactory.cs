@@ -18,6 +18,11 @@ namespace PublicServiceCaseManagement.Tests.Support;
 
 public class CivicFlowApiFactory : WebApplicationFactory<Program>
 {
+    public const string TestJwtIssuer = "CivicFlow.Tests";
+    public const string TestJwtAudience = "CivicFlow.Tests.Api";
+    public const string TestJwtSigningKey =
+        "civicflow-integration-test-signing-key-0123456789abcdef";
+
     private readonly string databaseName = $"CivicFlowTests_{Guid.NewGuid():N}";
     private readonly OrganizationRole? defaultOrganizationRole;
     private readonly PlatformRole defaultPlatformRole;
@@ -133,6 +138,10 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                     enableBusinessEndpoints.ToString(),
                 ["Security:RequireAntiforgery"] =
                     requireAntiforgery ? "true" : "false",
+                ["Jwt:Issuer"] = TestJwtIssuer,
+                ["Jwt:Audience"] = TestJwtAudience,
+                ["Jwt:SigningKey"] = TestJwtSigningKey,
+                ["Jwt:AccessTokenLifetimeMinutes"] = "15",
                 ["FileStorage:RootPath"] =
                     Path.Combine(Path.GetTempPath(), databaseName)
             };

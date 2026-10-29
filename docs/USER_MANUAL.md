@@ -500,6 +500,24 @@ Send it as an HTTP bearer credential on every request:
 Authorization: Bearer civicflow_pat_<publicId>_<secret>
 ```
 
+**Short-lived JWT exchange (optional)**
+
+If the client or platform requires a standard, time-bounded JWT instead of the
+long-lived PAT, exchange the PAT first:
+
+```http
+POST /api/auth/token
+Authorization: Bearer civicflow_pat_<publicId>_<secret>
+```
+
+The response contains `access_token`, `token_type`, `expires_in`, and
+`expires_at`. Send the `access_token` as the bearer value on subsequent
+requests. It expires after the configured short lifetime (15 minutes by
+default), after which exchange the same PAT again. The JWT is rechecked against
+the active account and current roles on every request, but it does not revoke
+the PAT itself. Do not store bearer tokens in browser localStorage; browser
+clients should keep using the HttpOnly session cookie.
+
 **Revoking a token**
 
 1. Open **Access tokens**

@@ -9,10 +9,23 @@ self-service routes are exempt and remain available.
 
 ## Authentication and Tenant Resolution
 
-- Browser clients use the ASP.NET Core Identity HttpOnly cookie. Unsafe API
-  requests require the antiforgery cookie and `X-CSRF-TOKEN` header when
-  `Security:RequireAntiforgery` is enabled. Non-browser clients may use a
-  personal access token in the `Authorization: Bearer` header.
+- Browser clients use the ASP.NET Core Identity HttpOnly cookie. Unsafe
+  cookie-authenticated API requests require the antiforgery cookie and
+  `X-CSRF-TOKEN` header when `Security:RequireAntiforgery` is enabled.
+  Non-browser clients may use a personal access token in the
+  `Authorization: Bearer` header.
+- API clients may exchange a valid personal access token at
+  `POST /api/auth/token` for a short-lived signed JWT (default 15 minutes).
+  The JWT handler validates issuer, audience, signature, algorithm, and
+  lifetime, then re-reads the active account and current Identity roles.
+  A JWT never carries a password, PAT, security stamp, or organization
+  authority; organization membership is resolved from the database per
+  request.
+- The `CivicFlowSmart` policy scheme routes `Bearer civicflow_pat_*` to the PAT
+  handler, any other `Bearer` value to the JWT handler, and requests without an
+  `Authorization` header to the Identity cookie. A bearer header is not
+  ambient, so bearer requests are exempt from CSRF; invalid bearer values fail
+  closed with `401`. Cookie requests keep the existing CSRF requirement.
 - Policies derive platform roles from the validated session. The active
   application account and organization membership are re-read from the
   database; a client role, organization selector, or hidden UI control is not
@@ -30,9 +43,11 @@ self-service routes are exempt and remain available.
   Inactive accounts, organizations, or memberships fail resolution. If an
   account has several memberships, the selected active membership determines
   the role for that request; roles are not combined across organizations.
-- Every unsafe `/api/*` request is subject to the configured CSRF middleware.
-  Authentication and authorization policies are applied after authentication
-  and before endpoint execution.
+- Every unsafe cookie-authenticated `/api/*` request is subject to the
+  configured CSRF middleware. Bearer-authenticated requests (PAT or JWT) are
+  exempt because browsers cannot attach an `Authorization` header cross-origin
+  without a CORS preflight. Authentication and authorization policies are
+  applied after authentication and before endpoint execution.
 
 ## Role and Resource Matrix
 
@@ -108,6 +123,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `POST /api/auth/reset-password` | Anonymous; `ResetPasswordRequest` | `200 AuthOperationResult`; invalid token/password `400`; resets password. |
 | `POST /api/auth/change-password` | Authenticated; `ChangePasswordRequest` | `200 AuthOperationResult`; failed current/new password `400`; changes own password. |
 | `GET /api/auth/me` | Authenticated; no parameters | `200 CurrentUserResponse`; `401` for inactive/unresolvable account. |
+| `POST /api/auth/token` | Personal access token only; no body | `200 AccessTokenResponse` (`access_token`, `token_type`, `expires_in`, `expires_at`) containing a short-lived signed JWT; missing/invalid PAT `401`. Cookies cannot mint tokens. |
 | `GET /api/auth/tokens` | Authenticated; no parameters | `200 PersonalAccessTokenResponse[]`; lists only the caller's tokens. |
 | `POST /api/auth/tokens` | Authenticated; `CreatePersonalAccessTokenRequest` | `201 CreatePersonalAccessTokenResponse`; plaintext is returned once; invalid or over-limit request `400`. |
 | `DELETE /api/auth/tokens/{tokenId:guid}` | Authenticated; token ID | `204` revoked; `404` if not owned or not found. |
