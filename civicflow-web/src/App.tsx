@@ -500,7 +500,7 @@ function App() {
             try {
                 const [caseResult, staffMembers] = await Promise.all([
                     requestJson<CasePage>(`/api/cases?${caseQuery.toString()}`),
-                    requestJson<PagedResponse<StaffMember>>('/api/staff?page=1&pageSize=100', undefined, organizationId),
+                    requestJson<PagedResponse<StaffMember>>('/api/staff?page=1&pageSize=100', undefined, organizationId ?? undefined),
                 ])
 
                 if (!mounted) return
@@ -671,7 +671,7 @@ function App() {
         async function loadStaffDirectory() {
             setAdminLoading(true)
             try {
-                const result = await requestJson<PagedResponse<StaffMember>>(`/api/staff?${query}`, undefined, platformAdminAccess ? administrationOrganizationId : organizationId)
+                const result = await requestJson<PagedResponse<StaffMember>>(`/api/staff?${query}`, undefined, platformAdminAccess ? administrationOrganizationId ?? undefined : organizationId ?? undefined)
                 if (mounted) setStaffDirectoryPage(result)
             } catch (reason) {
                 if (mounted) setError(reason instanceof Error ? reason.message : 'Staff could not be loaded.')
@@ -1534,7 +1534,7 @@ function App() {
             const result = await requestJson<StaffMember>(
                 `/api/staff/${member.id}/${member.isActive ? 'deactivate' : 'reactivate'}`,
                 {method: 'PATCH'},
-                organizationId,
+                organizationId ?? undefined,
             )
 
             setStaff((current) => current.map((item) => item.id === result.id ? result : item))
@@ -1559,7 +1559,7 @@ function App() {
                     method: 'PATCH',
                     body: JSON.stringify({phoneNumber: phoneNumber || null}),
                 },
-                organizationId,
+                organizationId ?? undefined,
             )
 
             setStaff((current) => current.map((item) => item.id === updated.id ? updated : item))
