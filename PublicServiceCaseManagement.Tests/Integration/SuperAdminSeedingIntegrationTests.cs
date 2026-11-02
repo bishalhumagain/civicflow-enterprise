@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Auth;
@@ -190,6 +191,48 @@ public sealed class SuperAdminSeedingIntegrationTests
         Assert.NotNull(me);
         Assert.True(me!.EmailConfirmed);
         Assert.Contains(AppRoles.SuperAdmin, me.Roles);
+    }
+
+    [Fact]
+    public async Task SeedAdmin_DoesNotPromoteUnverifiedExistingAccountWithDifferentPassword()
+    {
+        var email = $"preexisting-citizen-{Guid.NewGuid():N}@example.com";
+        await using var factory = CreateFactory(email: null, password: null);
+        using var client = CreateCookieClient(factory);
+
+        var register = await client.PostAsJsonAsync(
+            "/api/auth/register",
+            new
+            {
+                fullName = "Preexisting Citizen",
+                email,
+                phoneNumber = "9800000000",
+                nidNumber = $"NID-{Guid.NewGuid():N}",
+                citizenshipNumber = $"CIT-{Guid.NewGuid():N}",
+                password = "Citizen-Owned-Password-7!"
+            });
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+
+        var configuration = factory.Services
+            .GetRequiredService<IConfiguration>();
+        configuration["SeedAdmin:Email"] = email;
+        configuration["SeedAdmin:Password"] = StrongPassword;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => IdentityDataSeeder.SeedAsync(factory.Services));
+
+        using var scope = factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email);
+
+        Assert.NotNull(user);
+        Assert.False(user!.EmailConfirmed);
+        Assert.Equal(PlatformRole.None, user.PlatformRole);
+        Assert.False(await userManager.IsInRoleAsync(user, AppRoles.SuperAdmin));
+        Assert.True(await userManager.CheckPasswordAsync(
+            user,
+            "Citizen-Owned-Password-7!"));
     }
 
     [Fact]

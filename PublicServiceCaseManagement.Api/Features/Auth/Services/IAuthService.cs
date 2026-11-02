@@ -15,7 +15,10 @@ public interface IAuthService
         SignInPortal portal,
         CancellationToken cancellationToken = default);
 
-    Task LogoutAsync(CancellationToken cancellationToken = default);
+    Task LogoutAsync(
+        Guid userId,
+        Guid? sourcePersonalAccessTokenId,
+        CancellationToken cancellationToken = default);
 
     Task<AuthOperationResult> VerifyEmailAsync(
         VerifyEmailRequest request,

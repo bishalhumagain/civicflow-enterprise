@@ -32,6 +32,14 @@ public sealed class AccessTokensController(
             return Unauthorized();
         }
 
+        var sourceTokenIdentifier = User.FindFirst(
+            JwtAccessTokenIssuer.SourcePersonalAccessTokenIdClaim)?.Value;
+        if (!Guid.TryParse(sourceTokenIdentifier, out var sourceTokenId) ||
+            sourceTokenId == Guid.Empty)
+        {
+            return Unauthorized();
+        }
+
         var fullName = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
         var email = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
         var roles = User
@@ -39,7 +47,12 @@ public sealed class AccessTokensController(
             .Select(claim => claim.Value)
             .ToArray();
 
-        var issued = tokenIssuer.Issue(userId, fullName, email, roles);
+        var issued = tokenIssuer.Issue(
+            userId,
+            fullName,
+            email,
+            roles,
+            sourceTokenId);
 
         return Ok(new AccessTokenResponse(
             issued.Token,

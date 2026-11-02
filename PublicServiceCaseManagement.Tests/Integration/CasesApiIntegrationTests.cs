@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
@@ -517,6 +518,81 @@ public class CasesApiIntegrationTests
         Assert.DoesNotContain(
             listJson.RootElement.GetProperty("items").EnumerateArray(),
             item => item.GetProperty("id").GetGuid() == unassignedCaseId);
+    }
+
+    [Fact]
+    public async Task CaseWorker_CannotReadOrModifyCaseAssignedToAnotherWorker()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            useAuthenticatedOrganizationContext: true,
+            enableBusinessEndpoints: true);
+        var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
+            OrganizationRole.CaseWorker);
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            "X-Organization-Id",
+            organizationId.ToString());
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/cases",
+            new
+            {
+                title = "Other worker case",
+                description = "Only the assigned worker may access this case."
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var caseId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var otherStaff = StaffMember.Create(
+                organizationId,
+                "Other Case Worker",
+                $"other-worker-{Guid.NewGuid():N}@example.test",
+                null,
+                DateTimeOffset.UtcNow);
+            dbContext.StaffMembers.Add(otherStaff);
+
+            var caseEntity = await dbContext.Cases.SingleAsync(
+                candidate => candidate.Id == caseId);
+            caseEntity.AssignTo(
+                otherStaff.Id,
+                CaseAssignmentRole.CaseWorker,
+                DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync();
+        }
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await client.GetAsync($"/api/cases/{caseId}")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await client.PutAsJsonAsync(
+                $"/api/cases/{caseId}",
+                new
+                {
+                    title = "Unauthorized title",
+                    description = "Unauthorized description."
+                })).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await client.PatchAsJsonAsync(
+                $"/api/cases/{caseId}/status",
+                new { newStatus = "UnderReview" })).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await client.PostAsJsonAsync(
+                $"/api/cases/{caseId}/updates",
+                new { kind = "InternalNote", message = "Unauthorized note." }))
+            .StatusCode);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await client.GetAsync($"/api/cases/{caseId}/documents")).StatusCode);
     }
 
     [Fact]

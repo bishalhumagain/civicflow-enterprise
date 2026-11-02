@@ -184,6 +184,44 @@ public sealed class SecurityHardeningIntegrationTests
     }
 
     [Fact]
+    public async Task Logout_InvalidatesCopiedCookieAsWellAsClearingBrowserCookie()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        using var client = CreateCookieClient(factory);
+        var email = $"logout-revoke-{Guid.NewGuid():N}@example.com";
+        await RegisterAndConfirmAsync(factory, client, email);
+
+        var login = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = StrongPassword });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+        var authenticationCookie = login.Headers
+            .GetValues("Set-Cookie")
+            .Single(value => value.StartsWith(
+                "civicflow.auth=",
+                StringComparison.Ordinal))
+            .Split(';', 2)[0];
+
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await client.PostAsync("/api/auth/logout", content: null))
+            .StatusCode);
+
+        using var replayClient = factory.CreateClient();
+        replayClient.DefaultRequestHeaders.Add(
+            "Cookie",
+            authenticationCookie);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await replayClient.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
     public async Task DeactivatingAccount_RevokesItsLiveSession()
     {
         await using var factory = new CivicFlowApiFactory

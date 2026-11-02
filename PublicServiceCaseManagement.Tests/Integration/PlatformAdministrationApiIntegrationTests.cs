@@ -2,11 +2,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
+using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 
@@ -183,6 +186,96 @@ public sealed class PlatformAdministrationApiIntegrationTests
             await staffResponse.Content.ReadAsStringAsync());
 
         Assert.NotEmpty(staffJson.RootElement.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task OrganizationAdmin_CannotGrantPlatformRoleThroughDirectApiRequest()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            enableBusinessEndpoints: true);
+        using var client = factory.CreateClient();
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/platform/users/{TestAuthenticationHandler.DefaultUserId}/platform-role",
+            new { platformRole = "SuperAdmin" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var user = await dbContext.ApplicationUsers.SingleAsync(
+            candidate => candidate.Id ==
+                         TestAuthenticationHandler.DefaultUserId);
+        Assert.Equal(PlatformRole.None, user.PlatformRole);
+    }
+
+    [Fact]
+    public async Task PlatformRoleChanges_SynchronizeIdentityRoleAndAreAudited()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            PlatformRole.SuperAdmin,
+            enableBusinessEndpoints: true);
+        using var client = factory.CreateClient();
+
+        Guid targetUserId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var target = ApplicationUser.Create(
+                "Platform Role Target",
+                $"platform-role-target-{Guid.NewGuid():N}@example.test",
+                DateTimeOffset.UtcNow);
+            var create = await userManager.CreateAsync(
+                target,
+                "Platform-Role-Test-Password-9!");
+            Assert.True(create.Succeeded);
+            targetUserId = target.Id;
+        }
+
+        var grant = await client.PatchAsJsonAsync(
+            $"/api/platform/users/{targetUserId}/platform-role",
+            new { platformRole = "SuperAdmin" });
+        Assert.Equal(HttpStatusCode.NoContent, grant.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByIdAsync(targetUserId.ToString());
+            Assert.NotNull(user);
+            Assert.Equal(PlatformRole.SuperAdmin, user!.PlatformRole);
+            Assert.True(await userManager.IsInRoleAsync(
+                user,
+                AppRoles.SuperAdmin));
+        }
+
+        var revoke = await client.PatchAsJsonAsync(
+            $"/api/platform/users/{targetUserId}/platform-role",
+            new { platformRole = "None" });
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var user = await userManager.FindByIdAsync(targetUserId.ToString());
+            Assert.NotNull(user);
+            Assert.Equal(PlatformRole.None, user!.PlatformRole);
+            Assert.False(await userManager.IsInRoleAsync(
+                user,
+                AppRoles.SuperAdmin));
+            Assert.Equal(
+                2,
+                await dbContext.AuditEvents.CountAsync(audit =>
+                    audit.Action == AuditActions.PlatformRoleChanged &&
+                    audit.EntityId == targetUserId.ToString()));
+        }
     }
 
     [Fact]

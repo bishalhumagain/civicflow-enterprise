@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Users;
+using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
@@ -31,6 +33,8 @@ public static class IdentityDataSeeder
             .GetRequiredService<CivicFlowDbContext>();
         var configuration = scope.ServiceProvider
             .GetRequiredService<IConfiguration>();
+        var auditLogger = scope.ServiceProvider
+            .GetRequiredService<IAuditLogger>();
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("IdentityDataSeeder");
@@ -93,6 +97,10 @@ public static class IdentityDataSeeder
 
         if (existing is null)
         {
+            await using var transaction = dbContext.Database.IsRelational()
+                ? await dbContext.Database.BeginTransactionAsync(
+                    cancellationToken)
+                : null;
             var admin = ApplicationUser.Create(
                 string.IsNullOrWhiteSpace(adminFullName)
                     ? "Platform Administrator"
@@ -130,19 +138,82 @@ public static class IdentityDataSeeder
                     $"'{adminEmail}': {DescribeFailures(addRoleResult)}");
             }
 
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
+
             logger.LogInformation(
                 "Seeded the platform administrator account {Email} ({UserId}). " +
                 "Sign in at /super-platform-admin.",
                 adminEmail,
                 admin.Id);
 
+            await auditLogger.RecordAsync(
+                new AuditRecord
+                {
+                    Category = AuditCategory.Account,
+                    Action = AuditActions.PlatformRoleChanged,
+                    EntityType = "Account",
+                    EntityId = admin.Id.ToString(),
+                    Details = "platform_role: None -> SuperAdmin via SeedAdmin"
+                },
+                cancellationToken);
+
             return;
         }
 
-        // An existing account may have been created before the seeding rules
-        // were tightened, or may have been left half-configured. Repair the
-        // attributes that block platform administration instead of returning
-        // silently and leaving the operator unable to sign in.
+        var hadPlatformRole = existing.PlatformRole == PlatformRole.SuperAdmin;
+        var hadIdentityRole = await userManager.IsInRoleAsync(
+            existing,
+            AppRoles.SuperAdmin);
+        var passwordMatches = await userManager.CheckPasswordAsync(
+            existing,
+            adminPassword!);
+
+        if (!passwordMatches)
+        {
+            if (hadPlatformRole &&
+                hadIdentityRole &&
+                configuration.GetValue<bool>("SeedAdmin:ResetPassword"))
+            {
+                await ResetPasswordAsync(
+                    userManager,
+                    existing,
+                    adminPassword!,
+                    adminEmail!);
+
+                logger.LogWarning(
+                    "Reset the password of the already-provisioned platform " +
+                    "administrator {Email} from SeedAdmin:Password. Remove " +
+                    "SeedAdmin:ResetPassword after this startup.",
+                    adminEmail);
+            }
+            else if (hadPlatformRole && hadIdentityRole)
+            {
+                logger.LogWarning(
+                    "The provisioned platform administrator {Email} exists, " +
+                    "but SeedAdmin:Password does not match the stored password. " +
+                    "The configured password was NOT applied.",
+                    adminEmail);
+                return;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"The configured SeedAdmin account '{adminEmail}' already " +
+                    "exists but its credentials do not verify. It was not " +
+                    "granted platform privileges or marked as verified. " +
+                    "Provision the account through a trusted process first.");
+            }
+        }
+
+        // Email equality alone is not proof of ownership: public registration
+        // permits an account to exist before its email has been verified.
+        await using var existingAccountTransaction =
+            dbContext.Database.IsRelational()
+                ? await dbContext.Database.BeginTransactionAsync(
+                    cancellationToken)
+                : null;
+        var roleChanged = !hadPlatformRole || !hadIdentityRole;
         var changed = false;
         var now = TimeProvider.System.GetUtcNow();
 
@@ -200,7 +271,7 @@ public static class IdentityDataSeeder
                 existing.Id);
         }
 
-        if (!await userManager.IsInRoleAsync(existing, AppRoles.SuperAdmin))
+        if (!hadIdentityRole)
         {
             var addRoleResult = await userManager.AddToRoleAsync(
                 existing,
@@ -220,32 +291,38 @@ public static class IdentityDataSeeder
                 existing.Id);
         }
 
-        if (!await userManager.CheckPasswordAsync(existing, adminPassword!))
+        if (roleChanged)
         {
-            if (configuration.GetValue<bool>("SeedAdmin:ResetPassword"))
+            var stampResult = await userManager.UpdateSecurityStampAsync(
+                existing);
+            if (!stampResult.Succeeded)
             {
-                await ResetPasswordAsync(
-                    userManager,
-                    existing,
-                    adminPassword!,
-                    adminEmail!);
-
-                logger.LogWarning(
-                    "Reset the password of the seeded platform administrator " +
-                    "{Email} from SeedAdmin:Password. Remove " +
-                    "SeedAdmin:ResetPassword after this startup.",
-                    adminEmail);
-
-                return;
+                throw new InvalidOperationException(
+                    "Unable to rotate the security stamp after provisioning " +
+                    "the platform administrator.");
             }
+        }
 
-            logger.LogWarning(
-                "The seeded platform administrator {Email} exists and is " +
-                "configured correctly, but SeedAdmin:Password does not match " +
-                "the stored password. The configured password was NOT applied. " +
-                "Set SeedAdmin:ResetPassword=true once to synchronise it, or " +
-                "use the password reset flow.",
-                adminEmail);
+        if (existingAccountTransaction is not null)
+        {
+            await existingAccountTransaction.CommitAsync(cancellationToken);
+        }
+
+        if (roleChanged)
+        {
+            await auditLogger.RecordAsync(
+                new AuditRecord
+                {
+                    Category = AuditCategory.Account,
+                    Action = AuditActions.PlatformRoleChanged,
+                    EntityType = "Account",
+                    EntityId = existing.Id.ToString(),
+                    Details =
+                        "platform_role: " +
+                        $"{(hadPlatformRole ? PlatformRole.SuperAdmin : PlatformRole.None)} " +
+                        "-> SuperAdmin via SeedAdmin"
+                },
+                cancellationToken);
         }
     }
 

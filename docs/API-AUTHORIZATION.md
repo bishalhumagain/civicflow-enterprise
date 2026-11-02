@@ -17,10 +17,11 @@ self-service routes are exempt and remain available.
 - API clients may exchange a valid personal access token at
   `POST /api/auth/token` for a short-lived signed JWT (default 15 minutes).
   The JWT handler validates issuer, audience, signature, algorithm, and
-  lifetime, then re-reads the active account and current Identity roles.
-  A JWT never carries a password, PAT, security stamp, or organization
-  authority; organization membership is resolved from the database per
-  request.
+  lifetime, then re-reads the active account, current Identity roles, and
+  source PAT status. The JWT carries only the source PAT's identifier, not
+  its secret. Revoking the source PAT or logging out with its JWT invalidates
+  all JWTs issued from that PAT. Organization membership is resolved from the
+  database per request.
 - The `CivicFlowSmart` policy scheme routes `Bearer civicflow_pat_*` to the PAT
   handler, any other `Bearer` value to the JWT handler, and requests without an
   `Authorization` header to the Identity cookie. A bearer header is not
@@ -116,7 +117,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `POST /api/auth/login/platform-admin` | Anonymous; `LoginRequest` | `200` and SuperAdmin session; same failure classes as portal login above. |
 | `POST /api/auth/invitations/lookup` | Anonymous; `InvitationLookupRequest` token | `200` safe invitation details; `410` invalid, expired, used, or revoked invitation. |
 | `POST /api/auth/invitations/accept` | Anonymous; `AcceptInvitationRequest` token and chosen password | `200 AcceptInvitationResponse`; `400` invalid input, `403` inactive account, `410` unavailable invitation. Creates/links account and membership atomically; token is single-use. |
-| `POST /api/auth/logout` | Authenticated; no body | `204`; clears the current authentication session. |
+| `POST /api/auth/logout` | Authenticated; no body | `204`; clears the cookie session or, for PAT/JWT callers, revokes the source PAT so its JWTs cannot be replayed. |
 | `POST /api/auth/verify-email` | Anonymous; `VerifyEmailRequest` | `200 AuthOperationResult`; invalid/expired token `400`. |
 | `POST /api/auth/resend-verification` | Anonymous; `ResendVerificationRequest` | `200` enumeration-safe result; may send verification email. |
 | `POST /api/auth/forgot-password` | Anonymous; `ForgotPasswordRequest` | `200` enumeration-safe result; may send password-reset email. |
@@ -253,6 +254,7 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `GET /api/platform/audit/categories` | Authenticated `staff` or `superadmin` | `200 string[]`; returns static category names only (no audit event data). |
 | `GET /api/organizations/{organizationId:guid}/audit` | SuperAdmin, or active same-organization member; same audit query filters | `200 AuditEventPageResponse`; OrganizationAdmin sees org events; Viewer/CaseWorker actor filter is mandatory and cannot be widened by query. |
 | `GET /api/platform/users` | SuperAdmin | `200 PlatformUserSummary[]`; platform-wide accounts and role/membership summaries. |
+| `PATCH /api/platform/users/{userId:guid}/platform-role` | SuperAdmin-only provisioning API; `ChangePlatformRoleRequest` | `204`; synchronizes the platform-role field and Identity role, rotates the security stamp, and audits each change. Ordinary user-management screens do not expose this control. |
 | `GET /api/platform/staff` | SuperAdmin | `200 PlatformStaffSummary[]`; platform-wide staff memberships. |
 | `PUT /api/platform/staff/{userId:guid}` | SuperAdmin; `UpdatePlatformStaffRequest` | `200 PlatformUserSummary`; updates a staff account's full name and phone number. `400` invalid name/phone; `404` missing account; `409` account has no organization membership. |
 | `GET /api/platform/citizens` | SuperAdmin | `200 PlatformCitizenSummary[]`; citizen accounts joined to their citizen profile. |

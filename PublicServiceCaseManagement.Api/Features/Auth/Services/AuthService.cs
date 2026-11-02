@@ -17,7 +17,8 @@ public sealed class AuthService(
     IEmailSender emailSender,
     IAuditLogger auditLogger,
     CivicFlowDbContext dbContext,
-    TimeProvider timeProvider) : IAuthService
+    TimeProvider timeProvider,
+    IPersonalAccessTokenService personalAccessTokenService) : IAuthService
 {
     private const string GenericRegistrationMessage =
         "If the email address is eligible, a verification message has been sent.";
@@ -280,8 +281,30 @@ public sealed class AuthService(
             "Sign in through the citizen portal instead.");
     }
 
-    public async Task LogoutAsync(CancellationToken cancellationToken = default)
+    public async Task LogoutAsync(
+        Guid userId,
+        Guid? sourcePersonalAccessTokenId,
+        CancellationToken cancellationToken = default)
     {
+        if (sourcePersonalAccessTokenId is { } tokenId)
+        {
+            await personalAccessTokenService.RevokeAsync(
+                userId,
+                tokenId,
+                cancellationToken);
+        }
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is not null)
+        {
+            var stampResult = await userManager.UpdateSecurityStampAsync(user);
+            if (!stampResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "Unable to invalidate the account's authentication session.");
+            }
+        }
+
         await signInManager.SignOutAsync();
     }
 

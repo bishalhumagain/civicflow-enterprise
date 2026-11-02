@@ -111,7 +111,10 @@ public sealed class PersonalAccessTokenAuthenticationHandler(
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
-            new(ClaimTypes.Email, user.Email ?? string.Empty)
+            new(ClaimTypes.Email, user.Email ?? string.Empty),
+            new(
+                JwtAccessTokenIssuer.SourcePersonalAccessTokenIdClaim,
+                token.Id.ToString())
         };
 
         foreach (var role in roles)

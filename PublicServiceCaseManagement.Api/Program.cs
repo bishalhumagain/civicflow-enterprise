@@ -240,10 +240,44 @@ builder.Services
 
                 var dbContext = context.HttpContext.RequestServices
                     .GetRequiredService<CivicFlowDbContext>();
+                var sourceTokenIdentifier = context.Principal?
+                    .FindFirst(
+                        JwtAccessTokenIssuer.SourcePersonalAccessTokenIdClaim)
+                    ?.Value;
+                if (!Guid.TryParse(
+                        sourceTokenIdentifier,
+                        out var sourceTokenId) ||
+                    sourceTokenId == Guid.Empty)
+                {
+                    context.Fail(
+                        "The access token has no valid source credential.");
+                    return;
+                }
+
+                var now = context.HttpContext.RequestServices
+                    .GetRequiredService<TimeProvider>()
+                    .GetUtcNow();
+                var sourceTokenIsActive = await dbContext.PersonalAccessTokens
+                    .AsNoTracking()
+                    .AnyAsync(
+                        token => token.Id == sourceTokenId &&
+                                 token.UserId == userId &&
+                                 token.RevokedAt == null &&
+                                 (token.ExpiresAt == null ||
+                                  token.ExpiresAt > now),
+                        context.HttpContext.RequestAborted);
+                if (!sourceTokenIsActive)
+                {
+                    context.Fail(
+                        "The access token's source credential is inactive.");
+                    return;
+                }
 
                 var user = await dbContext.ApplicationUsers
                     .AsNoTracking()
-                    .SingleOrDefaultAsync(candidate => candidate.Id == userId);
+                    .SingleOrDefaultAsync(
+                        candidate => candidate.Id == userId,
+                        context.HttpContext.RequestAborted);
 
                 if (user is null || !user.IsActive)
                 {
@@ -260,7 +294,7 @@ builder.Services
                     where userRole.UserId == user.Id
                     select role.Name)
                     .Where(name => name != null)
-                    .ToListAsync();
+                    .ToListAsync(context.HttpContext.RequestAborted);
 
                 if (context.Principal?.Identity is ClaimsIdentity identity)
                 {

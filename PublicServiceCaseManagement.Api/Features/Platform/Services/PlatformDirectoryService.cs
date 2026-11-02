@@ -433,14 +433,62 @@ public sealed class PlatformDirectoryService(
         if (user is null)
             throw new KeyNotFoundException($"User with ID {userId} not found.");
 
-        user.PlatformRole = role;
-        user.UpdatedAt = timeProvider.GetUtcNow();
+        var previousRole = user.PlatformRole;
+        var hasIdentityRole = await userManager.IsInRoleAsync(
+            user,
+            AppRoles.SuperAdmin);
+        var shouldHaveIdentityRole = role == PlatformRole.SuperAdmin;
+        var changed = previousRole != role ||
+                      hasIdentityRole != shouldHaveIdentityRole;
 
+        if (!changed)
+            return;
+
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
+        if (hasIdentityRole != shouldHaveIdentityRole)
+        {
+            var result = shouldHaveIdentityRole
+                ? await userManager.AddToRoleAsync(user, AppRoles.SuperAdmin)
+                : await userManager.RemoveFromRoleAsync(user, AppRoles.SuperAdmin);
+
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "Unable to synchronize the platform administrator role: " +
+                    string.Join(
+                        " ",
+                        result.Errors.Select(error => error.Description)));
+            }
+        }
+
+        user.SetPlatformRole(role, timeProvider.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // A privilege change must not leave a stale session in place: rotating
-        // the stamp forces the account's cookie to be re-evaluated now.
-        await userManager.UpdateSecurityStampAsync(user);
+        // the stamp forces both cookie and bearer credentials to be re-evaluated.
+        var stampResult = await userManager.UpdateSecurityStampAsync(user);
+        if (!stampResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Unable to rotate the security stamp after changing platform role.");
+        }
+
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = AuditActions.PlatformRoleChanged,
+                EntityType = "Account",
+                EntityId = user.Id.ToString(),
+                Details = $"platform_role: {previousRole} -> {role}"
+            },
+            cancellationToken);
     }
 
     private static PlatformCitizenSummary ToCitizenSummary(

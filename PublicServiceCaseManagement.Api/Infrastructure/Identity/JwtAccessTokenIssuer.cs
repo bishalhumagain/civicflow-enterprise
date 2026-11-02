@@ -18,13 +18,15 @@ public interface IJwtAccessTokenIssuer
         Guid userId,
         string fullName,
         string email,
-        IEnumerable<string> roles);
+        IEnumerable<string> roles,
+        Guid sourcePersonalAccessTokenId);
 }
 
 /// <summary>
 /// Issues short-lived, signed JWT access tokens. The token contains only
-/// identity and role claims plus standard JWT metadata; it never contains a
-/// password, personal access token, security stamp, or other credential.
+/// identity and role claims, standard JWT metadata, and the identifier of
+/// the source personal access token. It never contains a password, PAT
+/// secret, security stamp, or organization authority.
 /// Organization context is intentionally not embedded: it is resolved from
 /// the database for the selected <c>X-Organization-Id</c> on every request,
 /// exactly like cookie and personal-access-token requests.
@@ -33,17 +35,21 @@ public sealed class JwtAccessTokenIssuer(
     IOptions<JwtOptions> options,
     TimeProvider timeProvider) : IJwtAccessTokenIssuer
 {
+    public const string SourcePersonalAccessTokenIdClaim =
+        "civicflow:pat_id";
+
     public IssuedAccessToken Issue(
         Guid userId,
         string fullName,
         string email,
-        IEnumerable<string> roles)
+        IEnumerable<string> roles,
+        Guid sourcePersonalAccessTokenId)
     {
-        if (userId == Guid.Empty)
+        if (userId == Guid.Empty ||
+            sourcePersonalAccessTokenId == Guid.Empty)
         {
             throw new ArgumentException(
-                "A user id is required.",
-                nameof(userId));
+                "A user id and source personal access token id are required.");
         }
 
         var settings = options.Value;
@@ -56,7 +62,10 @@ public sealed class JwtAccessTokenIssuer(
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Name, fullName ?? string.Empty),
-            new(ClaimTypes.Email, email ?? string.Empty)
+            new(ClaimTypes.Email, email ?? string.Empty),
+            new(
+                SourcePersonalAccessTokenIdClaim,
+                sourcePersonalAccessTokenId.ToString())
         };
 
         claims.AddRange(

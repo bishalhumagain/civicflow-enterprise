@@ -77,7 +77,7 @@ The platform is built around three core principles:
 | **Password policy** | 12+ characters, upper/lower/digit/non-alphanumeric, 6 unique characters. Account lockout after 5 failed attempts (15-minute window). |
 | **Password recovery** | Forgot-password/reset-password flow with enumeration-safe responses (no disclosure of whether an email exists). Accounts migrated from the former external identity provider have no local password hash; they must set a local password through this flow. |
 | **Personal access tokens (PATs)** | `Authorization: Bearer civicflow_pat_<id>_<secret>` for non-browser clients. Stored as SHA-256 hash, shown once at creation, revocable, optional expiry, max 25 per user. PATs carry the owner's roles and policies. |
-| **JWT access tokens** | API clients exchange a valid PAT at `POST /api/auth/token` for a short-lived (default 15-minute) HS256-signed JWT. Issuer, audience, signature, expiry, active account, and current roles are validated on every request. The token contains no passwords, PATs, security stamps, or organization authority. |
+| **JWT access tokens** | API clients exchange a valid PAT at `POST /api/auth/token` for a short-lived (default 15-minute) HS256-signed JWT. Issuer, audience, signature, expiry, active account, current roles, and the active source PAT are validated on every request. The token contains no passwords, PAT secret, security stamps, or organization authority. Revoking the source PAT or logging out with its JWT invalidates the PAT and all JWTs issued from it. |
 | **CSRF protection** | Anti-forgery cookie + `X-CSRF-TOKEN` header validated on unsafe cookie-authenticated `/api/*` methods. Bearer requests are not ambient, so they are exempt (and a bearer header disables cookie authentication for that request). |
 | **Rate limiting** | Fixed-window: 20/min on auth endpoints, 8/5min on password endpoints. |
 
@@ -120,7 +120,7 @@ The platform is built around three core principles:
 
 | Capability | Description |
 |---|---|
-| **Platform directory** | Overview counters (accounts, staff, organizations, invitations) plus three focused sections: Citizens with editable profiles, Staff accounts with editable contact details, and All Users with platform-role controls and organization links. Membership and invitation management live in the Organizations view. |
+| **Platform directory** | Overview counters (accounts, staff, organizations, invitations) plus three focused sections: Citizens with editable profiles, Staff accounts with editable contact details, and All Users with read-only platform roles and organization links. Platform-role changes are restricted to the audited platform provisioning API. Membership and invitation management live in the Organizations view. |
 | **Organization management** | Full CRUD, including deletion with cleanup of memberships, staff records, and pending invitations. |
 | **Super-admin bootstrap** | Configurable seed with fail-fast validation on partial/policy-violating configuration. Explicit `ResetPassword` switch for one-time repair. |
 

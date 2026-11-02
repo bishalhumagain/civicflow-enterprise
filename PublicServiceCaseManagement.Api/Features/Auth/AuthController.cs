@@ -222,7 +222,31 @@ public sealed class AuthController(
     public async Task<IActionResult> Logout(
         CancellationToken cancellationToken)
     {
-        await authService.LogoutAsync(cancellationToken);
+        var identifier = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(identifier, out var userId) ||
+            userId == Guid.Empty)
+        {
+            return Unauthorized();
+        }
+
+        var sourceTokenIdentifier = User.FindFirst(
+            JwtAccessTokenIssuer.SourcePersonalAccessTokenIdClaim)?.Value;
+        Guid? sourceTokenId = null;
+        if (sourceTokenIdentifier is not null)
+        {
+            if (!Guid.TryParse(sourceTokenIdentifier, out var parsedTokenId) ||
+                parsedTokenId == Guid.Empty)
+            {
+                return Unauthorized();
+            }
+
+            sourceTokenId = parsedTokenId;
+        }
+
+        await authService.LogoutAsync(
+            userId,
+            sourceTokenId,
+            cancellationToken);
 
         return NoContent();
     }

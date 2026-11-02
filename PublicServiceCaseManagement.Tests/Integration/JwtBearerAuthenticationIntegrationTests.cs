@@ -123,11 +123,20 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         return (user.Id, organizationId);
     }
 
-    private static string IssueValidToken(
+    private static async Task<string> IssueValidTokenAsync(
         CivicFlowApiFactory factory,
         Guid userId)
     {
         using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var (personalAccessToken, _) = PersonalAccessToken.Create(
+            userId,
+            "jwt-integration-test",
+            DateTimeOffset.UtcNow,
+            expiresAt: null);
+        dbContext.PersonalAccessTokens.Add(personalAccessToken);
+        await dbContext.SaveChangesAsync();
 
         return scope.ServiceProvider
             .GetRequiredService<IJwtAccessTokenIssuer>()
@@ -135,7 +144,8 @@ public sealed class JwtBearerAuthenticationIntegrationTests
                 userId,
                 "JWT Integration Test User",
                 "jwt.integration@example.test",
-                [AppRoles.Staff])
+                [AppRoles.Staff],
+                personalAccessToken.Id)
             .Token;
     }
 
@@ -148,7 +158,7 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         };
 
         var (userId, organizationId) = await SeedStaffAsync(factory);
-        var token = IssueValidToken(factory, userId);
+        var token = await IssueValidTokenAsync(factory, userId);
 
         using var client = CreateBearerClient(factory, token);
         client.DefaultRequestHeaders.Add(
@@ -353,6 +363,60 @@ public sealed class JwtBearerAuthenticationIntegrationTests
     }
 
     [Fact]
+    public async Task RevokingSourcePersonalAccessToken_InvalidatesIssuedJwt()
+    {
+        await using var factory = new CivicFlowApiFactory
+        {
+            UseTestAuthentication = false
+        };
+
+        var (userId, _) = await SeedStaffAsync(factory);
+        Guid personalAccessTokenId;
+        string personalAccessToken;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<CivicFlowDbContext>();
+            var (token, plaintext) = PersonalAccessToken.Create(
+                userId,
+                "jwt-revocation-test",
+                DateTimeOffset.UtcNow,
+                expiresAt: null);
+            dbContext.PersonalAccessTokens.Add(token);
+            await dbContext.SaveChangesAsync();
+
+            personalAccessTokenId = token.Id;
+            personalAccessToken = plaintext;
+        }
+
+        using var patClient = CreateBearerClient(factory, personalAccessToken);
+        var exchange = await patClient.PostAsync(
+            AccessTokenRoutes.Base,
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
+
+        using var exchangeJson = JsonDocument.Parse(
+            await exchange.Content.ReadAsStringAsync());
+        var accessToken = exchangeJson.RootElement
+            .GetProperty("access_token")
+            .GetString();
+        Assert.False(string.IsNullOrWhiteSpace(accessToken));
+
+        using var jwtClient = CreateBearerClient(factory, accessToken!);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await jwtClient.GetAsync("/api/auth/me")).StatusCode);
+
+        var revoke = await patClient.DeleteAsync(
+            $"/api/auth/tokens/{personalAccessTokenId}");
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+
+        var replay = await jwtClient.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+    }
+
+    [Fact]
     public async Task JwtBearerRequest_DoesNotRequireBrowserCsrfToken()
     {
         await using var factory = new CivicFlowApiFactory(
@@ -362,7 +426,7 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         };
 
         var (userId, _) = await SeedStaffAsync(factory);
-        var token = IssueValidToken(factory, userId);
+        var token = await IssueValidTokenAsync(factory, userId);
 
         using var client = CreateBearerClient(factory, token);
 
@@ -372,6 +436,9 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         var response = await client.PostAsync("/api/auth/logout", content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var replay = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
     }
 
     [Fact]
@@ -412,7 +479,7 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         };
 
         var (userId, _) = await SeedStaffAsync(factory);
-        var token = IssueValidToken(factory, userId);
+        var token = await IssueValidTokenAsync(factory, userId);
 
         using (var scope = factory.Services.CreateScope())
         {

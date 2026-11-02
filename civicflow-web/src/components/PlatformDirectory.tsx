@@ -32,13 +32,11 @@ import {
 } from '../api/citizens-admin'
 import {
   activatePlatformUser,
-  changePlatformRole,
   deactivatePlatformUser,
   updatePlatformStaff,
 } from '../api/platform'
 
 const PAGE_SIZE = 10
-const PLATFORM_ROLES = ['None', 'SuperAdmin'] as const
 
 type DirectoryTab = 'citizens' | 'staff' | 'users'
 type SortField =
@@ -728,17 +726,6 @@ export function PlatformDirectory({
     )
   }
 
-  async function handleChangePlatformRole(user: PlatformUser, role: string) {
-    await run(
-      `role-${user.id}`,
-      async () => {
-        await changePlatformRole(user.id, role)
-        refreshData()
-      },
-      'Platform role updated.',
-    )
-  }
-
   const sortOptions =
     tab === 'citizens' ? (
       <>
@@ -1138,19 +1125,7 @@ export function PlatformDirectory({
                           {user.emailConfirmed ? 'Confirmed' : 'Unconfirmed'}
                         </span>
                       </td>
-                      <td>
-                        <select
-                          aria-label={`Platform role for ${user.fullName}`}
-                          value={user.platformRole}
-                          disabled={busy !== null}
-                          onChange={(event) =>
-                            void handleChangePlatformRole(user, event.target.value)}
-                        >
-                          {PLATFORM_ROLES.map((role) => (
-                            <option key={role} value={role}>{role}</option>
-                          ))}
-                        </select>
-                      </td>
+                      <td>{user.platformRole}</td>
                       <td>
                         {user.organizations.length === 0 ? (
                           <span className="muted">None</span>

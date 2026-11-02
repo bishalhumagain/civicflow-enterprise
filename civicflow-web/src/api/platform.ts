@@ -55,20 +55,3 @@ export async function deactivatePlatformUser(userId: string): Promise<void> {
     );
   }
 }
-
-export async function changePlatformRole(userId: string, platformRole: string): Promise<void> {
-  const response = await authFetch(`/api/platform/users/${encodeURIComponent(userId)}/platform-role`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ platformRole }),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(
-      await readApiErrorMessage(response),
-      response.status,
-    );
-  }
-}

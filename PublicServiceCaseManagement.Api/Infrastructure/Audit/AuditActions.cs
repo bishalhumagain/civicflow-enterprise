@@ -14,6 +14,7 @@ public static class AuditActions
     public const string AccountPasswordReset = "account.password_reset";
     public const string AccountPasswordChanged = "account.password_changed";
     public const string AccountPrivilegeChanged = "account.privilege_changed";
+    public const string PlatformRoleChanged = "account.platform_role_changed";
     public const string AccountProfileUpdated = "account.profile_updated";
 
     public const string InvitationCreated = "invitation.created";
