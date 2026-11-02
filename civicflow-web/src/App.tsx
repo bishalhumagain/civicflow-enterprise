@@ -627,9 +627,14 @@ function App() {
                 const params = new URLSearchParams({ page: String(directoryQuery.page), pageSize: String(directoryQuery.pageSize) })
                 if (directoryQuery.search.trim()) params.set('search', directoryQuery.search.trim())
                 const sortField = directoryQuery.sortField
-                const sort = sortField === 'email' || sortField === 'createdAt'
-                    ? `${sortField === 'createdAt' ? 'created' : 'email'}_${directoryQuery.sortOrder}`
-                    : undefined
+                const sortKey = sortField === 'fullName'
+                    ? 'name'
+                    : sortField === 'createdAt'
+                        ? 'created'
+                        : sortField === 'accountType'
+                            ? 'accountType'
+                            : sortField
+                const sort = `${sortKey}_${directoryQuery.sortOrder}`
                 const [directoryPage, overview] = await Promise.all([
                     requestJson<PagedResponse<PlatformCitizen | PlatformUser>>(
                         directoryQuery.tab === 'citizens'

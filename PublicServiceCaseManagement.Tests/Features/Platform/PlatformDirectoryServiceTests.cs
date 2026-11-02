@@ -104,6 +104,48 @@ public sealed class PlatformDirectoryServiceTests
     }
 
     [Fact]
+    public async Task GetUsersAsync_AppliesRequestedSortBeforePagination()
+    {
+        var (context, service) = CreateService();
+
+        await using var _ = context;
+
+        var alphaOrganization = Organization.Create("Alpha Office", "ALPHA", Now);
+        var betaOrganization = Organization.Create("Beta Office", "BETA", Now);
+        var alphaUser = ApplicationUser.Create("Alpha User", "alpha@example.com", Now);
+        var betaUser = ApplicationUser.Create("Beta User", "beta@example.com", Now);
+
+        context.Organizations.AddRange(alphaOrganization, betaOrganization);
+        context.ApplicationUsers.AddRange(alphaUser, betaUser);
+        context.OrganizationMemberships.AddRange(
+            OrganizationMembership.Create(
+                alphaUser.Id,
+                alphaOrganization.Id,
+                OrganizationRole.CaseWorker,
+                Now),
+            OrganizationMembership.Create(
+                betaUser.Id,
+                betaOrganization.Id,
+                OrganizationRole.CaseWorker,
+                Now));
+        await context.SaveChangesAsync();
+
+        var namePage = await service.GetUsersAsync(
+            page: 1,
+            pageSize: 1,
+            sort: "name_desc");
+        var organizationPage = await service.GetUsersAsync(
+            page: 1,
+            pageSize: 1,
+            sort: "organization_desc");
+
+        Assert.Equal("Beta User", Assert.Single(namePage.Items).FullName);
+        Assert.Equal("Beta User", Assert.Single(organizationPage.Items).FullName);
+        Assert.Equal(2, namePage.TotalCount);
+        Assert.Equal(2, organizationPage.TotalCount);
+    }
+
+    [Fact]
     public async Task GetStaffAsync_DerivesStaffFromMemberships()
     {
         var (context, service) = CreateService();

@@ -64,10 +64,54 @@ public sealed class PlatformDirectoryService(
         var totalCount = await query.CountAsync(cancellationToken);
         var sortedQuery = (sort ?? string.Empty).Trim().ToLowerInvariant() switch
         {
+            "name_asc" => query.OrderBy(user => user.FullName).ThenBy(user => user.Id),
+            "name_desc" => query.OrderByDescending(user => user.FullName).ThenBy(user => user.Id),
             "email_asc" => query.OrderBy(user => user.Email).ThenBy(user => user.Id),
             "email_desc" => query.OrderByDescending(user => user.Email).ThenBy(user => user.Id),
             "created_asc" => query.OrderBy(user => user.CreatedAt).ThenBy(user => user.Id),
             "created_desc" => query.OrderByDescending(user => user.CreatedAt).ThenBy(user => user.Id),
+            "accounttype_asc" => query.OrderBy(user =>
+                dbContext.CitizenProfiles.Any(profile =>
+                    profile.ApplicationUserId == user.Id)
+                    ? dbContext.OrganizationMemberships.Any(membership =>
+                        membership.UserId == user.Id)
+                        ? 2
+                        : 1
+                    : dbContext.OrganizationMemberships.Any(membership =>
+                        membership.UserId == user.Id)
+                        ? 3
+                        : 0).ThenBy(user => user.Id),
+            "accounttype_desc" => query.OrderByDescending(user =>
+                dbContext.CitizenProfiles.Any(profile =>
+                    profile.ApplicationUserId == user.Id)
+                    ? dbContext.OrganizationMemberships.Any(membership =>
+                        membership.UserId == user.Id)
+                        ? 2
+                        : 1
+                    : dbContext.OrganizationMemberships.Any(membership =>
+                        membership.UserId == user.Id)
+                        ? 3
+                        : 0).ThenBy(user => user.Id),
+            "organization_asc" => query.OrderBy(user =>
+                dbContext.OrganizationMemberships
+                    .Where(membership => membership.UserId == user.Id)
+                    .Join(
+                        dbContext.Organizations,
+                        membership => membership.OrganizationId,
+                        organization => organization.Id,
+                        (_, organization) => organization.Name)
+                    .OrderBy(name => name)
+                    .FirstOrDefault()).ThenBy(user => user.Id),
+            "organization_desc" => query.OrderByDescending(user =>
+                dbContext.OrganizationMemberships
+                    .Where(membership => membership.UserId == user.Id)
+                    .Join(
+                        dbContext.Organizations,
+                        membership => membership.OrganizationId,
+                        organization => organization.Id,
+                        (_, organization) => organization.Name)
+                    .OrderBy(name => name)
+                    .FirstOrDefault()).ThenBy(user => user.Id),
             _ => query.OrderBy(user => user.FullName).ThenBy(user => user.Id)
         };
         var users = await sortedQuery
@@ -348,6 +392,8 @@ public sealed class PlatformDirectoryService(
         var totalCount = await query.CountAsync(cancellationToken);
         var sortedQuery = (sort ?? string.Empty).Trim().ToLowerInvariant() switch
         {
+            "name_asc" => query.OrderBy(row => row.Profile.FullName).ThenBy(row => row.Profile.Id),
+            "name_desc" => query.OrderByDescending(row => row.Profile.FullName).ThenBy(row => row.Profile.Id),
             "email_asc" => query.OrderBy(row => row.Profile.Email).ThenBy(row => row.Profile.Id),
             "email_desc" => query.OrderByDescending(row => row.Profile.Email).ThenBy(row => row.Profile.Id),
             "created_asc" => query.OrderBy(row => row.Profile.CreatedAt).ThenBy(row => row.Profile.Id),
