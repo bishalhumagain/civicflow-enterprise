@@ -33,7 +33,7 @@ public sealed class BackgroundJobProcessor(
             configuration.GetValue("BackgroundJobs:LeaseSeconds", 300),
             30,
             3600));
-        var jobId = await dbContext.Database.SqlQuery<Guid>($"""
+        var claimQuery = dbContext.Database.SqlQuery<Guid>($"""
             WITH candidate AS (
                 SELECT "Id"
                 FROM background_jobs
@@ -58,7 +58,15 @@ public sealed class BackgroundJobProcessor(
             FROM candidate
             WHERE job."Id" = candidate."Id"
             RETURNING job."Id" AS "Value"
-            """).FirstOrDefaultAsync(cancellationToken);
+            """).AsAsyncEnumerable();
+        Guid jobId;
+        await using (var claimEnumerator =
+                     claimQuery.GetAsyncEnumerator(cancellationToken))
+        {
+            jobId = await claimEnumerator.MoveNextAsync()
+                ? claimEnumerator.Current
+                : Guid.Empty;
+        }
 
         if (jobId == Guid.Empty)
             return false;

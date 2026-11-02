@@ -15,7 +15,7 @@ public sealed class LoggingEmailSender(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        logger.LogWarning(
+        logger.LogInformation(
             "DEVELOPMENT ONLY: email delivery is suppressed; no message content was logged.");
         return Task.CompletedTask;
     }

@@ -19,7 +19,7 @@ public sealed class LoggingEmailSenderTests
 
         var entry = Assert.Single(logger.Entries);
 
-        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal(LogLevel.Information, entry.Level);
         Assert.Contains("DEVELOPMENT ONLY", entry.Message);
         Assert.DoesNotContain("citizen@example.com", entry.Message);
         Assert.DoesNotContain("Confirm your email address", entry.Message);
