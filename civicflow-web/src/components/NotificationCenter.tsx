@@ -109,26 +109,30 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
       <button
         aria-expanded={open}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-        className="auth-button notification-toggle"
+        className="secondary-button notification-toggle"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        <Icon className="app-icon" name="bell" />
-        Notifications {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
+        <Icon className="button-icon" name="bell" />
+        <span>Notifications</span>
+        {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
       </button>
       {open && (
-        <section aria-label="Notifications" className="notification-panel">
-          <header>
-            <strong>Notifications</strong>
+        <section aria-label="Notifications" className="notification-panel case-card">
+          <div className="notification-header">
+            <div>
+              <h2>Notifications</h2>
+              <p className="muted">{totalCount} total · {unreadCount} unread</p>
+            </div>
             <button
-              className="document-link"
+              className="secondary-button"
               disabled={unreadCount === 0}
               onClick={() => void markAllRead()}
               type="button"
             >
               Mark all read
             </button>
-          </header>
+          </div>
           {error && (
             <div className="auth-error" role="alert">
               {error}
@@ -140,12 +144,12 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
           {loading ? (
             <p className="muted empty-state">Loading notifications…</p>
           ) : items.length === 0 ? (
-            <p className="muted empty-state">You’re all caught up.</p>
+            <p className="muted empty-state">You're all caught up.</p>
           ) : (
             <ul className="notification-list">
               {items.map((item) => (
-                <li className={item.isRead ? 'notification-read' : 'notification-unread'} key={item.id}>
-                  <div>
+                <li className={`notification-item ${item.isRead ? 'notification-read' : 'notification-unread'}`} key={item.id}>
+                  <div className="notification-content">
                     <strong>{item.title}</strong>
                     <p>{item.message}</p>
                     <small>{formatDateTime(item.createdAt)}</small>
@@ -156,16 +160,17 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
                       {!item.isRead && (
                         <button
                           aria-label={`Mark ${item.title} as read`}
-                          className="document-link"
+                          className="link-button"
                           onClick={() => void markRead(item.id)}
                           type="button"
                         >
-                          Mark read
+                          <Icon className="button-icon" name="check" />
+                          <span>Mark read</span>
                         </button>
                       )}
                       {item.relatedEntityType === 'Case' && item.relatedEntityId && onOpenCase && (
                         <button
-                          className="document-link"
+                          className="primary-button"
                           onClick={() => {
                             const caseId = item.relatedEntityId
                             if (!caseId) return
@@ -183,21 +188,27 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
               ))}
             </ul>
           )}
-          <footer className="notification-pagination">
-            <span>Page {page} · {totalCount} total</span>
-            <span>
-              <button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} type="button">
+          <div className="notification-pagination">
+            <span>Page {page} of {Math.ceil(totalCount / 10)}</span>
+            <div className="pagination">
+              <button
+                className="secondary-button"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((value) => value - 1)}
+                type="button"
+              >
                 Previous
               </button>
               <button
+                className="secondary-button"
                 disabled={page * 10 >= totalCount || loading}
                 onClick={() => setPage((value) => value + 1)}
                 type="button"
               >
                 Next
               </button>
-            </span>
-          </footer>
+            </div>
+          </div>
         </section>
       )}
     </div>
