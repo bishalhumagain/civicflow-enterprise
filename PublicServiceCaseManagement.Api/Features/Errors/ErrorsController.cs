@@ -5,6 +5,7 @@ using PublicServiceCaseManagement.Api.Domain.Errors;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Errors;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Errors;
 
@@ -14,7 +15,7 @@ namespace PublicServiceCaseManagement.Api.Features.Errors;
 public sealed class ErrorsController(IErrorLogger errorLogger) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ApplicationError>>> GetErrors(
+    public async Task<ActionResult<PagedResponse<ApplicationError>>> GetErrors(
         [FromQuery] bool? isHandled = null,
         [FromQuery, Range(1, 1_000_000)] int page = 1,
         [FromQuery, Range(1, 200)] int pageSize = 25,

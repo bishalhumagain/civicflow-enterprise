@@ -1,4 +1,5 @@
 using PublicServiceCaseManagement.Api.Features.Invitations.Contracts;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations.Services;
 
@@ -12,6 +13,13 @@ public interface IInvitationService
 
     Task<IReadOnlyList<InvitationResponse>> GetAllAsync(
         Guid organizationId,
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResponse<InvitationResponse>> GetPageAsync(
+        Guid organizationId,
+        int page,
+        int pageSize,
+        string? search,
         CancellationToken cancellationToken = default);
 
     Task<InvitationResponse?> ResendAsync(

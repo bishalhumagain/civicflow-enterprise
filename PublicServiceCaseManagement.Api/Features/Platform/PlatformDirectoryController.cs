@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 using PublicServiceCaseManagement.Api.Features.Platform.Contracts;
 using PublicServiceCaseManagement.Api.Features.Platform.Services;
 
@@ -22,8 +24,15 @@ public sealed class PlatformDirectoryController(
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
     [HttpGet("api/platform/users")]
-    public async Task<ActionResult<IReadOnlyList<PlatformUserSummary>>>
-        GetUsers(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<PlatformUserSummary>>>
+        GetUsers(
+            [FromQuery, Range(1, 1_000_000)] int page = 1,
+            [FromQuery, Range(1, 100)] int pageSize = 25,
+            [FromQuery, StringLength(200)] string? search = null,
+            [FromQuery] bool? isStaff = null,
+            [FromQuery] bool? isCitizen = null,
+            [FromQuery, StringLength(20)] string? sort = null,
+            CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -32,14 +41,26 @@ public sealed class PlatformDirectoryController(
             return Forbid();
 
         var users = await platformDirectoryService.GetUsersAsync(
-            cancellationToken);
+            page,
+            pageSize,
+            search,
+            isStaff,
+            isCitizen,
+            sort,
+            cancellationToken: cancellationToken);
 
         return Ok(users);
     }
 
     [HttpGet("api/platform/staff")]
-    public async Task<ActionResult<IReadOnlyList<PlatformStaffSummary>>>
-        GetStaff(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<PlatformStaffSummary>>>
+        GetStaff(
+            [FromQuery, Range(1, 1_000_000)] int page = 1,
+            [FromQuery, Range(1, 100)] int pageSize = 25,
+            [FromQuery] Guid? organizationId = null,
+            [FromQuery] bool? isActive = null,
+            [FromQuery, StringLength(200)] string? search = null,
+            CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -48,6 +69,11 @@ public sealed class PlatformDirectoryController(
             return Forbid();
 
         var staff = await platformDirectoryService.GetStaffAsync(
+            page,
+            pageSize,
+            organizationId,
+            isActive,
+            search,
             cancellationToken);
 
         return Ok(staff);
@@ -89,8 +115,13 @@ public sealed class PlatformDirectoryController(
     }
 
     [HttpGet("api/platform/citizens")]
-    public async Task<ActionResult<IReadOnlyList<PlatformCitizenSummary>>>
-        GetCitizens(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<PlatformCitizenSummary>>>
+        GetCitizens(
+            [FromQuery, Range(1, 1_000_000)] int page = 1,
+            [FromQuery, Range(1, 100)] int pageSize = 25,
+            [FromQuery, StringLength(200)] string? search = null,
+            [FromQuery, StringLength(20)] string? sort = null,
+            CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -99,7 +130,11 @@ public sealed class PlatformDirectoryController(
             return Forbid();
 
         var citizens = await platformDirectoryService.GetCitizensAsync(
-            cancellationToken);
+            page,
+            pageSize,
+            search,
+            sort,
+            cancellationToken: cancellationToken);
 
         return Ok(citizens);
     }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import type { AccountInvitation } from '../domain'
+import type { AccountInvitation, PagedResponse } from '../domain'
 import {
   canResend,
   canRevoke,
@@ -20,6 +20,7 @@ import {
   validatePhone,
 } from '../utils/validation'
 import { Icon } from './Icon'
+import { PaginationControls } from './PaginationControls'
 
 type InvitationField = "fullName" | "email" | "phoneNumber"
 
@@ -52,6 +53,9 @@ function validateInvitation(
  */
 export function InvitationManager({
   invitations,
+  result,
+  query,
+  onQueryChange,
   loading,
   disabled = false,
   onInvite,
@@ -60,6 +64,9 @@ export function InvitationManager({
   roleOptions = invitationRoles,
 }: {
   invitations: AccountInvitation[]
+  result: Pick<PagedResponse<AccountInvitation>, 'page' | 'pageSize' | 'totalCount' | 'totalPages'>
+  query: { page: number; pageSize: number; search: string }
+  onQueryChange: (query: { page: number; pageSize: number; search: string }) => void
   loading: boolean
   disabled?: boolean
   onInvite: (
@@ -221,6 +228,10 @@ export function InvitationManager({
 
       <section className="case-card admin-panel">
         <h2>Invitations</h2>
+        <label className="data-grid-filter">
+          <span>Search invitations</span>
+          <input aria-label="Search invitations" value={query.search} onChange={(event) => onQueryChange({ ...query, page: 1, search: event.target.value })} />
+        </label>
 
         {invitations.length === 0 ? (
           <p className="muted empty-state">
@@ -285,6 +296,9 @@ export function InvitationManager({
             ))}
           </div>
         )}
+        <PaginationControls result={result} loading={loading}
+          onPageChange={(page) => onQueryChange({ ...query, page })}
+          onPageSizeChange={(pageSize) => onQueryChange({ ...query, page: 1, pageSize })} />
       </section>
     </>
   )

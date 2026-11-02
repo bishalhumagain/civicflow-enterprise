@@ -9,6 +9,7 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Features.Memberships;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 using PublicServiceCaseManagement.Tests;
 using PublicServiceCaseManagement.Api.Features.Memberships.Contracts;
 
@@ -103,11 +104,11 @@ public sealed class OrganizationMembershipApiIntegrationTests
 
             var memberships =
                 await listResponse.Content.ReadFromJsonAsync<
-                    List<OrganizationMembershipResponse>>();
+                    PagedResponse<OrganizationMembershipResponse>>();
 
             Assert.NotNull(memberships);
             Assert.Contains(
-                memberships,
+                memberships.Items,
                 membership => membership.Id == membershipId);
 
             var changeRoleResponse = await client.PutAsJsonAsync(

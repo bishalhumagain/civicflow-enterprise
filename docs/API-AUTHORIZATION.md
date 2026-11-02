@@ -14,6 +14,11 @@ self-service routes are exempt and remain available.
   `X-CSRF-TOKEN` header when `Security:RequireAntiforgery` is enabled.
   Non-browser clients may use a personal access token in the
   `Authorization: Bearer` header.
+- In Development, Swagger UI's request interceptor obtains a fresh token from
+  `GET /api/auth/csrf` and adds the header to unsafe same-origin `/api/*`
+  requests. This leaves cookie/Identity authentication and server-side
+  antiforgery validation enabled; requests authorized with a bearer token
+  continue through the existing non-ambient bearer path.
 - API clients may exchange a valid personal access token at
   `POST /api/auth/token` for a short-lived signed JWT (default 15 minutes).
   The JWT handler validates issuer, audience, signature, algorithm, and
@@ -74,8 +79,11 @@ Additional boundaries:
   are read-only. Assignment itself is OrganizationAdmin-only and only accepts
   active staff in the same organization.
 - Organization administrators can read and manage cases in their active
-  organization, and can delete only after sending the explicit confirmation
-  request. They cannot grant themselves or another member the
+  organization, and can delete only cases they created after sending the
+  explicit confirmation request. Platform SuperAdmins retain deletion access
+  within their selected organization. Neither role can use a frontend-supplied
+  creator identifier; case ownership is taken from the authenticated account.
+  Organization administrators cannot grant themselves or another member the
   `OrganizationAdmin` membership role.
 - Citizens may submit to any organization returned by the active public intake
   directory. The authenticated user ID is assigned server-side; the request
@@ -151,7 +159,7 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | Method and path | Access / parameters | Success, failures, and effects |
 |---|---|---|
 | `POST /api/organizations` | SuperAdmin; `CreateOrganizationRequest` (optional `OrganizationTypeId`) | `201 OrganizationResponse`; `400` invalid values, `409` duplicate conflict; creates organization. When `OrganizationTypeId` is `null`/`Guid.Empty`, the seeded `Uncategorized` type is applied; unknown or inactive types return `400`. |
-| `GET /api/organizations` | SuperAdmin or authenticated staff; none | `200 OrganizationResponse[]`; SuperAdmin sees all organizations, OrganizationAdmin sees active organizations they administer, other staff receive an empty list. Every row carries `organizationTypeId` and `organizationTypeName`. |
+| `GET /api/organizations?page={n}&pageSize={n}&search={text}&organizationTypeId={guid}&isActive={bool}` | SuperAdmin or authenticated staff; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<OrganizationResponse>`; SuperAdmin sees all organizations, other staff see only organizations they administer. Filters and stable name sorting are applied before `Skip/Take`. |
 | `GET /api/organizations/me` | Authenticated staff with active account; none | `200 OrganizationWorkspaceOption[]`; only the caller's active memberships. |
 | `GET /api/organizations/{id:guid}` | SuperAdmin | `200 OrganizationResponse`; `404` unknown ID. |
 | `PUT /api/organizations/{id:guid}` | SuperAdmin; `UpdateOrganizationRequest` (optional `OrganizationTypeId`) | `200 OrganizationResponse`; `400` invalid values or unknown/inactive type, `404` missing, `409` conflict; updates organization details. |
@@ -166,19 +174,19 @@ rate-limit, and workflow-specific statuses are noted where applicable.
 | `PATCH /api/platform/organization-types/{id:guid}/reactivate` | SuperAdmin | `200 OrganizationTypeResponse`; `404` missing; audits `organization_type.activated`. |
 | `DELETE /api/platform/organization-types/{id:guid}` | SuperAdmin | `204` deleted; `404` missing; `409` when any organization still references the type or when the target is `Uncategorized`; audits `organization_type.deleted`. |
 | `POST /api/organizations/{organizationId:guid}/memberships` | SuperAdmin, or OrganizationAdmin for their selected organization; `CreateOrganizationMembershipRequest` | `201 OrganizationMembershipResponse`; `400` invalid/prohibited role, `404` missing user/org, `409` existing/conflicting membership. Only SuperAdmin may grant OrganizationAdmin. |
-| `GET /api/organizations/{organizationId:guid}/memberships?isActive={bool}` | Same membership administrators; optional `isActive` | `200 OrganizationMembershipResponse[]`; restricted to the specified authorized organization. |
+| `GET /api/organizations/{organizationId:guid}/memberships?isActive={bool}&page={n}&pageSize={n}&search={text}` | Same membership administrators; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<OrganizationMembershipResponse>`; filtered and sorted before database pagination and restricted to the specified authorized organization. |
 | `GET /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` outside/missing membership. |
 | `PUT /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/role` | Same membership administrators; `ChangeOrganizationMembershipRoleRequest` | `200 OrganizationMembershipResponse`; `400` invalid/prohibited role, `404` missing membership. |
 | `PATCH /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/deactivate` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` missing membership. |
 | `PATCH /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/reactivate` | Same membership administrators | `200 OrganizationMembershipResponse`; `404` missing membership. |
-| `POST /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/transfer` | SuperAdmin; `TransferOrganizationMembershipRequest` | `200 OrganizationMembershipResponse` for the new destination membership; deactivates the source membership and audits `membership.transferred`. `400` same organization or invalid role; `404` missing membership/organization; `409` inactive destination or duplicate destination membership. |
+| `POST /api/organizations/{organizationId:guid}/memberships/{membershipId:guid}/transfer` | SuperAdmin; `TransferOrganizationMembershipRequest` | `200 OrganizationMembershipResponse` for the new destination membership; deactivates the source membership and audits `membership.transferred` against both source and destination organizations. `400` same organization or invalid role; `404` missing membership/organization; `409` inactive destination or duplicate destination membership. |
 | `POST /api/organizations/{organizationId:guid}/invitations` | SuperAdmin, or OrganizationAdmin for their selected organization; `CreateInvitationRequest` | `201 InvitationResponse`; `400` invalid/prohibited role, `404` missing organization, `409` duplicate/conflict; generates single-use expiring token and sends invite email. OrganizationAdmins may invite CaseWorkers only. |
-| `GET /api/organizations/{organizationId:guid}/invitations` | Same invitation administrators | `200 InvitationResponse[]`; organization-scoped list; token/hash is never returned. |
+| `GET /api/organizations/{organizationId:guid}/invitations?page={n}&pageSize={n}&search={text}` | Same invitation administrators; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<InvitationResponse>`; organization-scoped, filtered and sorted list; token/hash is never returned. |
 | `POST /api/organizations/{organizationId:guid}/invitations/{invitationId:guid}/resend` | Same invitation administrators | `200 InvitationResponse`; `404` missing, `409` used/revoked/unavailable; creates and sends a replacement single-use link. |
 | `DELETE /api/organizations/{organizationId:guid}/invitations/{invitationId:guid}` | Same invitation administrators | `204` revoked; `404` missing, `409` already used/unavailable. |
-| `GET /api/staff?isActive={bool}` | Active staff membership; optional filter | `200 StaffSummary[]`; selected-organization staff only. Phone number is returned to OrganizationAdmin and omitted for other organization roles. |
+| `GET /api/staff?isActive={bool}&page={n}&pageSize={n}&search={text}` | Active staff membership; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<StaffSummary>`; selected-organization staff only. Phone number is returned to OrganizationAdmin and omitted for other organization roles. |
 | `POST /api/staff` | OrganizationAdmin in selected organization; `CreateStaffMemberRequest` | `201 StaffSummary`; `400` invalid values, `409` duplicate email; creates an organization-scoped staff directory record and audit event, but does not create an account or membership. Use the invitation route to enable sign-in. |
-| `GET /api/staff/platform?organizationId={guid}&isActive={bool}` | SuperAdmin; both filters optional | `200 StaffSummary[]`; platform-wide staff directory. |
+| `GET /api/staff/platform?organizationId={guid}&isActive={bool}&page={n}&pageSize={n}&search={text}` | SuperAdmin; filters optional, page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<StaffSummary>`; platform-wide staff directory. |
 | `PATCH /api/staff/platform/{id:guid}/deactivate?organizationId={guid}` | SuperAdmin; required organization selector | `200 StaffSummary`; `404` missing staff row. |
 | `PATCH /api/staff/platform/{id:guid}/reactivate?organizationId={guid}` | SuperAdmin; required organization selector | `200 StaffSummary`; `404` missing staff row. |
 | `PATCH /api/staff/{id:guid}/deactivate` | OrganizationAdmin in selected organization | `200 StaffSummary`; `404` staff row outside/missing. |
@@ -204,7 +212,7 @@ active staff record and assigned cases.
 | `GET /api/cases?page={n}&pageSize={n}` | Active organization member; defaults page `1`, pageSize `20`, page range `1–1,000,000`, pageSize range `1–100` | `200 PagedCasesResponse`; admin gets org cases, staff get their assignments only. |
 | `GET /api/cases/{id:guid}` | OrganizationAdmin or assigned staff | `200 CreateCaseResponse`; `404` missing, cross-org, or unassigned case. |
 | `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details with the same title/description bounds and normalization as creation. |
-| `DELETE /api/cases/{id:guid}` | OrganizationAdmin; `ConfirmCaseDeletionRequest` must explicitly confirm | `204`; `400` missing confirmation, `403` unauthorized role, `404` inaccessible case; deletes case/history/document metadata and stored files and records an audit event. |
+| `DELETE /api/cases/{id:guid}` | OrganizationAdmin who created the case, or SuperAdmin in the selected organization; `ConfirmCaseDeletionRequest` must explicitly confirm | `204`; `400` missing confirmation, `403` unauthorized role or creator, `404` inaccessible case; deletes case/history/document metadata and stored files and records an audit event. |
 | `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` (`newStatus`, optional `explanation`, `explanationVisibleToCitizen`) | `200 ChangeCaseStatusResponse`; `400` invalid transition/explanation, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. The transition is always citizen-visible; the explanation is projected to the citizen timeline only when the visibility flag is true. |
 | `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries including explanation and `isVisibleToCitizen`; `404` inaccessible case. |
 | `POST /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned CaseWorker; `AddCaseUpdateRequest` (`kind`: `PublicUpdate`, `InformationRequest`, or `InternalNote`; message 1–4,000) | `201 CaseUpdateResponse`; `400` invalid kind/message or closed case, `403` Viewer/unassigned write, `404` inaccessible case; records audit and notifies the submitter for citizen-visible kinds. `InformationRequest` moves the case to `AwaitingInformation` with a citizen-visible history entry. `InternalNote` and non-visible entries never reach the citizen projection. |
@@ -253,18 +261,18 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `GET /api/platform/audit` | SuperAdmin; optional `category`, `action`, `actorUserId`, `organizationId`, `search`, `from`, `to`, `page`, `pageSize` | `200 AuditEventPageResponse`; platform-wide query with filter and page limits. `from` must not be later than `to`. |
 | `GET /api/platform/audit/categories` | Authenticated `staff` or `superadmin` | `200 string[]`; returns static category names only (no audit event data). |
 | `GET /api/organizations/{organizationId:guid}/audit` | SuperAdmin, or active same-organization member; same audit query filters | `200 AuditEventPageResponse`; OrganizationAdmin sees org events; Viewer/CaseWorker actor filter is mandatory and cannot be widened by query. |
-| `GET /api/platform/users` | SuperAdmin | `200 PlatformUserSummary[]`; platform-wide accounts and role/membership summaries. |
+| `GET /api/platform/users?page={n}&pageSize={n}&search={text}&isStaff={bool}&isCitizen={bool}&sort={value}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformUserSummary>`; platform-wide account and role/membership summaries. Search/filter/sort are applied server-side. |
 | `PATCH /api/platform/users/{userId:guid}/platform-role` | SuperAdmin-only provisioning API; `ChangePlatformRoleRequest` | `204`; synchronizes the platform-role field and Identity role, rotates the security stamp, and audits each change. Ordinary user-management screens do not expose this control. |
-| `GET /api/platform/staff` | SuperAdmin | `200 PlatformStaffSummary[]`; platform-wide staff memberships. |
+| `GET /api/platform/staff?page={n}&pageSize={n}&organizationId={guid}&isActive={bool}&search={text}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformStaffSummary>`; platform-wide memberships, optionally filtered by organization, membership state, and search. |
 | `PUT /api/platform/staff/{userId:guid}` | SuperAdmin; `UpdatePlatformStaffRequest` | `200 PlatformUserSummary`; updates a staff account's full name and phone number. `400` invalid name/phone; `404` missing account; `409` account has no organization membership. |
-| `GET /api/platform/citizens` | SuperAdmin | `200 PlatformCitizenSummary[]`; citizen accounts joined to their citizen profile. |
+| `GET /api/platform/citizens?page={n}&pageSize={n}&search={text}&sort={value}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformCitizenSummary>`; citizen accounts joined to their citizen profile; search and sort are server-side. |
 | `PUT /api/platform/citizens/{userId:guid}` | SuperAdmin; `UpdatePlatformCitizenRequest` | `200 PlatformCitizenSummary`; updates profile and account name/phone. `400` invalid name/age; `404` missing account/profile; `409` duplicate NID/citizenship number. |
 | `PATCH /api/platform/citizens/{userId:guid}/activate` | SuperAdmin | `204`; activates the citizen account. |
 | `PATCH /api/platform/citizens/{userId:guid}/deactivate` | SuperAdmin | `204`; deactivates the citizen account. |
 | `GET /api/platform/overview` | SuperAdmin | `200 PlatformOverviewResponse`; platform counters. |
 | `GET /api/dashboard/platform` | SuperAdmin | `200 CaseStatistics`; platform-wide statistics. |
 | `GET /api/dashboard/organization?organizationId={guid}` | Active organization member; optional ID must match resolved membership | `200 CaseStatistics`; `403` absent/mismatched organization context. |
-| `GET /api/errors?isHandled={bool}&page={n}&pageSize={n}` | SuperAdmin; page defaults `1`, range `1–1,000,000`; pageSize defaults `25`, range `1–200` | `200 ApplicationError[]`; `400` out-of-range pagination. Error records include diagnostic details and are platform-admin-only. |
+| `GET /api/errors?isHandled={bool}&page={n}&pageSize={n}` | SuperAdmin; page defaults `1`, range `1–1,000,000`; pageSize defaults `25`, range `1–200` | `200 PagedResponse<ApplicationError>` with accurate total metadata; `400` out-of-range pagination. Error records include diagnostic details and are platform-admin-only. |
 | `GET /api/errors/{errorId:guid}` | SuperAdmin | `200 ApplicationError`; `404` unknown error. |
 | `PATCH /api/errors/{errorId:guid}/mark-handled` | SuperAdmin | `204` marked handled; `404` unknown error. |
 
@@ -291,15 +299,17 @@ The worker accepts only the registered `notification.email` type and looks up th
   conflict. Invitation unavailability returns `410`; authentication throttles
   return `429`; login lockout returns `423`; database readiness failure returns
   `503`.
-- Not every collection route is paginated: current staff, membership,
-  organization, platform-directory, health, and case-history collections
-  return arrays. This is an implementation limitation, not a promise of an
-  unbounded dataset; add paging before those collections are used at
-  production scale.
+- Paged collections return `{items,page,pageSize,totalCount,totalPages}`.
+  Platform case/audit/job, account-directory, error, organization, membership,
+  staff, and invitation list endpoints apply filters and stable ordering before
+  database `Skip/Take`. These list routes default to page `1` and pageSize `25`
+  (maximum `100`), except errors (maximum `200`).
 - Mutating endpoints record audit events where the underlying feature writes
   them. Authentication, invitation, membership, organization, staff, case,
   and token changes are covered. Read operations do not write business audit
-  events.
+  events. Invitation create/resend/revoke events attribute the action to the
+  authenticated administrator and retain the invitee address in event details;
+  membership transfers emit events for both organizations.
 
 ## Known Contract Limitations
 

@@ -1,11 +1,13 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Features.Organizations.Contracts;
 using PublicServiceCaseManagement.Api.Features.Organizations.Services;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 
@@ -22,7 +24,7 @@ public sealed class OrganizationsController(
     [HttpPost]
     public async Task<ActionResult<OrganizationResponse>> Create(
         [FromBody] CreateOrganizationRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -53,36 +55,39 @@ public sealed class OrganizationsController(
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<OrganizationResponse>>> GetAll(
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResponse<OrganizationResponse>>> GetAll(
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? search = null,
+        [FromQuery] Guid? organizationTypeId = null,
+        [FromQuery] bool? isActive = null,
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (await IsPlatformSuperAdminAsync(cancellationToken))
+        var isPlatformAdmin = await IsPlatformSuperAdminAsync(cancellationToken);
+        Guid? managedByUserId = null;
+        if (!isPlatformAdmin)
         {
-            var allOrganizations = await organizationService.GetAllAsync(
+            managedByUserId = await organizationContext.GetApplicationUserIdAsync(
                 cancellationToken);
-
-            return Ok(await ToResponsesAsync(
-                allOrganizations,
-                cancellationToken));
+            if (managedByUserId is null)
+                return Forbid();
         }
 
-        var userId = await organizationContext.GetApplicationUserIdAsync(
+        var result = await organizationService.GetPageAsync(
+            managedByUserId,
+            page,
+            pageSize,
+            search,
+            organizationTypeId,
+            isActive,
             cancellationToken);
-
-        if (userId is null)
-            return Forbid();
-
-        var managedOrganizations =
-            await organizationService.GetManagedOrganizationsForUserAsync(
-                userId.Value,
-                cancellationToken);
-
-        return Ok(await ToResponsesAsync(
-            managedOrganizations,
-            cancellationToken));
+        var items = await ToResponsesAsync(result.Items, cancellationToken);
+        return Ok(new PagedResponse<OrganizationResponse>(
+            items, result.Page, result.PageSize, result.TotalCount,
+            result.TotalPages));
     }
 
     [HttpGet("me")]

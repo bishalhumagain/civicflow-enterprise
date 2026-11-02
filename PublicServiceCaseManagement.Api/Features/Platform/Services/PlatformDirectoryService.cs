@@ -8,6 +8,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Api.Features.Platform.Contracts;
 
 using PublicServiceCaseManagement.Api.Domain.Common;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Platform.Services;
 
@@ -27,18 +28,58 @@ public sealed class PlatformDirectoryService(
     TimeProvider timeProvider,
     IAuditLogger auditLogger) : IPlatformDirectoryService
 {
-    public async Task<IReadOnlyList<PlatformUserSummary>> GetUsersAsync(
+    public async Task<PagedResponse<PlatformUserSummary>> GetUsersAsync(
+        int page = 1,
+        int pageSize = 25,
+        string? search = null,
+        bool? isStaff = null,
+        bool? isCitizen = null,
+        string? sort = null,
         CancellationToken cancellationToken = default)
     {
-        var users = await dbContext.ApplicationUsers
-            .AsNoTracking()
-            .OrderBy(user => user.FullName)
-            .ThenBy(user => user.Id)
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query = dbContext.ApplicationUsers.AsNoTracking();
+        if (term.Length > 0)
+        {
+            query = query.Where(user =>
+                user.FullName.ToLower().Contains(term) ||
+                (user.Email ?? string.Empty).ToLower().Contains(term) ||
+                (user.PhoneNumber ?? string.Empty).ToLower().Contains(term) ||
+                dbContext.OrganizationMemberships.Any(membership =>
+                    membership.UserId == user.Id &&
+                    (membership.Role.ToString().ToLower().Contains(term) ||
+                     dbContext.Organizations.Any(organization =>
+                         organization.Id == membership.OrganizationId &&
+                         organization.Name.ToLower().Contains(term)))));
+        }
+        if (isStaff.HasValue)
+            query = query.Where(user =>
+                dbContext.OrganizationMemberships.Any(membership => membership.UserId == user.Id) == isStaff.Value);
+        if (isCitizen.HasValue)
+            query = query.Where(user =>
+                dbContext.CitizenProfiles.Any(profile => profile.ApplicationUserId == user.Id) == isCitizen.Value);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var sortedQuery = (sort ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "email_asc" => query.OrderBy(user => user.Email).ThenBy(user => user.Id),
+            "email_desc" => query.OrderByDescending(user => user.Email).ThenBy(user => user.Id),
+            "created_asc" => query.OrderBy(user => user.CreatedAt).ThenBy(user => user.Id),
+            "created_desc" => query.OrderByDescending(user => user.CreatedAt).ThenBy(user => user.Id),
+            _ => query.OrderBy(user => user.FullName).ThenBy(user => user.Id)
+        };
+        var users = await sortedQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         if (users.Count == 0)
         {
-            return Array.Empty<PlatformUserSummary>();
+            return new PagedResponse<PlatformUserSummary>(
+                Array.Empty<PlatformUserSummary>(), page, pageSize, totalCount,
+                (int)Math.Ceiling(totalCount / (double)pageSize));
         }
 
         var userIds = users.Select(user => user.Id).ToList();
@@ -48,8 +89,13 @@ public sealed class PlatformDirectoryService(
             .Where(membership => userIds.Contains(membership.UserId))
             .ToListAsync(cancellationToken);
 
+        var organizationIds = memberships
+            .Select(membership => membership.OrganizationId)
+            .Distinct()
+            .ToList();
         var organizations = await dbContext.Organizations
             .AsNoTracking()
+            .Where(organization => organizationIds.Contains(organization.Id))
             .ToDictionaryAsync(
                 organization => organization.Id,
                 organization => organization,
@@ -65,7 +111,7 @@ public sealed class PlatformDirectoryService(
 
         var citizenSet = citizenUserIds.ToHashSet();
 
-        return users
+        var items = users
             .Select(user => new PlatformUserSummary(
                 user.Id,
                 user.FullName,
@@ -110,18 +156,55 @@ public sealed class PlatformDirectoryService(
                         membership.IsActive))
                     .ToList()))
             .ToList();
+        return new PagedResponse<PlatformUserSummary>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
-    public async Task<IReadOnlyList<PlatformStaffSummary>> GetStaffAsync(
+    public async Task<PagedResponse<PlatformStaffSummary>> GetStaffAsync(
+        int page = 1,
+        int pageSize = 25,
+        Guid? organizationId = null,
+        bool? isActive = null,
+        string? search = null,
         CancellationToken cancellationToken = default)
     {
-        var memberships = await dbContext.OrganizationMemberships
-            .AsNoTracking()
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query =
+            from membership in dbContext.OrganizationMemberships.AsNoTracking()
+            join user in dbContext.ApplicationUsers.AsNoTracking()
+                on membership.UserId equals user.Id
+            join organization in dbContext.Organizations.AsNoTracking()
+                on membership.OrganizationId equals organization.Id
+            select new { Membership = membership, User = user, Organization = organization };
+        if (organizationId.HasValue)
+            query = query.Where(row => row.Membership.OrganizationId == organizationId.Value);
+        if (isActive.HasValue)
+            query = query.Where(row => row.Membership.IsActive == isActive.Value);
+        if (term.Length > 0)
+            query = query.Where(row =>
+                row.User.FullName.ToLower().Contains(term) ||
+                (row.User.Email ?? string.Empty).ToLower().Contains(term) ||
+                row.Organization.Name.ToLower().Contains(term) ||
+                row.Organization.Code.ToLower().Contains(term));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var memberships = await query
+            .OrderBy(row => row.Organization.Name)
+            .ThenBy(row => row.User.FullName)
+            .ThenBy(row => row.Membership.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(row => row.Membership)
             .ToListAsync(cancellationToken);
 
         if (memberships.Count == 0)
         {
-            return Array.Empty<PlatformStaffSummary>();
+            return new PagedResponse<PlatformStaffSummary>(
+                Array.Empty<PlatformStaffSummary>(), page, pageSize, totalCount,
+                (int)Math.Ceiling(totalCount / (double)pageSize));
         }
 
         var userIds = memberships
@@ -137,14 +220,17 @@ public sealed class PlatformDirectoryService(
                 user => user,
                 cancellationToken);
 
+        var organizationIds = memberships.Select(membership => membership.OrganizationId)
+            .Distinct().ToList();
         var organizations = await dbContext.Organizations
             .AsNoTracking()
+            .Where(organization => organizationIds.Contains(organization.Id))
             .ToDictionaryAsync(
                 organization => organization.Id,
                 organization => organization,
                 cancellationToken);
 
-        return memberships
+        var items = memberships
             .Where(membership => users.ContainsKey(membership.UserId))
             .OrderBy(membership =>
                 organizations.TryGetValue(
@@ -181,6 +267,9 @@ public sealed class PlatformDirectoryService(
                     membership.CreatedAt);
             })
             .ToList();
+        return new PagedResponse<PlatformStaffSummary>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<PlatformOverviewResponse> GetOverviewAsync(
@@ -232,20 +321,50 @@ public sealed class PlatformDirectoryService(
             pendingInvitationCount);
     }
 
-    public async Task<IReadOnlyList<PlatformCitizenSummary>> GetCitizensAsync(
+    public async Task<PagedResponse<PlatformCitizenSummary>> GetCitizensAsync(
+        int page = 1,
+        int pageSize = 25,
+        string? search = null,
+        string? sort = null,
         CancellationToken cancellationToken = default)
     {
-        var rows = await (
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query =
             from profile in dbContext.CitizenProfiles.AsNoTracking()
             join user in dbContext.ApplicationUsers.AsNoTracking()
                 on profile.ApplicationUserId equals user.Id
-            orderby profile.FullName, profile.Id
-            select new { Profile = profile, User = user }
-        ).ToListAsync(cancellationToken);
+            select new { Profile = profile, User = user };
+        if (term.Length > 0)
+        {
+            query = query.Where(row =>
+                row.Profile.FullName.ToLower().Contains(term) ||
+                row.Profile.Email.ToLower().Contains(term) ||
+                (row.Profile.NIDNumber ?? string.Empty).ToLower().Contains(term) ||
+                (row.Profile.CitizenshipNumber ?? string.Empty).ToLower().Contains(term));
+        }
 
-        return rows
+        var totalCount = await query.CountAsync(cancellationToken);
+        var sortedQuery = (sort ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "email_asc" => query.OrderBy(row => row.Profile.Email).ThenBy(row => row.Profile.Id),
+            "email_desc" => query.OrderByDescending(row => row.Profile.Email).ThenBy(row => row.Profile.Id),
+            "created_asc" => query.OrderBy(row => row.Profile.CreatedAt).ThenBy(row => row.Profile.Id),
+            "created_desc" => query.OrderByDescending(row => row.Profile.CreatedAt).ThenBy(row => row.Profile.Id),
+            _ => query.OrderBy(row => row.Profile.FullName).ThenBy(row => row.Profile.Id)
+        };
+        var rows = await sortedQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = rows
             .Select(row => ToCitizenSummary(row.User, row.Profile))
             .ToList();
+        return new PagedResponse<PlatformCitizenSummary>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<PlatformUserSummary> UpdateStaffAccountAsync(
@@ -297,7 +416,9 @@ public sealed class PlatformDirectoryService(
             },
             cancellationToken);
 
-        var summary = (await GetUsersAsync(cancellationToken))
+        var summary = (await GetUsersAsync(
+                1, 100, user.Email, cancellationToken: cancellationToken))
+            .Items
             .Single(item => item.Id == user.Id);
 
         return summary;

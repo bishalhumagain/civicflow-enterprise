@@ -220,7 +220,7 @@ public sealed class AdministrativeAuthorizationIntegrationTests
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
         var organization = Assert.Single(
-            json.RootElement.EnumerateArray());
+            json.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal(
             organizationId,
             organization.GetProperty("id").GetGuid());

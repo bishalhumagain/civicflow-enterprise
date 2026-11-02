@@ -5,6 +5,8 @@ using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Api.Features.Organizations.Contracts;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
+using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations.Services;
 
@@ -67,6 +69,50 @@ public sealed class OrganizationService(
             .OrderBy(organization => organization.Name)
             .ThenBy(organization => organization.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PagedResponse<Organization>> GetPageAsync(
+        Guid? managedByUserId,
+        int page,
+        int pageSize,
+        string? search,
+        Guid? organizationTypeId,
+        bool? isActive,
+        CancellationToken cancellationToken)
+    {
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        IQueryable<Organization> query = dbContext.Organizations.AsNoTracking();
+        if (managedByUserId.HasValue)
+        {
+            query = query.Where(organization =>
+                dbContext.OrganizationMemberships.Any(membership =>
+                    membership.OrganizationId == organization.Id &&
+                    membership.UserId == managedByUserId.Value &&
+                    membership.IsActive &&
+                    membership.Role == OrganizationRole.OrganizationAdmin));
+        }
+        if (organizationTypeId.HasValue)
+            query = query.Where(organization =>
+                organization.OrganizationTypeId == organizationTypeId.Value);
+        if (isActive.HasValue)
+            query = query.Where(organization => organization.IsActive == isActive.Value);
+        if (term.Length > 0)
+            query = query.Where(organization =>
+                organization.Name.ToLower().Contains(term) ||
+                organization.Code.ToLower().Contains(term));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(organization => organization.Name)
+            .ThenBy(organization => organization.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return new PagedResponse<Organization>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<IReadOnlyList<CitizenOrganizationOption>>

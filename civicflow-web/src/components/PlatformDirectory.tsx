@@ -1,12 +1,12 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type {
   PlatformCitizen,
   PlatformCitizenUpdate,
   PlatformOverview,
   PlatformStaffUpdate,
   PlatformUser,
-  PlatformUserOrganization,
 } from '../domain'
+import { PaginationControls } from './PaginationControls'
 import { Icon } from './Icon'
 import { StatCard } from './StatCard'
 import { formatDate } from '../utils/format'
@@ -37,6 +37,15 @@ import {
 } from '../api/platform'
 
 const PAGE_SIZE = 10
+export type DirectoryQuery = {
+  tab: DirectoryTab
+  page: number
+  pageSize: number
+  search: string
+  accountFilter: AccountFilter
+  sortField: SortField
+  sortOrder: 'asc' | 'desc'
+}
 
 type DirectoryTab = 'citizens' | 'staff' | 'users'
 type SortField =
@@ -46,42 +55,6 @@ type SortField =
   | 'accountType'
   | 'organization'
 type AccountFilter = 'all' | 'citizens' | 'staff'
-
-function Pagination({
-  page,
-  pageCount,
-  onPageChange,
-}: {
-  page: number
-  pageCount: number
-  onPageChange: (page: number) => void
-}) {
-  if (pageCount <= 1) return null
-
-  return (
-    <div className="admin-row" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
-      <button
-        className="secondary-button"
-        disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        type="button"
-      >
-        Previous
-      </button>
-      <span className="muted">
-        Page {page} of {pageCount}
-      </span>
-      <button
-        className="secondary-button"
-        disabled={page >= pageCount}
-        onClick={() => onPageChange(page + 1)}
-        type="button"
-      >
-        Next
-      </button>
-    </div>
-  )
-}
 
 function CitizenEditor({
   citizen,
@@ -462,18 +435,6 @@ function accountType(user: PlatformUser): string {
   return 'Account'
 }
 
-function organizationSummary(organizations: PlatformUserOrganization[]): string {
-  if (organizations.length === 0) return 'No memberships'
-
-  return organizations
-    .map((organization) =>
-      organization.isActive
-        ? `${organization.organizationName} (${organization.role})`
-        : `${organization.organizationName} (${organization.role}, inactive)`,
-    )
-    .join(', ')
-}
-
 /**
  * Platform-wide user directory for platform administrators. Citizen accounts,
  * staff accounts, and the consolidated account view are three views of the
@@ -487,6 +448,8 @@ export function PlatformDirectory({
   users,
   refreshData,
   onOpenOrganization,
+  result,
+  onQueryChange,
 }: {
   loading: boolean
   overview: PlatformOverview | null
@@ -494,6 +457,8 @@ export function PlatformDirectory({
   users: PlatformUser[]
   refreshData: () => void
   onOpenOrganization: (organizationId: string) => void
+  result: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  onQueryChange: (query: DirectoryQuery) => void
 }) {
   const [tab, setTab] = useState<DirectoryTab>('citizens')
   const [searchQuery, setSearchQuery] = useState('')
@@ -501,143 +466,31 @@ export function PlatformDirectory({
   const [sortField, setSortField] = useState<SortField>('fullName')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [editingCitizenId, setEditingCitizenId] = useState<string | null>(null)
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
 
-  const query = searchQuery.trim().toLowerCase()
-  const staffAccounts = useMemo(() => users.filter((user) => user.isStaff), [users])
+  useEffect(() => {
+    onQueryChange({ tab, page, pageSize, search: searchQuery,
+      accountFilter, sortField, sortOrder })
+  }, [tab, page, pageSize, searchQuery, accountFilter, sortField, sortOrder, onQueryChange])
 
-  const filteredCitizens = useMemo(() => {
-    const multiplier = sortOrder === 'asc' ? 1 : -1
-    return citizens
-      .filter(
-        (citizen) =>
-          !query ||
-          citizen.fullName.toLowerCase().includes(query) ||
-          citizen.email.toLowerCase().includes(query) ||
-          (citizen.phoneNumber ?? '').toLowerCase().includes(query),
-      )
-      .sort((a, b) => {
-        if (sortField === 'email') {
-          return a.email.localeCompare(b.email) * multiplier
-        }
-        if (sortField === 'createdAt') {
-          return (
-            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
-            multiplier
-          )
-        }
-        return a.fullName.localeCompare(b.fullName) * multiplier
-      })
-  }, [citizens, query, sortField, sortOrder])
+  const staffAccounts = users
+  const filteredCitizens = citizens
+  const filteredStaff = staffAccounts
+  const filteredUsers = users
 
-  const filteredStaff = useMemo(() => {
-    const multiplier = sortOrder === 'asc' ? 1 : -1
-    return staffAccounts
-      .filter(
-        (user) =>
-          !query ||
-          user.fullName.toLowerCase().includes(query) ||
-          user.email.toLowerCase().includes(query) ||
-          (user.phoneNumber ?? '').toLowerCase().includes(query) ||
-          user.organizations.some(
-            (organization) =>
-              organization.organizationName.toLowerCase().includes(query) ||
-              organization.role.toLowerCase().includes(query),
-          ),
-      )
-      .sort((a, b) => {
-        if (sortField === 'email') {
-          return a.email.localeCompare(b.email) * multiplier
-        }
-        if (sortField === 'createdAt') {
-          return (
-            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
-            multiplier
-          )
-        }
-        if (sortField === 'organization') {
-          return (
-            organizationSummary(a.organizations).localeCompare(
-              organizationSummary(b.organizations),
-            ) * multiplier
-          )
-        }
-        return a.fullName.localeCompare(b.fullName) * multiplier
-      })
-  }, [staffAccounts, query, sortField, sortOrder])
-
-  const filteredUsers = useMemo(() => {
-    const multiplier = sortOrder === 'asc' ? 1 : -1
-    return users
-      .filter((user) => {
-        if (accountFilter === 'citizens' && !user.isCitizen) return false
-        if (accountFilter === 'staff' && !user.isStaff) return false
-        if (!query) return true
-
-        return (
-          user.fullName.toLowerCase().includes(query) ||
-          user.email.toLowerCase().includes(query) ||
-          (user.phoneNumber ?? '').toLowerCase().includes(query) ||
-          accountType(user).toLowerCase().includes(query) ||
-          user.organizations.some(
-            (organization) =>
-              organization.organizationName.toLowerCase().includes(query) ||
-              organization.role.toLowerCase().includes(query),
-          )
-        )
-      })
-      .sort((a, b) => {
-        if (sortField === 'email') {
-          return a.email.localeCompare(b.email) * multiplier
-        }
-        if (sortField === 'createdAt') {
-          return (
-            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
-            multiplier
-          )
-        }
-        if (sortField === 'accountType') {
-          return accountType(a).localeCompare(accountType(b)) * multiplier
-        }
-        if (sortField === 'organization') {
-          return (
-            organizationSummary(a.organizations).localeCompare(
-              organizationSummary(b.organizations),
-            ) * multiplier
-          )
-        }
-        return a.fullName.localeCompare(b.fullName) * multiplier
-      })
-  }, [users, accountFilter, query, sortField, sortOrder])
-
-  const currentRows =
-    tab === 'citizens'
-      ? filteredCitizens
-      : tab === 'staff'
-        ? filteredStaff
-        : filteredUsers
-  const pageCount = Math.max(1, Math.ceil(currentRows.length / PAGE_SIZE))
-  const safePage = Math.min(page, pageCount)
-  const visibleCitizens = filteredCitizens.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
-  const visibleStaff = filteredStaff.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
-  const visibleUsers = filteredUsers.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
+  const currentRows = tab === 'citizens' ? filteredCitizens : tab === 'staff' ? filteredStaff : filteredUsers
+  const visibleCitizens = filteredCitizens
+  const visibleStaff = filteredStaff
+  const visibleUsers = filteredUsers
 
   function switchTab(nextTab: DirectoryTab) {
     setTab(nextTab)
-    setPage(1)
+            setPage(1)
     setEditingCitizenId(null)
     setEditingStaffId(null)
     if (nextTab === 'citizens') setSortField('fullName')
@@ -803,21 +656,21 @@ export function PlatformDirectory({
             onClick={() => switchTab('citizens')}
             type="button"
           >
-            Citizens ({citizens.length})
+            Citizens ({tab === 'citizens' ? result.totalCount : citizens.length})
           </button>
           <button
             className={tab === 'staff' ? 'primary-button' : 'secondary-button'}
             onClick={() => switchTab('staff')}
             type="button"
           >
-            Staff ({staffAccounts.length})
+            Staff ({tab === 'staff' ? result.totalCount : staffAccounts.length})
           </button>
           <button
             className={tab === 'users' ? 'primary-button' : 'secondary-button'}
             onClick={() => switchTab('users')}
             type="button"
           >
-            All Users ({users.length})
+            All Users ({tab === 'users' ? result.totalCount : users.length})
           </button>
         </div>
 
@@ -884,7 +737,7 @@ export function PlatformDirectory({
           <p className="muted empty-state">Loading the platform directory…</p>
         ) : currentRows.length === 0 ? (
           <p className="muted empty-state">
-            {query || (tab === 'users' && accountFilter !== 'all')
+            {searchQuery || (tab === 'users' && accountFilter !== 'all')
               ? 'No accounts match the current filters.'
               : tab === 'citizens'
                 ? 'No citizen accounts were returned.'
@@ -1167,7 +1020,9 @@ export function PlatformDirectory({
           </div>
         )}
 
-        <Pagination page={safePage} pageCount={pageCount} onPageChange={setPage} />
+        <PaginationControls result={result} loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => { setPageSize(value); setPage(1) }} />
         {tab === 'users' && (
           <p className="muted" style={{ marginTop: 8 }}>
             Each identity appears once. Organizations shows every membership

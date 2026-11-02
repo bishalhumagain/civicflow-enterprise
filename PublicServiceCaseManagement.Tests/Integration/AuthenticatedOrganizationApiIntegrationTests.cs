@@ -431,7 +431,7 @@ public sealed class AuthenticatedOrganizationApiIntegrationTests
         using var listJson = System.Text.Json.JsonDocument.Parse(
             await listResponse.Content.ReadAsStringAsync());
 
-        var staffNames = listJson.RootElement
+        var staffNames = listJson.RootElement.GetProperty("items")
             .EnumerateArray()
             .Select(item => item.GetProperty("fullName").GetString())
             .ToList();

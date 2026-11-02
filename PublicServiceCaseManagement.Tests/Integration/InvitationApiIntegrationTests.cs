@@ -16,7 +16,6 @@ using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 using PublicServiceCaseManagement.Api.Features.Auth.Contracts;
 using PublicServiceCaseManagement.Api.Features.Organizations.Contracts;
-
 using PublicServiceCaseManagement.Tests.Support;
 
 namespace PublicServiceCaseManagement.Tests.Integration;
@@ -31,6 +30,57 @@ public sealed class InvitationApiIntegrationTests
 {
     private const string StrongPassword = "Correct-Horse-Battery-9!";
     private const string InviteePassword = "Borrowed-Concern-Shelf-7!";
+
+    [Fact]
+    public async Task InvitationLifecycleAuditAttributesTheAdministratorAndRetainsTargetEmail()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            OrganizationRole.OrganizationAdmin,
+            enableBusinessEndpoints: true);
+        using var client = factory.CreateClient();
+        var inviteeEmail = $"audit-target-{Guid.NewGuid():N}@example.com";
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/organizations/11111111-1111-1111-1111-111111111111/invitations",
+            new
+            {
+                fullName = "Audit Target",
+                email = inviteeEmail,
+                role = nameof(OrganizationRole.CaseWorker)
+            });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var createdJson = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+        var invitationId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var resendResponse = await client.PostAsync(
+            $"/api/organizations/11111111-1111-1111-1111-111111111111/invitations/{invitationId}/resend",
+            null);
+        Assert.Equal(HttpStatusCode.OK, resendResponse.StatusCode);
+
+        var revokeResponse = await client.DeleteAsync(
+            $"/api/organizations/11111111-1111-1111-1111-111111111111/invitations/{invitationId}");
+        Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<CivicFlowDbContext>();
+        var auditEvents = await dbContext.AuditEvents
+            .Where(item =>
+                item.EntityId == invitationId.ToString() &&
+                item.Action.StartsWith("invitation."))
+            .ToListAsync();
+
+        Assert.Equal(3, auditEvents.Count);
+        Assert.All(
+            auditEvents,
+            item =>
+            {
+                Assert.Equal(TestAuthenticationHandler.DefaultUserId, item.ActorUserId);
+                Assert.Equal("integration.test@civicflow.test", item.ActorEmail);
+                Assert.Contains(inviteeEmail, item.Details);
+            });
+    }
 
     private static HttpClient CreateCookieClient(
         WebApplicationFactory<Program> factory)

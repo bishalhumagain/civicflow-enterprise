@@ -1,4 +1,5 @@
 using PublicServiceCaseManagement.Api.Features.Platform.Contracts;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Platform.Services;
 
@@ -7,16 +8,31 @@ namespace PublicServiceCaseManagement.Api.Features.Platform.Services;
 /// </summary>
 public interface IPlatformDirectoryService
 {
-    Task<IReadOnlyList<PlatformUserSummary>> GetUsersAsync(
+    Task<PagedResponse<PlatformUserSummary>> GetUsersAsync(
+        int page = 1,
+        int pageSize = 25,
+        string? search = null,
+        bool? isStaff = null,
+        bool? isCitizen = null,
+        string? sort = null,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PlatformStaffSummary>> GetStaffAsync(
+    Task<PagedResponse<PlatformStaffSummary>> GetStaffAsync(
+        int page = 1,
+        int pageSize = 25,
+        Guid? organizationId = null,
+        bool? isActive = null,
+        string? search = null,
         CancellationToken cancellationToken = default);
 
     Task<PlatformOverviewResponse> GetOverviewAsync(
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PlatformCitizenSummary>> GetCitizensAsync(
+    Task<PagedResponse<PlatformCitizenSummary>> GetCitizensAsync(
+        int page = 1,
+        int pageSize = 25,
+        string? search = null,
+        string? sort = null,
         CancellationToken cancellationToken = default);
 
     Task<PlatformUserSummary> UpdateStaffAccountAsync(

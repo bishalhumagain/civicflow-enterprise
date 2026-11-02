@@ -9,7 +9,6 @@ using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using PublicServiceCaseManagement.Api.Features.Notifications.Services;
-
 using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases.Services;
@@ -126,6 +125,8 @@ public sealed class CaseService(
     public async Task<IReadOnlyList<string>?> DeleteAsync(
         Guid organizationId,
         Guid caseId,
+        Guid requestingUserId,
+        bool isPlatformAdmin,
         CancellationToken cancellationToken)
     {
         var caseEntity = await dbContext.Cases
@@ -135,6 +136,13 @@ public sealed class CaseService(
                 cancellationToken);
         if (caseEntity is null)
             return null;
+
+        if (!isPlatformAdmin &&
+            caseEntity.SubmittedByUserId != requestingUserId)
+        {
+            throw new UnauthorizedAccessException(
+                "Only the case creator or a platform administrator may delete this case.");
+        }
 
         var documents = await dbContext.CaseDocuments
             .Where(document => document.CaseId == caseId &&

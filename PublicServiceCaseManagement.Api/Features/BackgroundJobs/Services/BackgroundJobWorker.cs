@@ -39,9 +39,10 @@ public sealed class BackgroundJobWorker(
             {
                 break;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 logger.LogWarning(
+                    exception,
                     "Background job polling failed; the worker will retry after the configured polling delay.");
                 await Task.Delay(pollingMilliseconds, stoppingToken);
             }

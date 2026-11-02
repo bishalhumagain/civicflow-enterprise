@@ -8,8 +8,8 @@ using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 using PublicServiceCaseManagement.Api.Features.Invitations.Contracts;
-
 using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations.Services;
@@ -118,11 +118,9 @@ public sealed class InvitationService(
             token,
             cancellationToken);
 
-        await auditLogger.AccountLifecycleAsync(
-            email,
-            null,
+        await RecordInvitationAuditAsync(
+            invitation,
             AuditActions.InvitationCreated,
-            organizationId,
             cancellationToken);
 
         return ToResponse(invitation, now);
@@ -145,6 +143,45 @@ public sealed class InvitationService(
         return invitations
             .Select(invitation => ToResponse(invitation, now))
             .ToList();
+    }
+
+    public async Task<PagedResponse<InvitationResponse>> GetPageAsync(
+        Guid organizationId,
+        int page,
+        int pageSize,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query = dbContext.AccountInvitations
+            .AsNoTracking()
+            .Where(invitation =>
+                invitation.OrganizationId == organizationId &&
+                invitation.RevokedAt == null);
+        if (term.Length > 0)
+        {
+            query = query.Where(invitation =>
+                invitation.FullName.ToLower().Contains(term) ||
+                invitation.Email.ToLower().Contains(term) ||
+                invitation.OrganizationRole.ToString().ToLower().Contains(term));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var invitations = await query
+            .OrderByDescending(invitation => invitation.CreatedAt)
+            .ThenByDescending(invitation => invitation.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        return new PagedResponse<InvitationResponse>(
+            invitations.Select(invitation => ToResponse(invitation, now)).ToList(),
+            page,
+            pageSize,
+            totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<InvitationResponse?> ResendAsync(
@@ -196,11 +233,9 @@ public sealed class InvitationService(
             token,
             cancellationToken);
 
-        await auditLogger.AccountLifecycleAsync(
-            invitation.Email,
-            null,
+        await RecordInvitationAuditAsync(
+            invitation,
             AuditActions.InvitationResent,
-            organizationId,
             cancellationToken);
 
         return ToResponse(invitation, now);
@@ -226,11 +261,9 @@ public sealed class InvitationService(
         invitation.Revoke(timeProvider.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await auditLogger.AccountLifecycleAsync(
-            invitation.Email,
-            null,
+        await RecordInvitationAuditAsync(
+            invitation,
             AuditActions.InvitationRevoked,
-            organizationId,
             cancellationToken);
 
         return true;
@@ -651,6 +684,22 @@ public sealed class InvitationService(
             MinimumExpiryHours,
             MaximumExpiryHours);
     }
+
+    private Task RecordInvitationAuditAsync(
+        AccountInvitation invitation,
+        string action,
+        CancellationToken cancellationToken) =>
+        auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Account,
+                Action = action,
+                OrganizationId = invitation.OrganizationId,
+                EntityType = "Invitation",
+                EntityId = invitation.Id.ToString(),
+                Details = $"email={invitation.Email}"
+            },
+            cancellationToken);
 
     private static OrganizationRole ParseRole(string role)
     {

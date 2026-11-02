@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
@@ -7,6 +8,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Features.Invitations.Contracts;
 using PublicServiceCaseManagement.Api.Features.Invitations.Services;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations;
 
@@ -91,9 +93,12 @@ public sealed class InvitationsController(
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<InvitationResponse>>> GetAll(
+    public async Task<ActionResult<PagedResponse<InvitationResponse>>> GetAll(
         Guid organizationId,
-        CancellationToken cancellationToken)
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
         {
@@ -107,8 +112,11 @@ public sealed class InvitationsController(
             return Forbid();
         }
 
-        var invitations = await invitationService.GetAllAsync(
+        var invitations = await invitationService.GetPageAsync(
             organizationId,
+            page,
+            pageSize,
+            search,
             cancellationToken);
 
         return Ok(invitations);

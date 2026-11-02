@@ -28,6 +28,8 @@ public interface ICaseService
     Task<IReadOnlyList<string>?> DeleteAsync(
         Guid organizationId,
         Guid caseId,
+        Guid requestingUserId,
+        bool isPlatformAdmin,
         CancellationToken cancellationToken);
 
     Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
@@ -97,4 +99,5 @@ public interface ICaseService
         Guid caseId,
         Guid organizationId,
         CancellationToken cancellationToken);
+
 }

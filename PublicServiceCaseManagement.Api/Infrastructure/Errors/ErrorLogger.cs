@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PublicServiceCaseManagement.Api.Domain.Errors;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Infrastructure.Errors;
 
@@ -54,7 +55,7 @@ public sealed class ErrorLogger(
         }
     }
 
-    public async Task<List<ApplicationError>> GetErrorsAsync(
+    public async Task<PagedResponse<ApplicationError>> GetErrorsAsync(
         bool? isHandled = null,
         int page = 1,
         int pageSize = 25,
@@ -70,11 +71,16 @@ public sealed class ErrorLogger(
             query = query.Where(e => e.IsHandled == isHandled.Value);
         }
 
-        return await query
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
             .OrderByDescending(e => e.OccurredAt)
+            .ThenByDescending(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+        return new PagedResponse<ApplicationError>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<ApplicationError?> GetErrorAsync(

@@ -1,10 +1,11 @@
-
 using Microsoft.EntityFrameworkCore;
 using PublicServiceCaseManagement.Api.Domain.Audit;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
+using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships.Services;
 
@@ -12,7 +13,6 @@ public sealed class OrganizationMembershipService(
     CivicFlowDbContext dbContext,
     IAuditLogger auditLogger) : IOrganizationMembershipService
 {
-
     public async Task<OrganizationMembership> CreateAsync(
         Guid userId,
         Guid organizationId,
@@ -106,6 +106,44 @@ public sealed class OrganizationMembershipService(
             .OrderBy(membership => membership.CreatedAt)
             .ThenBy(membership => membership.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PagedResponse<OrganizationMembership>> GetPageAsync(
+        Guid organizationId,
+        bool? isActive,
+        int page,
+        int pageSize,
+        string? search,
+        CancellationToken cancellationToken)
+    {
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query =
+            from membership in dbContext.OrganizationMemberships.AsNoTracking()
+            join user in dbContext.ApplicationUsers.AsNoTracking()
+                on membership.UserId equals user.Id
+            where membership.OrganizationId == organizationId
+            select new { Membership = membership, User = user };
+        if (isActive.HasValue)
+            query = query.Where(row => row.Membership.IsActive == isActive.Value);
+        if (term.Length > 0)
+            query = query.Where(row =>
+                row.User.FullName.ToLower().Contains(term) ||
+                (row.User.Email ?? string.Empty).ToLower().Contains(term) ||
+                row.Membership.Role.ToString().ToLower().Contains(term));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(row => row.User.FullName)
+            .ThenBy(row => row.Membership.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(row => row.Membership)
+            .ToListAsync(cancellationToken);
+        return new PagedResponse<OrganizationMembership>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<OrganizationMembership?> GetByIdAsync(
@@ -252,6 +290,21 @@ public sealed class OrganizationMembershipService(
                 OrganizationId = destinationOrganizationId,
                 EntityType = "OrganizationMembership",
                 EntityId = transferred.Id.ToString(),
+                Details =
+                    $"userId={membership.UserId} organization " +
+                    $"{previousOrganizationId} -> {destinationOrganizationId} " +
+                    $"role {previousRole} -> {role}"
+            },
+            cancellationToken);
+
+        await auditLogger.RecordAsync(
+            new AuditRecord
+            {
+                Category = AuditCategory.Membership,
+                Action = AuditActions.MembershipTransferred,
+                OrganizationId = previousOrganizationId,
+                EntityType = "OrganizationMembership",
+                EntityId = membership.Id.ToString(),
                 Details =
                     $"userId={membership.UserId} organization " +
                     $"{previousOrganizationId} -> {destinationOrganizationId} " +

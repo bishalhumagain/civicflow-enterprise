@@ -89,7 +89,7 @@ public sealed class PlatformDirectoryServiceTests
 
         await context.SaveChangesAsync();
 
-        var users = await service.GetUsersAsync();
+        var users = (await service.GetUsersAsync()).Items;
 
         var summary = Assert.Single(users);
 
@@ -133,7 +133,7 @@ public sealed class PlatformDirectoryServiceTests
 
         await context.SaveChangesAsync();
 
-        var staff = await service.GetStaffAsync();
+        var staff = (await service.GetStaffAsync()).Items;
 
         var summary = Assert.Single(staff);
 

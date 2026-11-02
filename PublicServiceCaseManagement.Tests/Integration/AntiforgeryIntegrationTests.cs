@@ -14,6 +14,31 @@ namespace PublicServiceCaseManagement.Tests.Integration;
 public sealed class AntiforgeryIntegrationTests
 {
     [Fact]
+    public async Task SwaggerUi_UsesAntiforgeryInterceptorForCookieRequests()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            requireAntiforgery: true);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/swagger/index.html");
+        var html = await response.Content.ReadAsStringAsync();
+        using var initializerResponse =
+            await client.GetAsync("/swagger/index.js");
+        var initializer =
+            await initializerResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, initializerResponse.StatusCode);
+        Assert.Contains("/swagger/v1/swagger.json", initializer);
+        Assert.Contains("requestInterceptor", initializer);
+        Assert.Contains("X-CSRF-TOKEN", initializer);
+        Assert.Contains("/api/auth/csrf", initializer);
+        Assert.Contains(
+            "'unsafe-inline'",
+            response.Headers.GetValues("Content-Security-Policy").Single());
+    }
+
+    [Fact]
     public async Task Post_WithoutToken_ReturnsBadRequest()
     {
         await using var factory = new CivicFlowApiFactory(

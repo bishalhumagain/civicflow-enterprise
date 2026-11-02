@@ -7,7 +7,6 @@ using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
-
 using PublicServiceCaseManagement.Tests.Support;
 
 namespace PublicServiceCaseManagement.Tests.Integration;
@@ -34,7 +33,8 @@ public sealed class DirectoryAndMembershipTransferIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
-        var item = Assert.Single(json.RootElement.EnumerateArray());
+        var item = Assert.Single(json.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(1, json.RootElement.GetProperty("totalCount").GetInt32());
         Assert.Equal(citizen.UserId, item.GetProperty("userId").GetGuid());
         Assert.Equal("Asha Citizen", item.GetProperty("fullName").GetString());
         Assert.Equal("NID-1001", item.GetProperty("nidNumber").GetString());
@@ -67,7 +67,7 @@ public sealed class DirectoryAndMembershipTransferIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
-        var users = json.RootElement.EnumerateArray().ToList();
+        var users = json.RootElement.GetProperty("items").EnumerateArray().ToList();
 
         var staffUser = Assert.Single(
             users,
@@ -182,6 +182,20 @@ public sealed class DirectoryAndMembershipTransferIntegrationTests
                 item.OrganizationId == destinationId);
         Assert.True(destinationMembership.IsActive);
         Assert.Equal(OrganizationRole.CaseWorker, destinationMembership.Role);
+
+        var transferEvents = await dbContext.AuditEvents
+            .Where(item =>
+                item.Action == "membership.transferred" &&
+                item.EntityType == "OrganizationMembership")
+            .ToListAsync();
+        Assert.Contains(
+            transferEvents,
+            item => item.OrganizationId == sourceOrganizationId &&
+                    item.EntityId == membershipId.ToString());
+        Assert.Contains(
+            transferEvents,
+            item => item.OrganizationId == destinationId &&
+                    item.EntityId == destinationMembership.Id.ToString());
     }
 
     [Fact]

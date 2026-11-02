@@ -1,4 +1,5 @@
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships.Services;
 
@@ -13,6 +14,14 @@ public interface IOrganizationMembershipService
     Task<IReadOnlyList<OrganizationMembership>> GetAllAsync(
         Guid organizationId,
         bool? isActive,
+        CancellationToken cancellationToken);
+
+    Task<PagedResponse<OrganizationMembership>> GetPageAsync(
+        Guid organizationId,
+        bool? isActive,
+        int page,
+        int pageSize,
+        string? search,
         CancellationToken cancellationToken);
 
     Task<OrganizationMembership?> GetByIdAsync(

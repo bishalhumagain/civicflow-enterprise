@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { type ApplicationError } from '../domain'
 import { Icon } from './Icon'
 import { formatDateTime } from '../utils/format'
@@ -14,19 +13,27 @@ function filterLabel(filter: ErrorFilter): string {
 export function PlatformErrors({
   errors,
   loading,
+  page,
+  pageCount,
+  totalCount,
+  filter,
+  onPageChange,
+  onFilterChange,
   onMarkAsHandled,
 }: {
   errors: ApplicationError[]
   loading: boolean
+  page: number
+  pageCount: number
+  totalCount: number
+  filter: ErrorFilter
+  onPageChange: (page: number) => void
+  onFilterChange: (filter: ErrorFilter) => void
   onMarkAsHandled: (errorId: string) => Promise<void>
 }) {
-  const [filter, setFilter] = useState<ErrorFilter>('all')
-
-  const filteredErrors = errors.filter(error => {
-    if (filter === 'unhandled') return !error.isHandled
-    if (filter === 'handled') return error.isHandled
-    return true
-  })
+  const filteredErrors = errors
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * 25 + 1
+  const rangeEnd = Math.min(page * 25, totalCount)
 
   return (
     <>
@@ -42,7 +49,7 @@ export function PlatformErrors({
             <select
               aria-label="Filter application errors"
               value={filter}
-              onChange={(event) => setFilter(event.target.value as ErrorFilter)}
+              onChange={(event) => onFilterChange(event.target.value as ErrorFilter)}
             >
               <option value="all">All errors</option>
               <option value="unhandled">Unhandled</option>
@@ -57,7 +64,7 @@ export function PlatformErrors({
           <div>
             <h2>Error log</h2>
             <p className="muted">
-              {filterLabel(filter)} · {filteredErrors.length} shown
+              {filterLabel(filter)} · {rangeStart}–{rangeEnd} of {totalCount}
             </p>
           </div>
         </div>
@@ -125,6 +132,14 @@ export function PlatformErrors({
             </table>
           </div>
         )}
+        <div className="pagination">
+          <span>{rangeStart}–{rangeEnd} of {totalCount} errors</span>
+          <span>Page {page} of {pageCount}</span>
+          <span>
+            <button disabled={page <= 1 || loading} onClick={() => onPageChange(page - 1)} type="button">Previous</button>
+            <button disabled={page >= pageCount || loading} onClick={() => onPageChange(page + 1)} type="button">Next</button>
+          </span>
+        </div>
       </section>
     </>
   )

@@ -4,6 +4,8 @@ using PublicServiceCaseManagement.Api.Domain.Staff;
 using PublicServiceCaseManagement.Api.Infrastructure.Audit;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
+using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff.Services;
 
@@ -88,22 +90,49 @@ public sealed class StaffService(
         CancellationToken cancellationToken)
     {
         var query = dbContext.StaffMembers.AsNoTracking();
-
         if (organizationId.HasValue)
-        {
             query = query.Where(staff => staff.OrganizationId == organizationId.Value);
-        }
-
         if (isActive.HasValue)
-        {
             query = query.Where(staff => staff.IsActive == isActive.Value);
-        }
-
         return await query
             .OrderBy(staff => staff.OrganizationId)
             .ThenBy(staff => staff.FullName)
             .ThenBy(staff => staff.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PagedResponse<StaffMember>> GetPageAsync(
+        Guid? organizationId,
+        bool? isActive,
+        int page,
+        int pageSize,
+        string? search,
+        CancellationToken cancellationToken)
+    {
+        page = Math.Clamp(page, 1, 1_000_000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var term = TextNormalization.CollapseWhitespace(search).ToLowerInvariant();
+        var query = dbContext.StaffMembers.AsNoTracking();
+        if (organizationId.HasValue)
+            query = query.Where(staff => staff.OrganizationId == organizationId.Value);
+        if (isActive.HasValue)
+            query = query.Where(staff => staff.IsActive == isActive.Value);
+        if (term.Length > 0)
+            query = query.Where(staff =>
+                staff.FullName.ToLower().Contains(term) ||
+                staff.Email.ToLower().Contains(term));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(staff => staff.OrganizationId)
+            .ThenBy(staff => staff.FullName)
+            .ThenBy(staff => staff.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return new PagedResponse<StaffMember>(
+            items, page, pageSize, totalCount,
+            (int)Math.Ceiling(totalCount / (double)pageSize));
     }
 
     public async Task<StaffMember?> SetActiveStatusAsync(

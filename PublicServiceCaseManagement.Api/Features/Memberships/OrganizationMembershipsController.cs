@@ -1,12 +1,14 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Features.Memberships.Contracts;
 using PublicServiceCaseManagement.Api.Features.Memberships.Services;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Memberships;
 
@@ -68,10 +70,13 @@ public sealed class OrganizationMembershipsController(
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<OrganizationMembershipResponse>>> GetAll(
+    public async Task<ActionResult<PagedResponse<OrganizationMembershipResponse>>> GetAll(
         Guid organizationId,
         [FromQuery] bool? isActive,
-        CancellationToken cancellationToken)
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -80,12 +85,20 @@ public sealed class OrganizationMembershipsController(
                 organizationId, cancellationToken))
             return Forbid();
 
-        var memberships = await membershipService.GetAllAsync(
+        var result = await membershipService.GetPageAsync(
             organizationId,
             isActive,
+            page,
+            pageSize,
+            search,
             cancellationToken);
 
-        return Ok(memberships.Select(ToResponse).ToList());
+        return Ok(new PagedResponse<OrganizationMembershipResponse>(
+            result.Items.Select(ToResponse).ToList(),
+            result.Page,
+            result.PageSize,
+            result.TotalCount,
+            result.TotalPages));
     }
 
     [HttpGet("{membershipId:guid}")]

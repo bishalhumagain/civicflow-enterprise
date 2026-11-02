@@ -86,19 +86,22 @@ public sealed class SecurityHardeningIntegrationTests
         return Guid.Parse(json.RootElement.GetProperty("id").GetString()!);
     }
 
-    [Fact]
-    public async Task Development_AllowsAnyLoopbackVitePort_WithCredentials()
+    [Theory]
+    [InlineData(5173)]
+    [InlineData(5174)]
+    [InlineData(5175)]
+    public async Task Development_AllowsVitePorts_WithCredentials(int port)
     {
         await using var factory = new CivicFlowApiFactory(
             environmentName: "Development");
 
         using var client = factory.CreateClient();
 
-        // A Vite port that is not in the static allowlist (5175+).
+        var origin = $"http://localhost:{port}";
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             "/api/auth/csrf");
-        request.Headers.Add("Origin", "http://localhost:5175");
+        request.Headers.Add("Origin", origin);
 
         var response = await client.SendAsync(request);
 
@@ -109,7 +112,7 @@ public sealed class SecurityHardeningIntegrationTests
                 "Access-Control-Allow-Origin",
                 out var allowOriginValues));
         Assert.Equal(
-            "http://localhost:5175",
+            origin,
             Assert.Single(allowOriginValues));
 
         Assert.True(

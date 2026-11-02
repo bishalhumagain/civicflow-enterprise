@@ -185,7 +185,8 @@ public sealed class PlatformAdministrationApiIntegrationTests
         using var staffJson = JsonDocument.Parse(
             await staffResponse.Content.ReadAsStringAsync());
 
-        Assert.NotEmpty(staffJson.RootElement.EnumerateArray());
+        Assert.NotEmpty(staffJson.RootElement.GetProperty("items").EnumerateArray());
+        Assert.True(staffJson.RootElement.GetProperty("totalCount").GetInt32() >= 1);
     }
 
     [Fact]
@@ -497,7 +498,7 @@ public sealed class PlatformAdministrationApiIntegrationTests
             await listResponse.Content.ReadAsStringAsync());
 
         var staffMember = Assert.Single(
-            listJson.RootElement.EnumerateArray(),
+            listJson.RootElement.GetProperty("items").EnumerateArray(),
             member => member.GetProperty("id").GetGuid() == staffId);
 
         Assert.Equal(

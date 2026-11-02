@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AccountInvitation, Membership, Organization, OrganizationType } from '../domain'
+import { PaginationControls } from './PaginationControls'
 import { normalizeWhitespace, validateRequired } from '../utils/validation'
 import { InvitationManager } from './InvitationManager'
 import { Icon } from './Icon'
@@ -29,6 +30,15 @@ export function OrganizationAdministration({
   organizations,
   memberships,
   invitations,
+  organizationsPageInfo,
+  organizationsQuery,
+  onOrganizationsQueryChange,
+  membershipsPageInfo,
+  membershipsQuery,
+  onMembershipsQueryChange,
+  invitationsPageInfo,
+  invitationsQuery,
+  onInvitationsQueryChange,
   selectedOrganizationId,
   canManageOrganizations,
   onSelectOrganization,
@@ -43,6 +53,15 @@ export function OrganizationAdministration({
   organizations: Organization[]
   memberships: Membership[]
   invitations: AccountInvitation[]
+  organizationsPageInfo: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  organizationsQuery: { page: number; pageSize: number; search: string; organizationTypeId: string; isActive: boolean | null }
+  onOrganizationsQueryChange: (query: { page: number; pageSize: number; search: string; organizationTypeId: string; isActive: boolean | null }) => void
+  membershipsPageInfo: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  membershipsQuery: { page: number; pageSize: number; search: string; isActive: boolean | null }
+  onMembershipsQueryChange: (query: { page: number; pageSize: number; search: string; isActive: boolean | null }) => void
+  invitationsPageInfo: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  invitationsQuery: { page: number; pageSize: number; search: string }
+  onInvitationsQueryChange: (query: { page: number; pageSize: number; search: string }) => void
   selectedOrganizationId: string
   canManageOrganizations: boolean
   onSelectOrganization: (id: string) => void
@@ -113,7 +132,7 @@ export function OrganizationAdministration({
   const selected = organizations.find((item) => item.id === selectedOrganizationId)
 
   const filteredOrganizations = filterTypeId
-    ? organizations.filter((org) => org.organizationTypeId === filterTypeId)
+    ? organizations.filter((organization) => organization.organizationTypeId === filterTypeId)
     : organizations
 
   async function run(
@@ -243,10 +262,25 @@ export function OrganizationAdministration({
   }
 
   function viewMembers(orgId: string) {
-    onSelectOrganization(orgId)
+    selectOrganization(orgId)
     setFilterTypeId('')
     setFilterOrgId(orgId)
     if (canManageOrganizations) setTab('members')
+  }
+
+  function selectOrganization(orgId: string) {
+    onSelectOrganization(orgId)
+    onMembershipsQueryChange({
+      ...membershipsQuery,
+      page: 1,
+      search: '',
+      isActive: null,
+    })
+    onInvitationsQueryChange({
+      ...invitationsQuery,
+      page: 1,
+      search: '',
+    })
   }
 
   // ── Organization type handlers ─────────────────────────────────────────
@@ -353,16 +387,16 @@ export function OrganizationAdministration({
   // ── Members & invitations filter handlers ──────────────────────────────
   function applyMembersFilter() {
     if (filterOrgId) {
-      onSelectOrganization(filterOrgId)
+      selectOrganization(filterOrgId)
     } else {
-      onSelectOrganization('')
+      selectOrganization('')
     }
   }
 
   function resetMembersFilter() {
     setFilterTypeId('')
     setFilterOrgId('')
-    onSelectOrganization('')
+    selectOrganization('')
   }
 
   // ── Tab strip ──────────────────────────────────────────────────────────
@@ -453,6 +487,26 @@ export function OrganizationAdministration({
             </button>
           </form>
         )}
+
+        <div className="data-grid-toolbar">
+          <label className="data-grid-filter">
+            <span>Search organizations</span>
+            <input aria-label="Search organizations" value={organizationsQuery.search} onChange={(event) => onOrganizationsQueryChange({ ...organizationsQuery, page: 1, search: event.target.value })} />
+          </label>
+          <label className="data-grid-filter">
+            <span>Organization type</span>
+            <select aria-label="Filter organizations by type" value={organizationsQuery.organizationTypeId} onChange={(event) => onOrganizationsQueryChange({ ...organizationsQuery, page: 1, organizationTypeId: event.target.value })}>
+              <option value="">All types</option>
+              {organizationTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+            </select>
+          </label>
+          <label className="data-grid-filter">
+            <span>Status</span>
+            <select aria-label="Filter organizations by status" value={organizationsQuery.isActive === null ? '' : String(organizationsQuery.isActive)} onChange={(event) => onOrganizationsQueryChange({ ...organizationsQuery, page: 1, isActive: event.target.value === '' ? null : event.target.value === 'true' })}>
+              <option value="">All statuses</option><option value="true">Active</option><option value="false">Inactive</option>
+            </select>
+          </label>
+        </div>
 
         {organizations.length === 0 ? (
           <p className="muted empty-state">No organizations found.</p>
@@ -603,6 +657,9 @@ export function OrganizationAdministration({
             </table>
           </div>
         )}
+        <PaginationControls result={organizationsPageInfo} loading={loading}
+          onPageChange={(page) => onOrganizationsQueryChange({ ...organizationsQuery, page })}
+          onPageSizeChange={(pageSize) => onOrganizationsQueryChange({ ...organizationsQuery, page: 1, pageSize })} />
       </section>
     )
   }
@@ -910,6 +967,18 @@ export function OrganizationAdministration({
           <>
             <section className="case-card admin-panel">
               <h2>Memberships for {selected?.name ?? 'selected organization'}</h2>
+              <div className="data-grid-toolbar">
+                <label className="data-grid-filter">
+                  <span>Search memberships</span>
+                  <input aria-label="Search memberships" value={membershipsQuery.search} onChange={(event) => onMembershipsQueryChange({ ...membershipsQuery, page: 1, search: event.target.value })} />
+                </label>
+                <label className="data-grid-filter">
+                  <span>Status</span>
+                  <select aria-label="Filter memberships by status" value={membershipsQuery.isActive === null ? '' : String(membershipsQuery.isActive)} onChange={(event) => onMembershipsQueryChange({ ...membershipsQuery, page: 1, isActive: event.target.value === '' ? null : event.target.value === 'true' })}>
+                    <option value="">All statuses</option><option value="true">Active</option><option value="false">Inactive</option>
+                  </select>
+                </label>
+              </div>
 
               {memberships.length === 0 ? (
                 <p className="muted empty-state">No memberships found for this organization.</p>
@@ -968,11 +1037,17 @@ export function OrganizationAdministration({
                   </table>
                 </div>
               )}
+              <PaginationControls result={membershipsPageInfo} loading={loading}
+                onPageChange={(page) => onMembershipsQueryChange({ ...membershipsQuery, page })}
+                onPageSizeChange={(pageSize) => onMembershipsQueryChange({ ...membershipsQuery, page: 1, pageSize })} />
             </section>
 
             <InvitationManager
               disabled={!selectedOrganizationId}
               invitations={invitations}
+              result={invitationsPageInfo}
+              query={invitationsQuery}
+              onQueryChange={onInvitationsQueryChange}
               loading={loading || busy !== null}
               onInvite={onInvite}
               onResend={onResendInvitation}

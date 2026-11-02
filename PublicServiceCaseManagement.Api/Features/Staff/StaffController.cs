@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Features.Staff.Contracts;
 using PublicServiceCaseManagement.Api.Features.Staff.Services;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
@@ -21,19 +23,26 @@ public sealed class StaffController(
     [HttpGet("platform")]
     [Authorize(Policy = AppRoles.SuperAdminPolicy)]
     public async Task<IActionResult> GetAllPlatformStaff(
-        [FromQuery] Guid? organizationId,
-        [FromQuery] bool? isActive,
-        CancellationToken cancellationToken)
+        [FromQuery] Guid? organizationId = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        var staffMembers = await staffService.GetAllPlatformStaffAsync(
+        var result = await staffService.GetPageAsync(
             organizationId,
             isActive,
+            page,
+            pageSize,
+            search,
             cancellationToken);
 
-        return Ok(staffMembers.Select(staff => new
+        return Ok(new PagedResponse<object>(
+            result.Items.Select(staff => (object)new
         {
             staff.Id,
             staff.FullName,
@@ -43,7 +52,8 @@ public sealed class StaffController(
             staff.IsActive,
             staff.CreatedAt,
             staff.UpdatedAt
-        }));
+        }).ToList(),
+            result.Page, result.PageSize, result.TotalCount, result.TotalPages));
     }
 
     [HttpPatch("platform/{id:guid}/deactivate")]
@@ -157,8 +167,11 @@ public sealed class StaffController(
 
     [HttpGet]
     public async Task<IActionResult> GetAll(
-        [FromQuery] bool? isActive,
-        CancellationToken cancellationToken)
+        [FromQuery] bool? isActive = null,
+        [FromQuery, Range(1, 1_000_000)] int page = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 25,
+        [FromQuery, StringLength(200)] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
@@ -171,12 +184,16 @@ public sealed class StaffController(
         if (organizationId is null || organizationRole is null)
             return Forbid();
 
-        var staffMembers = await staffService.GetAllAsync(
+        var result = await staffService.GetPageAsync(
             organizationId.Value,
             isActive,
+            page,
+            pageSize,
+            search,
             cancellationToken);
 
-        return Ok(staffMembers.Select(staff => new
+        return Ok(new PagedResponse<object>(
+            result.Items.Select(staff => (object)new
         {
             staff.Id,
             staff.FullName,
@@ -187,7 +204,8 @@ public sealed class StaffController(
             staff.IsActive,
             staff.CreatedAt,
             staff.UpdatedAt
-        }));
+        }).ToList(),
+            result.Page, result.PageSize, result.TotalCount, result.TotalPages));
     }
 
     [HttpPatch("{id:guid}/deactivate")]

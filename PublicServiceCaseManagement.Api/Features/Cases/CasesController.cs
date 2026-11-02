@@ -1,9 +1,9 @@
-
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicServiceCaseManagement.Api.Domain.Cases;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
+using PublicServiceCaseManagement.Api.Domain.Users;
 using PublicServiceCaseManagement.Api.Infrastructure.Files;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
 using PublicServiceCaseManagement.Api.Infrastructure.Organizations;
@@ -160,7 +160,12 @@ public sealed class CasesController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        if (!await IsOrganizationAdminAsync(cancellationToken))
+        var isPlatformAdmin =
+            await organizationContext.GetPlatformRoleAsync(cancellationToken)
+            == PlatformRole.SuperAdmin;
+
+        if (!isPlatformAdmin &&
+            !await IsOrganizationAdminAsync(cancellationToken))
             return Forbid();
 
         if (!request.Confirmed)
@@ -174,10 +179,26 @@ public sealed class CasesController(
         if (organizationId is null)
             return Forbid();
 
-        var storageKeys = await caseService.DeleteAsync(
-            organizationId.Value,
-            id,
-            cancellationToken);
+        var requestingUserId =
+            await organizationContext.GetApplicationUserIdAsync(cancellationToken);
+        if (requestingUserId is null)
+            return Forbid();
+
+        IReadOnlyList<string>? storageKeys;
+        try
+        {
+            storageKeys = await caseService.DeleteAsync(
+                organizationId.Value,
+                id,
+                requestingUserId.Value,
+                isPlatformAdmin,
+                cancellationToken);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+
         if (storageKeys is null)
             return NotFound();
 

@@ -100,7 +100,7 @@ public sealed class StaffApiIntegrationTests
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
         var staff = Assert.Single(
-            json.RootElement.EnumerateArray(),
+            json.RootElement.GetProperty("items").EnumerateArray(),
             entry => entry.GetProperty("email").GetString() == email);
         Assert.Equal(seededStaff.Id, staff.GetProperty("id").GetGuid());
         Assert.Equal("Jordan Lee", staff.GetProperty("fullName").GetString());
@@ -128,7 +128,7 @@ public sealed class StaffApiIntegrationTests
         using var activeJson = JsonDocument.Parse(
             await activeResponse.Content.ReadAsStringAsync());
         Assert.DoesNotContain(
-            activeJson.RootElement.EnumerateArray(),
+            activeJson.RootElement.GetProperty("items").EnumerateArray(),
             staff => staff.GetProperty("id").GetGuid() == staffMember.Id);
 
         var inactiveResponse = await client.GetAsync(
@@ -137,7 +137,7 @@ public sealed class StaffApiIntegrationTests
         using var inactiveJson = JsonDocument.Parse(
             await inactiveResponse.Content.ReadAsStringAsync());
         Assert.Contains(
-            inactiveJson.RootElement.EnumerateArray(),
+            inactiveJson.RootElement.GetProperty("items").EnumerateArray(),
             staff => staff.GetProperty("id").GetGuid() == staffMember.Id);
     }
 

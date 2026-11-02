@@ -466,7 +466,9 @@ WITH CHECK (current_setting('civicflow.organization_id', true) = "OrganizationId
 
 CivicFlow uses EF Core and PostgreSQL as its durable queue and transactional outbox; it does not add Redis or a separate broker. `background_jobs`, `background_job_attempts`, and `notifications` are created by `AddPersistentBackgroundJobsAndNotifications`. The domain change, in-app notification, and email job are written in the same EF unit of work. The notification is independently durable, so an unavailable email relay cannot erase the in-app item.
 
-The hosted `BackgroundJobWorker` claims work with a PostgreSQL `FOR UPDATE SKIP LOCKED` update and a time-limited lease. Only the registered `notification.email` job is accepted; its payload contains a notification ID, never an address, password, bearer token, invitation secret, or arbitrary executable data. Job states are `Queued → Running → Succeeded`, `RetryScheduled`, or `Failed`; queued and retry-scheduled work can also be `Cancelled`. A lease-expired job is recovered on a later poll. Transient email failures use exponential delay (default base 30 seconds, capped at one hour) with 0.75–1.25 jitter and a default maximum of five attempts (clamped to 1–20). Failed work remains inspectable until retention cleanup. A SuperAdmin retry is audited, retains monotonic attempt history, and can extend the total attempt ceiling only up to 20.
+Case and citizen notification events enqueue an email job and its in-app notification in the same EF unit of work; a successful commit is the trigger for delivery. When `BackgroundJobs:Enabled` is true, the hosted `BackgroundJobWorker` polls the PostgreSQL queue (one second by default), claims work with `FOR UPDATE SKIP LOCKED`, and processes it under a time-limited lease. The worker is enabled in the default Development configuration. This processing is PostgreSQL/Npgsql-only: the processor deliberately returns without claiming jobs when run against EF InMemory, so an in-memory test or non-PostgreSQL provider cannot prove delivery. When disabled, queued jobs remain durable and can be processed after the worker is enabled.
+
+Only the registered `notification.email` job is accepted; its payload contains a notification ID, never an address, password, bearer token, invitation secret, or arbitrary executable data. The normal state flow is `Queued → Running → Succeeded`; a transient SMTP error records a failed attempt and transitions to `RetryScheduled`, then the worker claims it when due. Malformed/unsupported jobs and unavailable recipients fail permanently; exhausted retries end in `Failed`. A worker lease expiry is recovered on a later poll, scheduling another attempt or failing the job when its attempt limit is exhausted. Failed work remains inspectable until retention cleanup. A SuperAdmin retry is audited, retains monotonic attempt history, and can extend the total attempt ceiling only up to 20. Queued and retry-scheduled jobs may be cancelled; running and terminal jobs cannot.
 
 Email is at-least-once: a worker crash after SMTP accepts a message but before success is committed can cause a duplicate on lease recovery. In-app notifications have unique idempotency keys; event IDs are used for case status and assignment notifications. The implemented events are case submission (to the authenticated submitter), case assignment (to the active account with an active membership matching the assigned staff record), case status changes (to the case submitter and to the staff member currently assigned to the case, whether `CaseWorker` or read-only `Viewer`), citizen-visible public updates and information requests (to the submitter; internal notes notify nobody), and citizen responses (to the active account linked to the assigned staff record). A newly submitted citizen case is also triaged to an organization administrator: when an active admin has a matching staff record the case is assigned to the earliest such admin (notifying them through the case-assignment event), and otherwise every active `OrganizationAdmin` receives a triage notification while the case stays unassigned. Messages are generic and do not reveal case details, internal notes, or document contents. Invitation lifecycle mail remains on the existing invitation email flow; invitations are not stored as background jobs because their single-use secret is intentionally not persisted. Staff-membership and organization administration events do not currently create notifications.
 
@@ -717,8 +719,8 @@ cp PublicServiceCaseManagement.Api/appsettings.template.json PublicServiceCaseMa
 
 Edit `appsettings.json`:
 - `ConnectionStrings:CivicFlow` — use the `civicflow_migrator` credentials for migrations, `civicflow_runtime` for the running API
-- `Cors:AllowedOrigins` — add the frontend origin (default: `http://localhost:5173`)
-- `Frontend:BaseUrl` — the frontend URL (for invitation links)
+- `Cors:AllowedOrigins` — production/staging origins; Development already trusts loopback HTTP origins on any port
+- `Frontend:BaseUrl` — the frontend URL (for email-verification, password-reset, and invitation links)
 - `Application:Name` — product name shown in the header and copyright footer (default: `CivicFlow Enterprise`)
 - `Jwt:SigningKey` — at least 32 random bytes for signing short-lived access tokens (environment variable `Jwt__SigningKey`); the API refuses to start without it
 - `Jwt:Issuer` / `Jwt:Audience` — expected token issuer and audience (defaults: `CivicFlow` / `CivicFlow.Api`)
@@ -745,7 +747,7 @@ dotnet ef database update \
 dotnet run --project PublicServiceCaseManagement.Api
 ```
 
-> **Port 5000 note**: macOS AirPlay Receiver binds port 5000 by default. If you get "address already in use", either disable AirPlay Receiver (System Settings → General → AirDrop & Handoff) or run on a different port: `dotnet run --project PublicServiceCaseManagement.Api --urls http://localhost:5001` and update `VITE_API_BASE_URL` accordingly.
+The API launch profile listens on `http://localhost:5001`. The separate Docker Compose setup uses the root `.env` values (`API_HOST_PORT` and `API_BASE_URL`, defaulting to port 5000).
 
 ### Step 6: Run the Frontend
 
@@ -756,7 +758,7 @@ npm ci
 npm run dev
 ```
 
-The frontend is available at `http://localhost:5173`.
+The Vite config is the source of truth for the browser dev origin: it binds `http://localhost:5173` and fails rather than silently switching ports. `Frontend:BaseUrl` in API Development settings must match this origin because it is used to create email links. If port 5173 is occupied, stop its existing process or deliberately change the Vite port and `Frontend:BaseUrl` together. Development CORS permits loopback origins on any port; it does not determine the browser URL.
 
 ### Step 7: Create Your First Organization Login
 
@@ -906,11 +908,11 @@ See [Delivery Roadmap](docs/DELIVERY-ROADMAP.md) for the full production-readine
 | **"not a platform administrator"** | Staff/citizen at the platform portal | Use `/admin` (staff) or `/citizen/login` (citizens) |
 | **Invitation link "invalid, expired, or already used"** | Link was used, revoked, or expired (72h default) | Ask an administrator to resend the invitation |
 | **Invitation email not received** | SMTP is not configured or delivery failed | In Development, check the API console; outside Development, configure/check the SMTP host, TLS, sender address, and provider credentials |
-| **404 from frontend** | `VITE_API_BASE_URL` missing or wrong | Set to API base URL (e.g., `http://localhost:5000`), restart Vite dev server |
+| **404 from frontend** | `VITE_API_BASE_URL` missing or wrong | For the standalone API launch profile set it to `http://localhost:5001`; for Docker Compose use the root `.env` `API_BASE_URL`. Restart Vite after changing it. |
 | **401/403 in workspace** | Session cookie missing/expired (401) or insufficient role (403) | Sign in again; check organization membership/role |
 | **CSRF 400 on save** | Anti-forgery token missing/expired | Refresh the page and retry; frontend fetches token from `GET /api/auth/csrf` |
 | **Cross-origin cookies not sent** | CORS not configured or `credentials` not set | Add frontend origin to `Cors:AllowedOrigins`; `credentials: 'include'` is already set in `auth.ts` |
-| **"address already in use" (port 5000)** | macOS AirPlay Receiver on port 5000 | Disable AirPlay Receiver or run API on another port (`--urls http://localhost:5001`) |
+| **"address already in use" (port 5173)** | Another Vite server occupies the configured browser dev port | Stop the other server; Vite is configured to fail instead of silently choosing another origin, which keeps generated email links aligned with the browser URL. |
 | **Migrations fail** | Wrong DB role or unreachable DB | Use `civicflow_migrator` credentials; verify PostgreSQL is running |
 | **"This organization still holds cases"** | Trying to delete an org with active cases | Resolve or move cases first, then delete |
 | **PAT returns 401** | Token revoked, expired, or owner deactivated | Create a new token |

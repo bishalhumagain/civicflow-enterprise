@@ -1,5 +1,6 @@
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Features.Organizations.Contracts;
+using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations.Services;
 
@@ -12,6 +13,15 @@ public interface IOrganizationService
         Guid? organizationTypeId = null);
 
     Task<IReadOnlyList<Organization>> GetAllAsync(
+        CancellationToken cancellationToken);
+
+    Task<PagedResponse<Organization>> GetPageAsync(
+        Guid? managedByUserId,
+        int page,
+        int pageSize,
+        string? search,
+        Guid? organizationTypeId,
+        bool? isActive,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Organization>> GetManagedOrganizationsForUserAsync(

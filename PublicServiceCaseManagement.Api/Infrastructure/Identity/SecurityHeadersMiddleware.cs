@@ -16,7 +16,13 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
         headers["Cross-Origin-Resource-Policy"] = "same-origin";
         headers["Content-Security-Policy"] =
-            "default-src 'none'; frame-ancestors 'none'";
+            httpContext.Request.Path.StartsWithSegments(
+                "/swagger",
+                StringComparison.OrdinalIgnoreCase)
+                ? "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+                  "style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+                  "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+                : "default-src 'none'; frame-ancestors 'none'";
         headers["Permissions-Policy"] =
             "geolocation=(), camera=(), microphone=()";
 

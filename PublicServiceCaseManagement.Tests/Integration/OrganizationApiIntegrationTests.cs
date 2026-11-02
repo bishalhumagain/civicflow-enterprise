@@ -107,7 +107,7 @@ public sealed class OrganizationApiIntegrationTests
             await response.Content.ReadAsStringAsync());
 
         Assert.Contains(
-            json.RootElement.EnumerateArray(),
+            json.RootElement.GetProperty("items").EnumerateArray(),
             organization =>
                 organization.GetProperty("code").GetString() == "POKHARA");
     }
@@ -144,7 +144,7 @@ public sealed class OrganizationApiIntegrationTests
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
         var organization = Assert.Single(
-            json.RootElement.EnumerateArray());
+            json.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal(
             "CIVICFLOW-DEV",
             organization.GetProperty("code").GetString());
@@ -162,7 +162,7 @@ public sealed class OrganizationApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
-        Assert.Empty(json.RootElement.EnumerateArray());
+        Assert.Empty(json.RootElement.GetProperty("items").EnumerateArray());
     }
 
     [Fact]

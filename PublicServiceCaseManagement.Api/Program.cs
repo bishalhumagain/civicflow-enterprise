@@ -520,12 +520,11 @@ var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
 
-// Development-only trust rule for the Vite dev server. Vite hops to the next
-// free port (5173, 5174, 5175, ...) whenever the preferred one is busy, so a
-// fixed origin allowlist breaks login the moment the port changes. Cookies are
-// scoped to localhost (shared across every port), which is exactly why the
-// port must not be pinned here. Only first-party loopback http origins are
-// accepted — never a public host, a wildcard, or arbitrary origins with
+// Development-only trust rule for the Vite dev server. The configured browser
+// port is fixed in vite.config.ts, but local overrides can choose another one;
+// a fixed origin allowlist would then break login. Cookies are scoped to
+// localhost (shared across ports), so accept only first-party loopback HTTP
+// origins — never a public host, wildcard, or arbitrary origin with
 // credentials. This predicate is never consulted outside Development.
 static bool IsTrustedLoopbackOrigin(string origin)
 {
@@ -581,12 +580,6 @@ var app = builder.Build();
 
 await IdentityDataSeeder.SeedAsync(app.Services);
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -595,6 +588,48 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "CivicFlow API v1");
+        options.UseRequestInterceptor(
+            """
+            async (request) => {
+                const method = (request.method || "GET").toUpperCase();
+                if (["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)) {
+                    return request;
+                }
+
+                const requestUrl = new URL(request.url, window.location.href);
+                if (requestUrl.origin !== window.location.origin ||
+                    !requestUrl.pathname.startsWith("/api/")) {
+                    return request;
+                }
+
+                const response = await fetch("/api/auth/csrf", {
+                    credentials: "same-origin",
+                    headers: { Accept: "application/json" }
+                });
+                if (!response.ok) {
+                    throw new Error("Unable to obtain an anti-forgery token for Swagger UI.");
+                }
+
+                const { token } = await response.json();
+                if (!token) {
+                    throw new Error("The anti-forgery endpoint did not return a token.");
+                }
+
+                request.headers = request.headers || {};
+                request.headers["X-CSRF-TOKEN"] = token;
+                return request;
+            }
+            """);
+    });
+}
+
 app.UseRateLimiter();
 app.UseCors();
 

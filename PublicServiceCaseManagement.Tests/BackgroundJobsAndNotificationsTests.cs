@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using PublicServiceCaseManagement.Api.Domain.BackgroundJobs;
 using PublicServiceCaseManagement.Api.Domain.Notifications;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Features.Notifications;
+using PublicServiceCaseManagement.Api.Features.BackgroundJobs.Services;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 using PublicServiceCaseManagement.Api.Features.Notifications.Services;
@@ -17,6 +19,33 @@ namespace PublicServiceCaseManagement.Tests;
 
 public sealed class BackgroundJobsAndNotificationsTests
 {
+    [Fact]
+    public async Task Worker_IsRegisteredWhenBackgroundJobsAreEnabled()
+    {
+        await using var factory = new CivicFlowApiFactory(
+            settings: new Dictionary<string, string?>
+            {
+                ["BackgroundJobs:Enabled"] = "true"
+            });
+        _ = factory.CreateClient();
+
+        Assert.Contains(
+            factory.Services.GetServices<IHostedService>(),
+            service => service is BackgroundJobWorker);
+    }
+
+    [Fact]
+    public async Task Processor_DoesNotClaimJobsFromNonPostgresProvider()
+    {
+        await using var factory = new CivicFlowApiFactory();
+        _ = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        var processor = scope.ServiceProvider
+            .GetRequiredService<BackgroundJobProcessor>();
+
+        Assert.False(await processor.ProcessOneAsync(CancellationToken.None));
+    }
+
     [Fact]
     public async Task NotificationOutbox_PersistsInAppNotificationAndIdOnlyEmailJob()
     {

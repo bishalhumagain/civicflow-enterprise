@@ -64,6 +64,7 @@ export type CaseDocument = {
 }
 export type AssignmentEntry = { id: string; previousStaffMemberId: string | null; newStaffMemberId: string | null; previousRole: 'CaseWorker' | 'Viewer' | null; newRole: 'CaseWorker' | 'Viewer'; assignedAt: string; assignedByUserId: string | null }
 export type CasePage = { items: CaseRecord[]; page: number; pageSize: number; totalCount: number; totalPages: number }
+export type PagedResponse<T> = { items: T[]; page: number; pageSize: number; totalCount: number; totalPages: number }
 export type Organization = { id: string; name: string; code: string; organizationTypeId: string; organizationTypeName: string | null; isActive: boolean; createdAt: string; updatedAt: string }
 export type OrganizationType = { id: string; name: string; code: string; isActive: boolean; createdAt: string; updatedAt: string; organizationCount: number }
 export type OrganizationWorkspaceOption = { id: string; name: string; code: string; role: string }

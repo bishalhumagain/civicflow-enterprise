@@ -51,6 +51,7 @@ import {
     type PlatformOrganizationCaseBreakdown,
     type PlatformCitizen,
     type PlatformUser,
+    type PagedResponse,
     type StaffMember,
     type WorkspaceView,
 } from './domain'
@@ -60,7 +61,7 @@ import {StatCard} from './components/StatCard'
 import {CaseDetails} from './components/CaseDetails'
 import {StaffDirectory} from './components/StaffDirectory'
 import {OrganizationAdministration} from './components/OrganizationAdministration'
-import {PlatformDirectory} from './components/PlatformDirectory'
+import {PlatformDirectory, type DirectoryQuery} from './components/PlatformDirectory'
 import {AuditLog} from './components/AuditLog'
 import {emptyAuditFilters, type AuditFilters} from './utils/audit'
 import {CitizenIntake} from './components/CitizenIntake'
@@ -119,14 +120,22 @@ function App() {
     const [caseDocumentsData, setCaseDocumentsData] = useState<CaseDocumentsData | null>(null)
 
     const [staff, setStaff] = useState<StaffMember[]>([])
+    const [staffDirectoryPage, setStaffDirectoryPage] = useState<PagedResponse<StaffMember>>({ items: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+    const [staffDirectoryQuery, setStaffDirectoryQuery] = useState({ page: 1, pageSize: 10, search: '', isActive: null as boolean | null })
     const [organizations, setOrganizations] = useState<Organization[]>([])
+    const [organizationsPageInfo, setOrganizationsPageInfo] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+    const [organizationsQuery, setOrganizationsQuery] = useState({ page: 1, pageSize: 10, search: '', organizationTypeId: '', isActive: null as boolean | null })
     const [workspaceOrganizations, setWorkspaceOrganizations] = useState<OrganizationWorkspaceOption[]>([])
     const [organizationId, setOrganizationId] = useState<string | null>(null)
     const [membershipsData, setMembershipsData] = useState<MembershipsData | null>(null)
+    const [membershipsPageInfo, setMembershipsPageInfo] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+    const [membershipsQuery, setMembershipsQuery] = useState({ page: 1, pageSize: 10, search: '', isActive: null as boolean | null })
     const [invitationsData, setInvitationsData] = useState<{
         organizationId: string
         items: AccountInvitation[]
     } | null>(null)
+    const [invitationsPageInfo, setInvitationsPageInfo] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+    const [invitationsQuery, setInvitationsQuery] = useState({ page: 1, pageSize: 10, search: '' })
     const [selectedOrganizationId, setSelectedOrganizationId] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<'All' | CaseStatus>('All')
     const [selectedPriority, setSelectedPriority] = useState<'All' | CasePriority>('All')
@@ -158,6 +167,8 @@ function App() {
 
     const [platformCitizens, setPlatformCitizens] = useState<PlatformCitizen[]>([])
     const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([])
+    const [directoryResult, setDirectoryResult] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+    const [directoryQuery, setDirectoryQuery] = useState<DirectoryQuery>({ tab: 'citizens', page: 1, pageSize: 10, search: '', accountFilter: 'all', sortField: 'fullName', sortOrder: 'asc' })
     const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null)
     const [directoryLoading, setDirectoryLoading] = useState(false)
 
@@ -169,6 +180,10 @@ function App() {
 
     const [applicationErrors, setApplicationErrors] = useState<ApplicationError[]>([])
     const [errorsLoading, setErrorsLoading] = useState(false)
+    const [errorPage, setErrorPage] = useState(1)
+    const [errorTotalCount, setErrorTotalCount] = useState(0)
+    const [errorTotalPages, setErrorTotalPages] = useState(1)
+    const [errorFilter, setErrorFilter] = useState<'all' | 'unhandled' | 'handled'>('all')
 
     const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
     const [auditFilters, setAuditFilters] = useState<AuditFilters>(emptyAuditFilters)
@@ -426,7 +441,7 @@ function App() {
             try {
                 const [caseResult, staffMembers] = await Promise.all([
                     requestJson<CasePage>(`/api/cases?${caseQuery.toString()}`),
-                    requestJson<StaffMember[]>('/api/staff'),
+                    requestJson<PagedResponse<StaffMember>>('/api/staff?page=1&pageSize=100'),
                 ])
 
                 if (!mounted) return
@@ -434,7 +449,7 @@ function App() {
                 setCases(caseResult.items)
                 setTotalPages(Math.max(1, caseResult.totalPages))
                 setCaseTotalCount(caseResult.totalCount)
-                setStaff(staffMembers)
+                setStaff(staffMembers.items)
                 setSelectedCaseId((current) => {
                     if (current && caseResult.items.some((item) => item.id === current)) {
                         return current
@@ -520,15 +535,21 @@ function App() {
             setAdminLoading(true)
 
             try {
-                const loaded = await requestJson<Organization[]>('/api/organizations')
+                const query = new URLSearchParams({ page: String(organizationsQuery.page), pageSize: String(organizationsQuery.pageSize) })
+                if (organizationsQuery.search.trim()) query.set('search', organizationsQuery.search.trim())
+                if (organizationsQuery.organizationTypeId) query.set('organizationTypeId', organizationsQuery.organizationTypeId)
+                if (organizationsQuery.isActive !== null) query.set('isActive', String(organizationsQuery.isActive))
+                const loadedPage = await requestJson<PagedResponse<Organization>>(`/api/organizations?${query}`)
+                const loaded = loadedPage.items
 
                 if (!mounted) return
 
                 setOrganizations(loaded)
+                setOrganizationsPageInfo({ page: loadedPage.page, pageSize: loadedPage.pageSize, totalCount: loadedPage.totalCount, totalPages: loadedPage.totalPages })
                 setSelectedOrganizationId((current) =>
                     loaded.some((organization) => organization.id === current)
                         ? current
-                        : (loaded[0]?.id ?? ''))
+                        : (current || loaded[0]?.id || ''))
             } catch (reason) {
                 if (mounted) {
                     setError(reason instanceof Error ? reason.message : 'Organizations could not be loaded for your account.')
@@ -543,7 +564,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, retryVersion])
+    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, retryVersion, organizationsQuery])
 
     useEffect(() => {
         if (!currentUser ||
@@ -554,8 +575,11 @@ function App() {
         let mounted = true
         const currentOrganizationId = selectedOrganizationId
 
-        void requestJson<Membership[]>(
-            `/api/organizations/${currentOrganizationId}/memberships`,
+        const query = new URLSearchParams({ page: String(membershipsQuery.page), pageSize: String(membershipsQuery.pageSize) })
+        if (membershipsQuery.search.trim()) query.set('search', membershipsQuery.search.trim())
+        if (membershipsQuery.isActive !== null) query.set('isActive', String(membershipsQuery.isActive))
+        void requestJson<PagedResponse<Membership>>(
+            `/api/organizations/${currentOrganizationId}/memberships?${query}`,
             undefined,
             currentOrganizationId,
         )
@@ -563,8 +587,9 @@ function App() {
                 if (mounted) {
                     setMembershipsData({
                         organizationId: currentOrganizationId,
-                        items: loaded,
+                        items: loaded.items,
                     })
+                    setMembershipsPageInfo({ page: loaded.page, pageSize: loaded.pageSize, totalCount: loaded.totalCount, totalPages: loaded.totalPages })
                 }
             })
             .catch((reason: unknown) => {
@@ -576,7 +601,19 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, selectedOrganizationId, retryVersion])
+    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, selectedOrganizationId, retryVersion, membershipsQuery])
+
+    useEffect(() => {
+        if (!currentUser || (!organizationAccess && !organizationAdminAccess) || activeView !== 'staff') return
+        let mounted = true
+        const query = new URLSearchParams({ page: String(staffDirectoryQuery.page), pageSize: String(staffDirectoryQuery.pageSize) })
+        if (staffDirectoryQuery.search.trim()) query.set('search', staffDirectoryQuery.search.trim())
+        if (staffDirectoryQuery.isActive !== null) query.set('isActive', String(staffDirectoryQuery.isActive))
+        void requestJson<PagedResponse<StaffMember>>(`/api/staff?${query}`)
+            .then((result) => { if (mounted) setStaffDirectoryPage(result) })
+            .catch((reason: unknown) => { if (mounted) setError(reason instanceof Error ? reason.message : 'Staff could not be loaded.') })
+        return () => { mounted = false }
+    }, [currentUser, organizationAccess, organizationAdminAccess, activeView, staffDirectoryQuery, retryVersion])
 
     useEffect(() => {
         if (!currentUser || !platformAdminAccess || activeView !== 'platform-directory') return
@@ -587,16 +624,30 @@ function App() {
             setDirectoryLoading(true)
 
             try {
-                const [citizens, users, overview] = await Promise.all([
-                    requestJson<PlatformCitizen[]>('/api/platform/citizens'),
-                    requestJson<PlatformUser[]>('/api/platform/users'),
+                const params = new URLSearchParams({ page: String(directoryQuery.page), pageSize: String(directoryQuery.pageSize) })
+                if (directoryQuery.search.trim()) params.set('search', directoryQuery.search.trim())
+                const sortField = directoryQuery.sortField
+                const sort = sortField === 'email' || sortField === 'createdAt'
+                    ? `${sortField === 'createdAt' ? 'created' : 'email'}_${directoryQuery.sortOrder}`
+                    : undefined
+                const [directoryPage, overview] = await Promise.all([
+                    requestJson<PagedResponse<PlatformCitizen | PlatformUser>>(
+                        directoryQuery.tab === 'citizens'
+                            ? `/api/platform/citizens?${params}${sort ? `&sort=${sort}` : ''}`
+                            : `/api/platform/users?${params}${directoryQuery.tab === 'staff' ? '&isStaff=true' : directoryQuery.accountFilter === 'staff' ? '&isStaff=true' : directoryQuery.accountFilter === 'citizens' ? '&isCitizen=true' : ''}${sort ? `&sort=${sort}` : ''}`),
                     requestJson<PlatformOverview>('/api/platform/overview'),
                 ])
 
                 if (!mounted) return
 
-                setPlatformCitizens(citizens)
-                setPlatformUsers(users)
+                if (directoryQuery.tab === 'citizens') {
+                    setPlatformCitizens(directoryPage.items as PlatformCitizen[])
+                    setPlatformUsers([])
+                } else {
+                    setPlatformUsers(directoryPage.items as PlatformUser[])
+                    setPlatformCitizens([])
+                }
+                setDirectoryResult({ page: directoryPage.page, pageSize: directoryPage.pageSize, totalCount: directoryPage.totalCount, totalPages: directoryPage.totalPages })
                 setPlatformOverview(overview)
             } catch (reason) {
                 if (mounted) {
@@ -616,7 +667,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, activeView, retryVersion])
+    }, [currentUser, platformAdminAccess, activeView, retryVersion, directoryQuery])
 
     // Load platform dashboard statistics
     useEffect(() => {
@@ -710,11 +761,15 @@ function App() {
             setErrorsLoading(true)
 
             try {
-                const errors = await requestJson<ApplicationError[]>('/api/errors')
+                const query = new URLSearchParams({ page: String(errorPage), pageSize: '25' })
+                if (errorFilter !== 'all') query.set('isHandled', String(errorFilter === 'handled'))
+                const errors = await requestJson<PagedResponse<ApplicationError>>(`/api/errors?${query}`)
 
                 if (!mounted) return
 
-                setApplicationErrors(errors)
+                setApplicationErrors(errors.items)
+                setErrorTotalCount(errors.totalCount)
+                setErrorTotalPages(Math.max(1, errors.totalPages))
             } catch (reason) {
                 if (mounted) {
                     setError(
@@ -733,7 +788,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, activeView, retryVersion])
+    }, [currentUser, platformAdminAccess, activeView, retryVersion, errorPage, errorFilter])
 
     // Organization activity is actor-scoped for staff; the API enforces access.
     const auditScope = activeView === 'platform-audit'
@@ -816,8 +871,10 @@ function App() {
         let mounted = true
         const targetOrganizationId = invitationsOrganizationId
 
-        void requestJson<AccountInvitation[]>(
-            `/api/organizations/${targetOrganizationId}/invitations`,
+        const query = new URLSearchParams({ page: String(invitationsQuery.page), pageSize: String(invitationsQuery.pageSize) })
+        if (invitationsQuery.search.trim()) query.set('search', invitationsQuery.search.trim())
+        void requestJson<PagedResponse<AccountInvitation>>(
+            `/api/organizations/${targetOrganizationId}/invitations?${query}`,
             undefined,
             targetOrganizationId,
         )
@@ -825,8 +882,9 @@ function App() {
                 if (mounted) {
                     setInvitationsData({
                         organizationId: targetOrganizationId,
-                        items: loaded,
+                        items: loaded.items,
                     })
+                    setInvitationsPageInfo({ page: loaded.page, pageSize: loaded.pageSize, totalCount: loaded.totalCount, totalPages: loaded.totalPages })
                 }
             })
             .catch((reason: unknown) => {
@@ -846,6 +904,7 @@ function App() {
         currentUser,
         activeView,
         invitationsOrganizationId,
+        invitationsQuery,
         retryVersion,
     ])
 
@@ -1439,7 +1498,7 @@ function App() {
                 ...(action === 'role' && role ? {body: JSON.stringify({role})} : {}),
             }, currentOrganizationId)
 
-            setMembershipsData((current: MembershipsData | null) => ({
+            setMembershipsData((current) => ({
                 organizationId: currentOrganizationId,
                 items: current?.organizationId === currentOrganizationId
                     ? current.items.map((item: Membership) => item.id === result.id ? result : item)
@@ -1792,7 +1851,10 @@ function App() {
                                 <ProfilePage/>
                             ) : activeView === 'staff' && organizationAccess ? (
                                 <StaffDirectory
-                                    staff={staff}
+                                    staff={staffDirectoryPage.items}
+                                    result={staffDirectoryPage}
+                                    query={staffDirectoryQuery}
+                                    onQueryChange={setStaffDirectoryQuery}
                                     canManage={activeOrganization?.role === 'OrganizationAdmin'}
                                     authenticated={Boolean(currentUser)}
                                     loading={adminLoading}
@@ -1849,6 +1911,8 @@ function App() {
                                     overview={platformOverview}
                                     citizens={platformCitizens}
                                     users={platformUsers}
+                                    result={directoryResult}
+                                    onQueryChange={setDirectoryQuery}
                                     refreshData={() => setRetryVersion((version) => version + 1)}
                                     onOpenOrganization={(organizationId) => {
                                         setSelectedOrganizationId(organizationId)
@@ -1860,13 +1924,19 @@ function App() {
                                 <PlatformErrors
                                     errors={applicationErrors}
                                     loading={errorsLoading}
+                                    page={errorPage}
+                                    pageCount={errorTotalPages}
+                                    totalCount={errorTotalCount}
+                                    filter={errorFilter}
+                                    onPageChange={setErrorPage}
+                                    onFilterChange={(filter) => {
+                                        setErrorFilter(filter)
+                                        setErrorPage(1)
+                                    }}
                                     onMarkAsHandled={async (errorId) => {
                                         try {
                                             await requestJson(`/api/errors/${errorId}/mark-handled`, {method: 'PATCH'})
-                                            setApplicationErrors(applicationErrors.map(e => e.id === errorId ? {
-                                                ...e,
-                                                isHandled: true
-                                            } : e))
+                                            setRetryVersion((version) => version + 1)
                                         } catch (reason) {
                                             setError(reason instanceof Error ? reason.message : 'Failed to mark error as handled')
                                         }
@@ -1895,11 +1965,26 @@ function App() {
                                     authenticated={Boolean(currentUser)}
                                     loading={adminLoading}
                                     organizations={organizations}
+                                    organizationsPageInfo={organizationsPageInfo}
+                                    organizationsQuery={organizationsQuery}
+                                    onOrganizationsQueryChange={setOrganizationsQuery}
                                     memberships={memberships}
+                                    membershipsPageInfo={membershipsPageInfo}
+                                    membershipsQuery={membershipsQuery}
+                                    onMembershipsQueryChange={setMembershipsQuery}
                                     invitations={organizationInvitations}
+                                    invitationsPageInfo={invitationsPageInfo}
+                                    invitationsQuery={invitationsQuery}
+                                    onInvitationsQueryChange={setInvitationsQuery}
                                     selectedOrganizationId={selectedOrganizationId}
                                     canManageOrganizations={platformAdminAccess}
-                                    onSelectOrganization={setSelectedOrganizationId}
+                                    onSelectOrganization={(id) => {
+                                        setSelectedOrganizationId(id)
+                                        setMembershipsQuery((query) => ({ ...query, page: 1 }))
+                                        setInvitationsQuery((query) => ({ ...query, page: 1 }))
+                                        setMembershipsPageInfo({ page: 1, pageSize: membershipsQuery.pageSize, totalCount: 0, totalPages: 0 })
+                                        setInvitationsPageInfo({ page: 1, pageSize: invitationsQuery.pageSize, totalCount: 0, totalPages: 0 })
+                                    }}
                                     refreshData={() => setRetryVersion((version) => version + 1)}
                                     onUpdateMembership={updateMembership}
                                     onInvite={(fullName, email, phoneNumber, role) =>
