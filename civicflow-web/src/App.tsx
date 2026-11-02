@@ -1525,56 +1525,6 @@ function App() {
         return response.blob()
     }
 
-    async function setStaffActive(member: StaffMember) {
-        if (!currentUser || !organizationId) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const result = await requestJson<StaffMember>(
-                `/api/staff/${member.id}/${member.isActive ? 'deactivate' : 'reactivate'}`,
-                {method: 'PATCH'},
-                organizationId ?? undefined,
-            )
-
-            setStaff((current) => current.map((item) => item.id === result.id ? result : item))
-            setRetryVersion((version) => version + 1)
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Staff status change failed.')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
-    async function updateStaffPhone(member: StaffMember, phoneNumber: string) {
-        if (!currentUser || !organizationId) return
-
-        setAdminLoading(true)
-        setError(null)
-
-        try {
-            const updated = await requestJson<StaffMember>(
-                `/api/staff/${member.id}/phone`,
-                {
-                    method: 'PATCH',
-                    body: JSON.stringify({phoneNumber: phoneNumber || null}),
-                },
-                organizationId ?? undefined,
-            )
-
-            setStaff((current) => current.map((item) => item.id === updated.id ? updated : item))
-            setRetryVersion((version) => version + 1)
-            showToast('Phone number updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Phone number update failed.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setAdminLoading(false)
-        }
-    }
-
     async function updateMembership(membership: Membership, action: 'role' | 'active', role?: string) {
         if (!currentUser || !selectedOrganizationId) return
 
@@ -1951,11 +1901,8 @@ function App() {
                                     result={staffDirectoryPage}
                                     query={staffDirectoryQuery}
                                     onQueryChange={setStaffDirectoryQuery}
-                                    canManage={activeOrganization?.role === 'OrganizationAdmin'}
                                     authenticated={Boolean(currentUser)}
                                     loading={adminLoading}
-                                    onToggle={setStaffActive}
-                                    onUpdatePhone={updateStaffPhone}
                                 />
                             ) : activeView === 'activity' && organizationAccess ? (
                                 <AuditLog

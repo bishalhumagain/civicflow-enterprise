@@ -14,6 +14,14 @@ export function MyOrganization({
   onStaffQueryChange: (query: { page: number; pageSize: number; search: string; isActive: boolean | null }) => void
   loading: boolean
 }) {
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase()
+    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+
   if (!organization) {
     return (
       <section className="case-card empty-state">
@@ -75,15 +83,11 @@ export function MyOrganization({
           <div className="directory-grid">
             {staffPage.items.map((member) => (
               <article className="directory-member" key={member.id}>
-                <span className="avatar">{member.fullName.slice(0, 2).toUpperCase()}</span>
+                <span className="avatar">{getInitials(member.fullName)}</span>
                 <div className="directory-member-content">
                   <strong>{member.fullName}</strong>
-                  <span>{member.email}</span>
+                  <span>{member.phoneNumber ?? 'No phone number'}</span>
                   <span className="role-badge">{member.organizationRole ?? 'Staff'}</span>
-                  <div className="contact-details">
-                    <span className="phone-number">Contact details restricted</span>
-                  </div>
-                  <small className="status-badge">{member.isActive ? 'Active' : 'Inactive'}</small>
                 </div>
               </article>
             ))}

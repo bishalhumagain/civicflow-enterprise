@@ -8,7 +8,7 @@
 .info-banner{margin-bottom:16px;border:1px solid #cbdaf5;background:#edf4ff;color:#1d4ed8;border-radius:7px;padding:10px 12px;font-size:11px}
 
 /* Directory Member Improvements */
-.directory-member-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.directory-member-content strong{font-size:13px;color:#172033}.directory-member-content span{font-size:11px;color:#667085}.directory-member-content .role-badge{align-self:flex-start}.contact-details{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.phone-number{font-size:11px;color:#667085}.phone-edit-form{display:flex;flex-direction:column;gap:6px;margin-top:4px}.phone-edit-form input{font-size:11px;padding:7px}.phone-edit-actions{display:flex;gap:6px}.phone-edit-actions button{font-size:11px;padding:6px 10px;min-height:32px}.status-badge{font-size:10px;color:#19966a;margin-top:4px}.compact-button{font-size:11px;padding:6px 10px;min-height:32px;white-space:nowrap}.directory-member .secondary-button{margin-left:auto;white-space:nowrap;min-height:32px;font-size:11px;padding:6px 10px}
+.directory-member-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.directory-member-content strong{font-size:13px;color:#172033}.directory-member-content span{font-size:11px;color:#667085}.directory-member-content .role-badge{align-self:flex-start}.directory-member .avatar{font-size:12px;font-weight:700;letter-spacing:0.5px}
 
 /* Landing Page */
 .landing-page{min-height:100vh;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);color:#172033;display:flex;flex-direction:column}

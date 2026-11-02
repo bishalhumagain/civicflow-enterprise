@@ -1,9 +1,5 @@
-import { useState } from 'react'
 import type { PagedResponse, StaffMember } from '../domain'
-import { MAX_PHONE_LENGTH, sanitizePhoneInput, validatePhone } from '../utils/validation'
-import { Icon } from './Icon'
 import { PaginationControls } from './PaginationControls'
-import { ConfirmationDialog } from './ConfirmationDialog'
 
 /**
  * The organization's team contact list. Membership roles, activation, and
@@ -12,48 +8,25 @@ import { ConfirmationDialog } from './ConfirmationDialog'
  */
 export function StaffDirectory({
   staff,
-  canManage,
   authenticated,
   loading,
   result,
   query,
   onQueryChange,
-  onToggle,
-  onUpdatePhone,
 }: {
   staff: StaffMember[]
-  canManage: boolean
   authenticated: boolean
   loading: boolean
   result: Pick<PagedResponse<StaffMember>, 'page' | 'pageSize' | 'totalCount' | 'totalPages'>
   query: { page: number; pageSize: number; search: string; isActive: boolean | null }
   onQueryChange: (query: { page: number; pageSize: number; search: string; isActive: boolean | null }) => void
-  onToggle: (member: StaffMember) => Promise<void>
-  onUpdatePhone: (member: StaffMember, phoneNumber: string) => Promise<void>
 }) {
-  const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null)
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [phoneError, setPhoneError] = useState<string | null>(null)
-  const [pendingStatusChange, setPendingStatusChange] = useState<StaffMember | null>(null)
-
-  function startEditing(member: StaffMember) {
-    setEditingPhoneFor(member.id)
-    setPhoneNumber(member.phoneNumber ?? '')
-    setPhoneError(null)
-  }
-
-  async function savePhone(member: StaffMember) {
-    const validationError = validatePhone(phoneNumber)
-
-    if (validationError !== null) {
-      setPhoneError(validationError)
-      return
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase()
     }
-
-    await onUpdatePhone(member, phoneNumber.trim())
-    setEditingPhoneFor(null)
-    setPhoneNumber('')
-    setPhoneError(null)
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
   return (
@@ -62,11 +35,7 @@ export function StaffDirectory({
         <div>
           <p className="eyebrow">ORGANIZATION DIRECTORY</p>
           <h1>Team contacts</h1>
-          <p className="muted">
-            {canManage
-              ? 'Contact details for the people who work on this organization\'s cases. Membership roles and invitations are managed from Organizations.'
-              : 'View the staff directory and case assignment contacts.'}
-          </p>
+          <p className="muted">View the staff directory and case assignment contacts.</p>
         </div>
       </div>
 
@@ -94,90 +63,12 @@ export function StaffDirectory({
           <div className="directory-grid">
             {staff.map((member) => (
               <article className="directory-member" key={member.id}>
-                <span className="avatar">{member.fullName.slice(0, 2).toUpperCase()}</span>
+                <span className="avatar">{getInitials(member.fullName)}</span>
                 <div className="directory-member-content">
                   <strong>{member.fullName}</strong>
-                  <span>{member.email}</span>
+                  <span>{member.phoneNumber ?? 'No phone number'}</span>
                   <span className="role-badge">{member.organizationRole ?? 'Staff'}</span>
-                  {canManage && editingPhoneFor === member.id ? (
-                    <div className="phone-edit-form">
-                      <input
-                        aria-describedby={
-                          phoneError !== null ? `staff-phone-error-${member.id}` : undefined
-                        }
-                        aria-invalid={phoneError !== null}
-                        aria-label={`Phone number for ${member.fullName}`}
-                        autoFocus
-                        type="tel"
-                        maxLength={MAX_PHONE_LENGTH}
-                        placeholder="Phone number"
-                        value={phoneNumber}
-                        onChange={(event) => {
-                          setPhoneNumber(sanitizePhoneInput(event.target.value))
-                          setPhoneError(null)
-                        }}
-                      />
-                      <div className="phone-edit-actions">
-                        <button
-                          className="primary-button"
-                          disabled={loading || validatePhone(phoneNumber) !== null}
-                          onClick={() => void savePhone(member)}
-                          type="button"
-                        >
-                          <Icon className="button-icon" name="save" />
-                          <span>Save</span>
-                        </button>
-                        <button
-                          className="secondary-button"
-                          disabled={loading}
-                          onClick={() => setEditingPhoneFor(null)}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      {phoneError !== null && (
-                        <span
-                          className="field-error"
-                          id={`staff-phone-error-${member.id}`}
-                          role="alert"
-                        >
-                          {phoneError}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="contact-details">
-                      <span className="phone-number">
-                        {canManage
-                          ? member.phoneNumber ?? 'No phone number'
-                          : 'Contact details restricted'}
-                      </span>
-                      {canManage && (
-                        <button
-                          className="link-button"
-                          disabled={loading}
-                          onClick={() => startEditing(member)}
-                          type="button"
-                        >
-                          <Icon className="button-icon" name="edit" />
-                          <span>Edit</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <small className="status-badge">{member.isActive ? 'Active' : 'Inactive'}</small>
                 </div>
-                {canManage && (
-                  <button
-                    className="secondary-button compact-button"
-                    disabled={loading}
-                    onClick={() => setPendingStatusChange(member)}
-                    type="button"
-                  >
-                    {member.isActive ? 'Deactivate' : 'Reactivate'}
-                  </button>
-                )}
               </article>
             ))}
           </div>
@@ -186,21 +77,6 @@ export function StaffDirectory({
           onPageChange={(page) => onQueryChange({ ...query, page })}
           onPageSizeChange={(pageSize) => onQueryChange({ ...query, page: 1, pageSize })} />
       </section>
-      <ConfirmationDialog
-        open={pendingStatusChange !== null}
-        title={pendingStatusChange?.isActive ? 'Deactivate staff member?' : 'Reactivate staff member?'}
-        description={pendingStatusChange
-          ? `${pendingStatusChange.fullName} will ${pendingStatusChange.isActive ? 'no longer' : ''} have active staff access in this organization.`
-          : ''}
-        confirmLabel={pendingStatusChange?.isActive ? 'Deactivate' : 'Reactivate'}
-        destructive={pendingStatusChange?.isActive === true}
-        loading={loading}
-        onCancel={() => setPendingStatusChange(null)}
-        onConfirm={async () => {
-          if (pendingStatusChange) await onToggle(pendingStatusChange)
-          setPendingStatusChange(null)
-        }}
-      />
     </>
   )
 }
