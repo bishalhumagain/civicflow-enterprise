@@ -8,6 +8,16 @@ public static class AuthRoutes
     public const string Base = "api/auth";
 }
 
+/// <summary>
+/// Creates a citizen account. The password is submitted only for Identity to
+/// hash; it is never returned by the API.
+/// </summary>
+/// <param name="FullName">Required display name, up to 150 characters.</param>
+/// <param name="Email">Required email address, up to 254 characters.</param>
+/// <param name="PhoneNumber">Required phone number in the accepted phone format.</param>
+/// <param name="NidNumber">Required national identity number, up to 50 characters.</param>
+/// <param name="CitizenshipNumber">Required citizenship number, up to 50 characters.</param>
+/// <param name="Password">Required password of 12–128 characters, subject to Identity policy.</param>
 public sealed record RegisterRequest(
     [Required]
     [NotWhiteSpace]
@@ -33,6 +43,13 @@ public sealed record RegisterRequest(
     [StringLength(128, MinimumLength = 12)]
     string Password);
 
+/// <summary>
+/// Starts a session for the selected portal. The optional organization ID is a
+/// membership selector and is checked against the signed-in account.
+/// </summary>
+/// <param name="Email">Account email address.</param>
+/// <param name="Password">Account password.</param>
+/// <param name="OrganizationId">Optional organization identifier for staff with multiple memberships.</param>
 public sealed record LoginRequest(
     [Required]
     [EmailAddress]
@@ -41,8 +58,7 @@ public sealed record LoginRequest(
     [Required]
     [StringLength(128, MinimumLength = 1)]
     string Password,
-    [StringLength(64)]
-    string? OrganizationId = null);
+    [StringLength(64)] string? OrganizationId = null);
 
 /// <summary>
 /// The sign-in surface a request is bound to. Each portal accepts only the
@@ -103,13 +119,15 @@ public sealed record LoginOutcome(
         new(false, reason, code, message, Array.Empty<string>());
 }
 
+/// <summary>Confirms a citizen account using a one-time email token.</summary>
+/// <param name="Email">Email address associated with the account.</param>
+/// <param name="Token">One-time Identity confirmation token.</param>
 public sealed record VerifyEmailRequest(
     [Required]
     [EmailAddress]
     [StringLength(254)]
     string Email,
-    [Required]
-    string Token);
+    [Required] string Token);
 
 public sealed record ResendVerificationRequest(
     [Required]
@@ -117,12 +135,18 @@ public sealed record ResendVerificationRequest(
     [StringLength(254)]
     string Email);
 
+/// <summary>Requests a password-reset link without disclosing account existence.</summary>
+/// <param name="Email">Email address to which a reset link may be sent.</param>
 public sealed record ForgotPasswordRequest(
     [Required]
     [EmailAddress]
     [StringLength(254)]
     string Email);
 
+/// <summary>Changes an account password using a one-time reset token.</summary>
+/// <param name="Email">Email address associated with the account.</param>
+/// <param name="Token">One-time Identity password-reset token.</param>
+/// <param name="NewPassword">New password of 12–128 characters, subject to Identity policy.</param>
 public sealed record ResetPasswordRequest(
     [Required]
     [EmailAddress]
@@ -135,6 +159,9 @@ public sealed record ResetPasswordRequest(
     [StringLength(128, MinimumLength = 12)]
     string NewPassword);
 
+/// <summary>Changes the password of the currently authenticated account.</summary>
+/// <param name="CurrentPassword">The account's current password.</param>
+/// <param name="NewPassword">New password of 12–128 characters, subject to Identity policy.</param>
 public sealed record ChangePasswordRequest(
     [Required]
     [StringLength(128, MinimumLength = 1)]
@@ -149,6 +176,10 @@ public sealed record ChangePasswordRequest(
 /// </summary>
 public sealed record AuthOperationResult(bool Succeeded, string Message);
 
+/// <summary>
+/// Safe account and authorization details for the currently authenticated
+/// caller. It contains no credentials or bearer tokens.
+/// </summary>
 public sealed record CurrentUserResponse(
     Guid Id,
     string FullName,

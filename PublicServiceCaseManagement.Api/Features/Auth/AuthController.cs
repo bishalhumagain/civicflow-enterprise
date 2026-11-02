@@ -13,6 +13,7 @@ using PublicServiceCaseManagement.Api.Features.Invitations.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Auth;
 
+/// <summary>Authentication, self-service identity, and personal-token endpoints.</summary>
 [ApiController]
 [Route(AuthRoutes.Base)]
 public sealed class AuthController(
@@ -331,6 +332,14 @@ public sealed class AuthController(
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>
+    /// Returns the account identified by the validated authentication
+    /// principal; the caller cannot select a different user ID.
+    /// </summary>
+    /// <remarks>
+    /// The API derives the account ID from the authenticated principal and
+    /// rechecks current account state; no arbitrary user ID is accepted.
+    /// </remarks>
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<CurrentUserResponse>> Me(

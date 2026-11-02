@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               onClick={() => removeToast(toast.id)}
               aria-label="Close notification"
               data-tooltip="Dismiss notification"
-              title="Dismiss notification"
+              data-tooltip-position="end"
             >
               <Icon className="app-icon" name="x" />
             </button>

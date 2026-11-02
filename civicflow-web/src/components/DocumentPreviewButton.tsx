@@ -73,9 +73,10 @@ export function DocumentPreviewButton({
       <button
         aria-label={`Preview ${document.originalFileName}`}
         className="icon-button document-preview-button"
+        data-tooltip={`Preview ${document.originalFileName}`}
+        data-tooltip-position="end"
         disabled={loading}
         onClick={() => void preview()}
-        title={`Preview ${document.originalFileName}`}
         type="button"
       >
         <Icon name="eye" />

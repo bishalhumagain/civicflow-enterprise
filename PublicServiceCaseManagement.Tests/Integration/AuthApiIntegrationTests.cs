@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -12,7 +13,6 @@ using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 using Xunit;
 using PublicServiceCaseManagement.Api.Features.Auth.Contracts;
-
 using PublicServiceCaseManagement.Tests.Support;
 
 namespace PublicServiceCaseManagement.Tests.Integration;
@@ -648,5 +648,40 @@ public sealed class AuthApiIntegrationTests
         Assert.NotNull(me);
         Assert.Equal("citizen", Assert.Single(me!.Roles));
         Assert.Equal("None", me.PlatformRole);
+    }
+
+    [Fact]
+    public async Task SwaggerDocument_DescribesCurrentUserAndRegistrationSchema()
+    {
+        await using var factory = new CivicFlowApiFactory();
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/swagger/v1/swagger.json");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(stream);
+
+        var currentUserOperation = document.RootElement
+            .GetProperty("paths")
+            .GetProperty("/api/auth/me")
+            .GetProperty("get");
+        Assert.Contains(
+            "Returns the account identified by",
+            currentUserOperation.GetProperty("summary").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "The API derives the account ID",
+            currentUserOperation.GetProperty("description").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+
+        var registrationSchema = document.RootElement
+            .GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty("RegisterRequest");
+        Assert.Contains(
+            "Creates a citizen account",
+            registrationSchema.GetProperty("description").GetString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

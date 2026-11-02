@@ -82,7 +82,6 @@ export function OrganizationAdministration({
   onResendInvitation: (invitationId: string) => Promise<void>
   onRevokeInvitation: (invitationId: string) => Promise<void>
 }) {
-  // ── Organizations tab state ────────────────────────────────────────────
   const [editingOrg, setEditingOrg] = useState<string | null>(null)
   const [editedName, setEditedName] = useState('')
   const [editedCode, setEditedCode] = useState('')
@@ -92,11 +91,9 @@ export function OrganizationAdministration({
   const [newOrgCode, setNewOrgCode] = useState('')
   const [newOrgTypeId, setNewOrgTypeId] = useState('')
 
-  // ── Shared organization-type catalogue (used by orgs tab + types tab) ──
   const [organizationTypes, setOrganizationTypes] = useState<OrganizationType[]>([])
   const [typesLoading, setTypesLoading] = useState(canManageOrganizations)
 
-  // ── Organization types tab state ───────────────────────────────────────
   const [showTypeForm, setShowTypeForm] = useState(false)
   const [newTypeName, setNewTypeName] = useState('')
   const [newTypeCode, setNewTypeCode] = useState('')
@@ -104,7 +101,6 @@ export function OrganizationAdministration({
   const [editedTypeName, setEditedTypeName] = useState('')
   const [editedTypeCode, setEditedTypeCode] = useState('')
 
-  // ── Members & invitations tab state ────────────────────────────────────
   const [filterTypeId, setFilterTypeId] = useState('')
   const [filterOrgId, setFilterOrgId] = useState('')
 
@@ -165,7 +161,6 @@ export function OrganizationAdministration({
     }
   }
 
-  // ── Organizations handlers ─────────────────────────────────────────────
   async function handleCreateOrganization(e: React.FormEvent) {
     e.preventDefault()
 
@@ -290,7 +285,6 @@ export function OrganizationAdministration({
     })
   }
 
-  // ── Organization type handlers ─────────────────────────────────────────
   async function handleCreateType(e: React.FormEvent) {
     e.preventDefault()
 
@@ -387,7 +381,6 @@ export function OrganizationAdministration({
     })
   }
 
-  // ── Members & invitations filter handlers ──────────────────────────────
   function applyMembersFilter() {
     if (filterOrgId) {
       selectOrganization(filterOrgId)
@@ -402,7 +395,6 @@ export function OrganizationAdministration({
     selectOrganization('')
   }
 
-  // ── Tab strip ──────────────────────────────────────────────────────────
   function renderTabs() {
     if (!canManageOrganizations) return null
 
@@ -430,7 +422,6 @@ export function OrganizationAdministration({
     )
   }
 
-  // ── Organizations tab body ─────────────────────────────────────────────
   function renderOrganizationsBody() {
     return (
       <section className="case-card admin-panel">
@@ -667,7 +658,6 @@ export function OrganizationAdministration({
     )
   }
 
-  // ── Organization types tab body ────────────────────────────────────────
   function renderTypesBody() {
     return (
       <section className="case-card admin-panel">
@@ -873,7 +863,6 @@ export function OrganizationAdministration({
     )
   }
 
-  // ── Members & invitations tab body ─────────────────────────────────────
   function renderMembersBody() {
     return (
       <>

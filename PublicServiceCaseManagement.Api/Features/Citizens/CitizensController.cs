@@ -5,6 +5,7 @@ using PublicServiceCaseManagement.Api.Features.Citizens.Services;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
 
+/// <summary>Self-service citizen profile endpoints for the authenticated citizen.</summary>
 [ApiController]
 [Authorize(Policy = "CitizenClient")]
 [Route("api/citizens")]
@@ -12,6 +13,7 @@ public sealed class CitizensController(
     ICitizenProfileService citizenProfileService,
     IAuthenticatedOrganizationResolver organizationResolver) : ControllerBase
 {
+    /// <summary>Returns the citizen profile belonging to the authenticated account.</summary>
     [HttpGet("me")]
     public async Task<ActionResult<CitizenProfileResponse>> GetMe(
         CancellationToken cancellationToken)
@@ -32,6 +34,7 @@ public sealed class CitizensController(
         return Ok(profile);
     }
 
+    /// <summary>Creates or updates the authenticated citizen's profile.</summary>
     [HttpPost("me")]
     public async Task<ActionResult<CitizenProfileResponse>> CreateOrUpdateMe(
         CreateCitizenProfileRequest request,
@@ -81,6 +84,7 @@ public sealed class CitizensController(
         }
     }
 
+    /// <summary>Updates the authenticated citizen's profile.</summary>
     [HttpPut("me")]
     public async Task<ActionResult<CitizenProfileResponse>> UpdateMe(
         UpdateCitizenProfileRequest request,

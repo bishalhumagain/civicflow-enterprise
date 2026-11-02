@@ -17,7 +17,7 @@ This document records the verification evidence for CivicFlow Enterprise. It des
 
 ## Automated Test Coverage
 
-The automated suite contains 518 tests. Most use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie, PAT, and JWT bearer flows. Four PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. A nine-test Playwright/Chromium suite exercises the citizen and staff tracking journeys plus field validation, password-recovery validation, and normalization against a disposable PostgreSQL database. The default `dotnet test` run reports 514 passed and 4 skipped.
+Most backend tests use EF Core InMemory and a synthetic authentication handler; a subset exercises the real ASP.NET Core Identity cookie, PAT, and JWT bearer flows. PostgreSQL row-level-security tests are opt-in and report as skipped unless disposable connection strings are supplied. Playwright/Chromium journeys exercise citizen and staff workflows against a disposable PostgreSQL database. Use the current test-run output for counts; they change as coverage is added.
 
 ### Authentication lifecycle
 
@@ -322,7 +322,7 @@ npm run test:e2e
 
 `CIVICFLOW_E2E_API_URL` and `CIVICFLOW_E2E_WEB_URL` override the API and frontend URLs when the defaults differ. The suite seeds its own confirmed accounts and organization, uses a fixed disposable-only password, and must never be pointed at a persistent or production database. Generated reports and failure traces are gitignored.
 
-Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. The Development placeholder logs only that delivery is unavailable and throws; it never logs recipients, subjects, bodies, or action tokens.
+Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. The Development placeholder suppresses delivery and logs only a generic warning; it never logs recipients, subjects, bodies, or action tokens.
 
 > Do not run the migration command against a persistent or production database. Do not put database passwords, email credentials, or any tokens in the repository, test output, or documentation.
 

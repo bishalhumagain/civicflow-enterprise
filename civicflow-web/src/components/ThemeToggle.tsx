@@ -11,7 +11,6 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       className={compact ? 'theme-toggle compact' : 'theme-toggle'}
       data-tooltip={compact ? label : undefined}
       onClick={toggleTheme}
-      title={label}
       type="button"
     >
       <Icon name={theme === 'dark' ? 'sun' : 'moon'} />

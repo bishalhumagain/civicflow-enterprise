@@ -4,11 +4,14 @@ using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Cases.Contracts;
 
+/// <summary>Requests a valid case status transition.</summary>
 public sealed class ChangeCaseStatusRequest
 {
+    /// <summary>Target status value.</summary>
     [EnumDataType(typeof(CaseStatus))]
     public CaseStatus NewStatus { get; init; }
 
+    /// <summary>Optional explanation, bounded by the case-history limit.</summary>
     [TrimmedStringLength(CaseStatusHistory.MaximumExplanationLength)]
     public string? Explanation { get; init; }
 

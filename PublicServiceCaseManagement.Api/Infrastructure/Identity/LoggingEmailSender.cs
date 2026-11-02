@@ -1,8 +1,8 @@
 namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
 
 /// <summary>
-/// Development placeholder that writes one-time links to the local log
-/// instead of delivering email.
+/// Development placeholder that suppresses email delivery without logging
+/// message content or recipient information.
 /// </summary>
 public sealed class LoggingEmailSender(
     ILogger<LoggingEmailSender> logger) : IEmailSender
@@ -16,10 +16,7 @@ public sealed class LoggingEmailSender(
         cancellationToken.ThrowIfCancellationRequested();
 
         logger.LogWarning(
-            "DEVELOPMENT ONLY: one-time email action link for {Email}. Do not share or retain this log.{NewLine}{Body}",
-            toEmail,
-            Environment.NewLine,
-            body);
+            "DEVELOPMENT ONLY: email delivery is suppressed; no message content was logged.");
         return Task.CompletedTask;
     }
 }

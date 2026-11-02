@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
@@ -11,6 +10,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
 
 namespace PublicServiceCaseManagement.Api.Features.Organizations;
 
+/// <summary>Organization directory and authenticated staff membership endpoints.</summary>
 [ApiController]
 [Authorize(Policy = "StaffClient")]
 [Route("api/organizations")]
@@ -90,6 +90,7 @@ public sealed class OrganizationsController(
             result.TotalPages));
     }
 
+    /// <summary>Returns active organization memberships belonging to the authenticated staff account.</summary>
     [HttpGet("me")]
     public async Task<ActionResult<IReadOnlyList<OrganizationWorkspaceOption>>>
         GetMyMemberships(CancellationToken cancellationToken)

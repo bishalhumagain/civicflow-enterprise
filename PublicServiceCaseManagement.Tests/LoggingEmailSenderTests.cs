@@ -6,7 +6,7 @@ namespace PublicServiceCaseManagement.Tests;
 public sealed class LoggingEmailSenderTests
 {
     [Fact]
-    public async Task SendAsync_LogsOneTimeActionLinkForDevelopment()
+    public async Task SendAsync_DoesNotLogRecipientOrOneTimeActionLink()
     {
         const string actionLink = "https://localhost/verify?token=development-only-token";
         var logger = new RecordingLogger<LoggingEmailSender>();
@@ -21,8 +21,10 @@ public sealed class LoggingEmailSenderTests
 
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains("DEVELOPMENT ONLY", entry.Message);
-        Assert.Contains("citizen@example.com", entry.Message);
-        Assert.Contains(actionLink, entry.Message);
+        Assert.DoesNotContain("citizen@example.com", entry.Message);
+        Assert.DoesNotContain("Confirm your email address", entry.Message);
+        Assert.DoesNotContain(actionLink, entry.Message);
+        Assert.DoesNotContain("development-only-token", entry.Message);
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

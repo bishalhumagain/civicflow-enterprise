@@ -1,4 +1,3 @@
-
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
@@ -73,6 +72,28 @@ builder.Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc(
+        "v1",
+        new Microsoft.OpenApi.OpenApiInfo
+        {
+            Title = "CivicFlow Enterprise API",
+            Version = "v1",
+            Description =
+                "API for citizen case intake and organization case management. " +
+                "Browser sessions use ASP.NET Core Identity cookies and CSRF " +
+                "protection; API clients may use a personal access token or a " +
+                "short-lived JWT. The Schemas section documents reusable " +
+                "request and response DTOs, including their validation rules."
+        });
+
+    var xmlDocumentationPath = Path.Combine(
+        AppContext.BaseDirectory,
+        $"{typeof(Program).Assembly.GetName().Name}.xml");
+    if (File.Exists(xmlDocumentationPath))
+        options.IncludeXmlComments(
+            xmlDocumentationPath,
+            includeControllerXmlComments: true);
+
     options.AddSecurityDefinition(
         "Bearer",
         new Microsoft.OpenApi.OpenApiSecurityScheme

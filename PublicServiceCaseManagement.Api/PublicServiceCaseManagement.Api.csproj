@@ -4,6 +4,8 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
         <UserSecretsId>8b5fe5bd-a7c6-4383-9605-0cadf115df27</UserSecretsId>
         <AssemblyTitle>CivicFlow Enterprise API</AssemblyTitle>
         <Product>CivicFlow Enterprise</Product>

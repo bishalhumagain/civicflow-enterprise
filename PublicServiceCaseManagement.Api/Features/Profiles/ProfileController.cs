@@ -23,6 +23,7 @@ public sealed class ProfileController(
     IOrganizationTransactionContext organizationTransactionContext,
     IBusinessEndpointAccess businessEndpointAccess) : ControllerBase
 {
+    /// <summary>Returns the profile resolved from the authenticated principal.</summary>
     [HttpGet("me")]
     public async Task<ActionResult<ProfileResponse>> GetMe(
         CancellationToken cancellationToken)
@@ -40,6 +41,7 @@ public sealed class ProfileController(
         return profile is null ? NotFound() : Ok(profile);
     }
 
+    /// <summary>Updates only the profile fields the authenticated account may maintain.</summary>
     [HttpPut("me")]
     public async Task<ActionResult<ProfileResponse>> UpdateMe(
         [FromBody] UpdateProfileRequest request,

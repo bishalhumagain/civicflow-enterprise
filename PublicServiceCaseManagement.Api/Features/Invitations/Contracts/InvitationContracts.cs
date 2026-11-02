@@ -3,6 +3,11 @@ using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 
 namespace PublicServiceCaseManagement.Api.Features.Invitations.Contracts;
 
+/// <summary>Creates a single-use invitation for an organization membership.</summary>
+/// <param name="FullName">Required invitee display name, up to 150 characters.</param>
+/// <param name="Email">Required invitee email address, up to 254 characters.</param>
+/// <param name="PhoneNumber">Optional invitee phone number in the accepted phone format.</param>
+/// <param name="Role">Organization role permitted for the authenticated inviter.</param>
 public sealed record CreateInvitationRequest(
     [Required]
     [NotWhiteSpace]
@@ -12,13 +17,13 @@ public sealed record CreateInvitationRequest(
     [EmailAddress]
     [StringLength(254)]
     string Email,
-    [PhoneNumber]
-    string? PhoneNumber,
+    [PhoneNumber] string? PhoneNumber,
     [Required]
     [NotWhiteSpace]
     [StringLength(32)]
     string Role);
 
+/// <summary>Invitation metadata; the raw invitation token is never returned.</summary>
 public sealed record InvitationResponse(
     Guid Id,
     Guid OrganizationId,
@@ -41,11 +46,16 @@ public sealed record InvitationDetailsResponse(
     string Role,
     DateTimeOffset ExpiresAt);
 
+/// <summary>Resolves safe invitation details from a one-time invitation token.</summary>
+/// <param name="Token">Opaque token from the invitation link; never a user or organization ID.</param>
 public sealed record InvitationLookupRequest(
     [Required]
     [StringLength(200, MinimumLength = 16)]
     string Token);
 
+/// <summary>Accepts a valid single-use invitation and sets the invitee's password.</summary>
+/// <param name="Token">Opaque token from the invitation link.</param>
+/// <param name="Password">Chosen password of 12–128 characters, subject to Identity policy.</param>
 public sealed record AcceptInvitationRequest(
     [Required]
     [StringLength(200, MinimumLength = 16)]

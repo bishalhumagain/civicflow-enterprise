@@ -1847,8 +1847,6 @@ function App() {
                     {navigationItems.map((item) => (
                         <button
                             aria-current={activeView === item.view ? 'page' : undefined}
-                            data-tooltip={item.label}
-                            title={item.label}
                             className={activeView === item.view ? 'active' : ''}
                             key={item.view}
                             onClick={() => navigateToWorkspaceView(item.view)}

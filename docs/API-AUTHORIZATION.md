@@ -311,6 +311,157 @@ The worker accepts only the registered `notification.email` type and looks up th
   authenticated administrator and retain the invitee address in event details;
   membership transfers emit events for both organizations.
 
+## Current-user (`/me`) endpoints
+
+`me` means the identity already authenticated on this request. It is not a
+placeholder for a user ID and cannot be changed to select another account.
+The authentication handler validates the Identity cookie, personal access
+token, or JWT; the API then reads the user's identifier from the validated
+principal and rechecks the active account and current roles. Organization
+membership is resolved from the database, not trusted from a role or
+organization value supplied by the browser.
+
+| Method and path | Meaning of `me` | Access |
+|---|---|---|
+| `GET /api/auth/me` | Safe account, role, and permission summary for the caller | Any authenticated account |
+| `GET /api/profile/me` | Caller-managed citizen or staff profile | Citizen or staff; business-endpoint gate applies |
+| `PUT /api/profile/me` | Updates only the caller's permitted profile fields | Citizen or staff; business-endpoint gate and CSRF apply to cookie clients |
+| `GET /api/citizens/me` | Citizen profile attached to the caller's Identity account | Citizen |
+| `POST /api/citizens/me` | Creates or updates that citizen profile | Citizen; CSRF applies to cookie clients |
+| `PUT /api/citizens/me` | Updates that citizen profile | Citizen; CSRF applies to cookie clients |
+| `GET /api/organizations/me` | Active organization memberships of the signed-in staff account | Staff; business-endpoint gate applies |
+
+For example, `GET /api/profile/me` has no user ID in the path or query. A
+successful response contains profile information for the authenticated
+principal only:
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000001",
+  "fullName": "Example User",
+  "email": "user@example.test",
+  "emailConfirmed": true,
+  "accountType": "Citizen",
+  "roles": ["citizen"],
+  "organizationId": null,
+  "organizationName": null,
+  "organizationRole": null
+}
+```
+
+The actual profile response also includes the applicable optional contact
+fields and update timestamp. The exact fields are described by `ProfileResponse`
+in Swagger's Schemas section. Use these self-service routes rather than
+accepting an arbitrary user ID: this prevents callers from asking the API to
+read or edit another account's profile.
+
+## Routes without a resource ID
+
+A route without a final resource ID is intentional when the action is scoped
+to the authenticated account, operates on a collection, creates a new
+resource, or takes its target from a validated body or query filter. The full
+method, path, input, and authorization inventory above is authoritative; this
+section explains how to interpret the main route families.
+
+| Route family | Where the target comes from | Example and behavior |
+|---|---|---|
+| `GET /api/health`, `GET /api/health/ready`, `GET /api/config/public` | Service-wide status or safe public configuration | No identity or request body is needed. Readiness reports `503` if PostgreSQL is unavailable. |
+| `/api/auth/*` login, registration, recovery, logout, CSRF, and token exchange routes | Credentials or one-time invitation/recovery token in the request body; otherwise the authenticated principal | `POST /api/auth/login` takes `LoginRequest`; `POST /api/auth/logout` invalidates the caller's session; neither route accepts a target user ID. |
+| `GET /api/auth/me`, `/api/profile/me`, `/api/citizens/me`, `/api/organizations/me` | Validated authenticated principal and server-side account/membership lookup | These return only the caller's data, as described above. |
+| `GET` collection routes such as `/api/cases`, `/api/citizens/cases`, `/api/organizations`, `/api/staff`, `/api/platform/cases`, and `/api/notifications` | Authorized collection scope, optionally narrowed by query parameters | Example: `GET /api/citizens/cases?page=1&pageSize=20&status=UnderReview` returns only the caller's cases. |
+| `POST /api/cases`, `POST /api/organizations`, and `POST /api/citizens/cases` | A new resource is created from the validated request body; identity and permitted organization scope are derived server-side | Staff case creation uses `CreateCaseRequest`; citizen intake uses multipart `CitizenCreateCaseRequest`, including its selected organization ID, which is independently validated. The response supplies the new case ID. |
+| `POST /api/notifications/read` | All unread, unexpired notifications belonging to the caller | The body is empty; it is a collection action and cannot affect another user's notifications. |
+| `GET /api/dashboard/organization` | The authenticated user's selected active membership; an optional `organizationId` query value is accepted only if it matches | The query value is a selector, not authority to read another organization's statistics. |
+| `POST /api/auth/invitations/lookup` and `POST /api/auth/invitations/accept` | A single-use invitation token in the request body | The token identifies the pending invitation; it is validated for expiry, revocation, and prior use. |
+| `POST /api/organizations/{organizationId}/memberships` and `/invitations` | The organization is identified in the parent route; the request body identifies the requested membership/invite details | The administrator must be authorized for that organization. The route has no membership or invitation ID because it creates one. |
+
+Example collection request and response shape:
+
+```http
+GET /api/notifications?page=1&pageSize=20&unreadOnly=true
+```
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 0,
+  "unreadCount": 0
+}
+```
+
+Example creation route: the request body supplies the new organization
+attributes; the response supplies its generated route ID. Only a
+SuperAdmin can call this endpoint.
+
+```http
+POST /api/organizations
+Content-Type: application/json
+
+{"name":"Example Public Services","code":"EXAMPLE","organizationTypeId":null}
+```
+
+```http
+201 Created
+Location: /api/organizations/00000000-0000-0000-0000-000000000002
+```
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000002",
+  "name": "Example Public Services",
+  "code": "EXAMPLE",
+  "organizationTypeId": "00000000-0000-0000-0000-000000000003",
+  "organizationTypeName": "Uncategorized",
+  "isActive": true,
+  "createdAt": "2025-01-15T10:30:00Z",
+  "updatedAt": "2025-01-15T10:30:00Z"
+}
+```
+
+Example user-scoped collection action: the request has no body and can mark
+only the authenticated user's unread notifications as read.
+
+```http
+POST /api/notifications/read
+
+200 OK
+```
+
+```json
+{"updatedCount":2}
+```
+
+For body-based writes, request DTO validation is applied before feature logic.
+For cookie-authenticated unsafe methods, include the antiforgery cookie and
+`X-CSRF-TOKEN` request header; bearer requests use the existing non-ambient
+bearer scheme. No route shape removes authentication, authorization, tenant
+resolution, or resource-level checks.
+
+## Swagger Schemas
+
+Swagger's **Schemas** section describes reusable request and response DTOs. It
+does not expose database entities or grant additional API access. Operations
+refer to these models to document their JSON body and response shape.
+
+| Workflow | Representative schemas | Purpose and important validation |
+|---|---|---|
+| Registration and authentication | `RegisterRequest`, `LoginRequest`, `ResetPasswordRequest`, `ChangePasswordRequest`, `CurrentUserResponse` | Registration requires name, email, phone, identity numbers, and a password of 12–128 characters; Identity enforces the effective password policy. Login and recovery models carry credentials or one-time tokens only in request bodies. `CurrentUserResponse` contains safe identity and permission information, never credentials. |
+| Profiles | `ProfileResponse`, `UpdateProfileRequest`, `CitizenProfileResponse`, `CreateCitizenProfileRequest`, `UpdateCitizenProfileRequest` | Self-service profile updates exclude account role and organization membership. Optional contact and demographic fields are validated against their declared lengths and ranges. |
+| Organizations and memberships | `CreateOrganizationRequest`, `UpdateOrganizationRequest`, `OrganizationResponse`, `CreateOrganizationMembershipRequest`, `ChangeOrganizationMembershipRoleRequest`, `CreateInvitationRequest` | Organization and membership IDs identify existing records only where the route requires them. Role values are restricted by backend policy; Organization Admins cannot grant platform roles or promote other users to Organization Admin. |
+| Cases and updates | `CreateCaseRequest`, `CitizenCreateCaseRequest`, `UpdateCaseRequest`, `ChangeCaseStatusRequest`, `AddCaseUpdateRequest`, `CitizenCaseDetails` | Case titles, descriptions, status, priority, update messages, and upload metadata are validated. Citizen intake is multipart and validates the selected active organization; citizen case responses are scoped to the caller's own case. |
+| Documents | `CaseDocumentResponse`, `CitizenCaseDocument`, `PlatformCaseDocumentResponse` | Metadata responses do not disclose storage keys or local file paths. File streams are returned only through the corresponding authorized document route. |
+| Notifications and background jobs | `NotificationPageResponse`, `NotificationResponse`, `BackgroundJobPageResponse`, `BackgroundJobDetailsResponse` | Notification lists are limited to the caller. Job details omit raw payloads and stack traces; administrative routes require platform authorization. |
+
+Required fields, enum values, maximum lengths, ranges, and request/response
+examples are shown on the operation or schema where available. `[Required]`,
+email, phone, string-length, range, trimmed-string, and file validation
+attributes are part of the actual contracts; database constraints provide
+additional validation for selected persisted values. A field marked nullable
+or optional may be omitted or set to `null` only where its contract permits.
+Treat response-only schemas as output contracts, not writable database models.
+
 ## Known Contract Limitations
 
 - Error response envelopes are not fully normalized: framework validation
@@ -323,9 +474,10 @@ The worker accepts only the registered `notification.email` type and looks up th
   magic-signature checks for declared PDF/PNG/JPEG/GIF types. Arbitrary other
   types remain allowed, and malware scanning is not implemented. Citizens cannot edit a submitted case or add attachments
   after submission.
-- The email sender is secure by default but requires SMTP configuration outside
-  Development; see the README deployment settings. Development logs no message
-  body or action token and fails explicitly when delivery is attempted.
+- Development email is suppressed; the sender logs neither recipients, subjects,
+  message bodies, nor one-time action links. Configure SMTP outside Development
+  for actual delivery. Authentication integration tests use an in-memory email
+  capture service.
 - PostgreSQL worker claim, SMTP delivery, and lease recovery require a live
   PostgreSQL instance and SMTP relay; EF InMemory tests do not exercise that
   provider-specific execution path.

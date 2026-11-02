@@ -22,7 +22,6 @@ public sealed class StaffController(
     IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
-    // Platform admin endpoint to manage staff across all organizations
     [HttpGet("platform")]
     [Authorize(Policy = AppRoles.SuperAdminPolicy)]
     public async Task<IActionResult> GetAllPlatformStaff(

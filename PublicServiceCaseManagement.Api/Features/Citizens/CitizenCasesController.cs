@@ -14,7 +14,6 @@ using PublicServiceCaseManagement.Api.Infrastructure.Validation;
 using PublicServiceCaseManagement.Api.Features.Cases.Contracts;
 using PublicServiceCaseManagement.Api.Features.Cases.Services;
 using PublicServiceCaseManagement.Api.Features.Organizations.Services;
-
 using PublicServiceCaseManagement.Api.Domain.Common;
 
 namespace PublicServiceCaseManagement.Api.Features.Citizens;
@@ -511,11 +510,17 @@ public sealed class CitizenCasesController(
             document.IsVisibleToCitizen);
 }
 
+/// <summary>
+/// Multipart citizen case-intake request. The API verifies that the selected
+/// organization is active and accepts public submissions.
+/// </summary>
 public sealed class CitizenCreateCaseRequest
 {
+    /// <summary>Active organization to which the citizen is submitting this case.</summary>
     [NotEmptyGuid]
     public Guid OrganizationId { get; init; }
 
+    /// <summary>Required trimmed case title within the domain's title limit.</summary>
     [Required]
     [NotWhiteSpace]
     [TrimmedStringLength(
@@ -523,6 +528,7 @@ public sealed class CitizenCreateCaseRequest
         MinimumLength = Case.MinimumTitleLength)]
     public string Title { get; init; } = string.Empty;
 
+    /// <summary>Required trimmed description within the domain's description limit.</summary>
     [Required]
     [NotWhiteSpace]
     [TrimmedStringLength(
@@ -530,9 +536,11 @@ public sealed class CitizenCreateCaseRequest
         MinimumLength = Case.MinimumDescriptionLength)]
     public string Description { get; init; } = string.Empty;
 
+    /// <summary>Optional supporting document, limited by the intake upload policy.</summary>
     public IFormFile? AdditionalDocument { get; init; }
 }
 
+/// <summary>Citizen-visible message sent by the authenticated case owner.</summary>
 public sealed class CitizenCaseResponseRequest
 {
     [Required]
