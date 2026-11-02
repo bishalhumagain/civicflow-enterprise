@@ -1849,3 +1849,48 @@ select:not([multiple]) {
     grid-template-columns: minmax(80px, .8fr) minmax(0, 1.2fr);
   }
 }
+
+.directory-member {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.directory-member > div {
+  min-width: 0;
+}
+
+.directory-member > button {
+  justify-self: end;
+}
+
+.notification-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.notification-list li > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notification-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .directory-member {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .directory-member > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

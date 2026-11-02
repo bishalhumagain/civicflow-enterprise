@@ -150,29 +150,34 @@ export function NotificationCenter({ onOpenCase }: { onOpenCase?: (caseId: strin
                     <p>{item.message}</p>
                     <small>{formatDateTime(item.createdAt)}</small>
                   </div>
-                  {!item.isRead && (
-                    <button
-                      aria-label={`Mark ${item.title} as read`}
-                      className="document-link"
-                      onClick={() => void markRead(item.id)}
-                      type="button"
-                    >
-                      Mark read
-                    </button>
-                  )}
-                  {item.relatedEntityType === 'Case' && item.relatedEntityId && onOpenCase && (
-                    <button
-                      className="document-link"
-                      onClick={() => {
-                        const caseId = item.relatedEntityId
-                        if (!caseId) return
-                        if (!item.isRead) void markRead(item.id)
-                        onOpenCase(caseId)
-                      }}
-                      type="button"
-                    >
-                      Open case
-                    </button>
+                  {(!item.isRead ||
+                    (item.relatedEntityType === 'Case' && item.relatedEntityId && onOpenCase)) && (
+                    <div className="notification-actions">
+                      {!item.isRead && (
+                        <button
+                          aria-label={`Mark ${item.title} as read`}
+                          className="document-link"
+                          onClick={() => void markRead(item.id)}
+                          type="button"
+                        >
+                          Mark read
+                        </button>
+                      )}
+                      {item.relatedEntityType === 'Case' && item.relatedEntityId && onOpenCase && (
+                        <button
+                          className="document-link"
+                          onClick={() => {
+                            const caseId = item.relatedEntityId
+                            if (!caseId) return
+                            if (!item.isRead) void markRead(item.id)
+                            onOpenCase(caseId)
+                          }}
+                          type="button"
+                        >
+                          Open case
+                        </button>
+                      )}
+                    </div>
                   )}
                 </li>
               ))}

@@ -19,7 +19,7 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
             httpContext.Request.Path.StartsWithSegments(
                 "/swagger",
                 StringComparison.OrdinalIgnoreCase)
-                ? "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+                ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
                   "style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
                   "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
                 : "default-src 'none'; frame-ancestors 'none'";

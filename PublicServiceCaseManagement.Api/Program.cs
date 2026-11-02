@@ -61,6 +61,13 @@ builder.Services.Configure<ApplicationConfiguration>(
 
 var isDevelopment = builder.Environment.IsDevelopment();
 
+if (isDevelopment)
+{
+    builder.Logging.AddFilter(
+        "Microsoft.EntityFrameworkCore.Database.Command",
+        LogLevel.Warning);
+}
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
@@ -602,12 +609,14 @@ var app = builder.Build();
 
 await IdentityDataSeeder.SeedAsync(app.Services);
 
+app.UseCors();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
@@ -619,7 +628,7 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "CivicFlow API v1");
         options.UseRequestInterceptor(
             """
-            async (request) => {
+            (request) => {
                 const method = (request.method || "GET").toUpperCase();
                 if (["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)) {
                     return request;
@@ -631,29 +640,30 @@ if (app.Environment.IsDevelopment())
                     return request;
                 }
 
-                const response = await fetch("/api/auth/csrf", {
+                return fetch("/api/auth/csrf", {
                     credentials: "same-origin",
                     headers: { Accept: "application/json" }
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Unable to obtain an anti-forgery token for Swagger UI.");
+                    }
+
+                    return response.json();
+                }).then(({ token }) => {
+                    if (!token) {
+                        throw new Error("The anti-forgery endpoint did not return a token.");
+                    }
+
+                    request.headers = request.headers || {};
+                    request.headers["X-CSRF-TOKEN"] = token;
+                    return request;
                 });
-                if (!response.ok) {
-                    throw new Error("Unable to obtain an anti-forgery token for Swagger UI.");
-                }
-
-                const { token } = await response.json();
-                if (!token) {
-                    throw new Error("The anti-forgery endpoint did not return a token.");
-                }
-
-                request.headers = request.headers || {};
-                request.headers["X-CSRF-TOKEN"] = token;
-                return request;
             }
             """);
     });
 }
 
 app.UseRateLimiter();
-app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();

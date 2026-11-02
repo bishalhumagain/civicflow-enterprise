@@ -251,9 +251,14 @@ function App() {
     const citizenAccess = canUsePortal(currentUser, 'citizen')
     const organizationAccess = canUsePortal(currentUser, 'organization')
     const platformAdminAccess = canUsePortal(currentUser, 'platform-admin')
-    const organizationAdminAccess = workspaceOrganizations.some(
-        (organization) => organization.role === 'OrganizationAdmin',
-    )
+    const organizationAdminAccess = activeOrganization?.role === 'OrganizationAdmin'
+    const administrationOrganizationId = platformAdminAccess
+        ? organizations.some((organization) => organization.id === selectedOrganizationId)
+            ? selectedOrganizationId
+            : ''
+        : organizationAdminAccess
+            ? activeOrganization.id
+            : ''
 
     const availableViews = useMemo<WorkspaceView[]>(() => {
         if (!currentUser) return []
@@ -400,6 +405,9 @@ function App() {
                 if (firstMembership) {
                     setRequestOrganizationId(firstMembership.id)
                     setOrganizationId(firstMembership.id)
+                    if (!platformAdminAccess) {
+                        setSelectedOrganizationId(firstMembership.id)
+                    }
                 } else {
                     setError('This account has no active organization membership. Contact an administrator.')
                 }
@@ -419,13 +427,16 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, organizationAccess, organizationRetryVersion])
+    }, [currentUser, organizationAccess, platformAdminAccess, organizationRetryVersion])
 
     function selectWorkspaceOrganization(nextOrganizationId: string) {
         if (!workspaceOrganizations.some((item) => item.id === nextOrganizationId)) return
 
         setRequestOrganizationId(nextOrganizationId)
         setOrganizationId(nextOrganizationId)
+        if (!platformAdminAccess) {
+            setSelectedOrganizationId(nextOrganizationId)
+        }
         setCases([])
         setStaff([])
         setSelectedCaseId(null)
@@ -573,9 +584,7 @@ function App() {
     }, [currentUser, organizationAccess, organizationId, selectedCase, retryVersion])
 
     useEffect(() => {
-        if (!currentUser ||
-            (!platformAdminAccess && !organizationAdminAccess) ||
-            activeView !== 'organizations') return
+        if (!currentUser || !platformAdminAccess || activeView !== 'organizations') return
 
         let mounted = true
 
@@ -597,7 +606,7 @@ function App() {
                 setSelectedOrganizationId((current) =>
                     loaded.some((organization) => organization.id === current)
                         ? current
-                        : (current || loaded[0]?.id || ''))
+                        : (loaded[0]?.id || ''))
             } catch (reason) {
                 if (mounted) {
                     setError(reason instanceof Error ? reason.message : 'Organizations could not be loaded for your account.')
@@ -612,16 +621,16 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, retryVersion, organizationsQuery])
+    }, [currentUser, platformAdminAccess, activeView, retryVersion, organizationsQuery])
 
     useEffect(() => {
         if (!currentUser ||
             (!platformAdminAccess && !organizationAdminAccess) ||
             activeView !== 'organizations' ||
-            !selectedOrganizationId) return
+            !administrationOrganizationId) return
 
         let mounted = true
-        const currentOrganizationId = selectedOrganizationId
+        const currentOrganizationId = administrationOrganizationId
 
         const query = new URLSearchParams({ page: String(membershipsQuery.page), pageSize: String(membershipsQuery.pageSize) })
         if (membershipsQuery.search.trim()) query.set('search', membershipsQuery.search.trim())
@@ -649,7 +658,7 @@ function App() {
         return () => {
             mounted = false
         }
-    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, selectedOrganizationId, retryVersion, membershipsQuery])
+    }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, administrationOrganizationId, retryVersion, membershipsQuery])
 
     useEffect(() => {
         if (!currentUser || (!organizationAccess && !organizationAdminAccess) ||
@@ -928,7 +937,7 @@ function App() {
     ])
 
     const invitationsOrganizationId =
-        activeView === 'organizations' ? selectedOrganizationId : ''
+        activeView === 'organizations' ? administrationOrganizationId : ''
 
     useEffect(() => {
         if (!currentUser || !invitationsOrganizationId) return
@@ -2061,6 +2070,7 @@ function App() {
                                     invitationsQuery={invitationsQuery}
                                     onInvitationsQueryChange={setInvitationsQuery}
                                     selectedOrganizationId={selectedOrganizationId}
+                                    workspaceOrganization={activeOrganization}
                                     canManageOrganizations={platformAdminAccess}
                                     onSelectOrganization={(id) => {
                                         setSelectedOrganizationId(id)

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AccountInvitation, Membership, Organization, OrganizationType } from '../domain'
+import type {
+  AccountInvitation,
+  Membership,
+  Organization,
+  OrganizationType,
+  OrganizationWorkspaceOption,
+} from '../domain'
 import { PaginationControls } from './PaginationControls'
 import { normalizeWhitespace, validateRequired } from '../utils/validation'
 import { InvitationManager } from './InvitationManager'
@@ -46,6 +52,7 @@ export function OrganizationAdministration({
   invitationsQuery,
   onInvitationsQueryChange,
   selectedOrganizationId,
+  workspaceOrganization,
   canManageOrganizations,
   onSelectOrganization,
   refreshData,
@@ -69,6 +76,7 @@ export function OrganizationAdministration({
   invitationsQuery: { page: number; pageSize: number; search: string }
   onInvitationsQueryChange: (query: { page: number; pageSize: number; search: string }) => void
   selectedOrganizationId: string
+  workspaceOrganization: OrganizationWorkspaceOption | null
   canManageOrganizations: boolean
   onSelectOrganization: (id: string) => void
   refreshData: () => void
@@ -133,6 +141,10 @@ export function OrganizationAdministration({
   }, [canManageOrganizations, loadTypes])
 
   const selected = organizations.find((item) => item.id === selectedOrganizationId)
+  const selectedWorkspaceOrganization =
+    workspaceOrganization?.id === selectedOrganizationId
+      ? workspaceOrganization
+      : null
 
   const filteredOrganizations = filterTypeId
     ? organizations.filter((organization) => organization.organizationTypeId === filterTypeId)
@@ -957,18 +969,30 @@ export function OrganizationAdministration({
           </section>
         ) : (
           <>
-            {!canManageOrganizations && selected && (
+            {!canManageOrganizations && (selected || selectedWorkspaceOrganization) && (
               <section className="case-card my-organization-card">
-                <h2>{selected.name}</h2>
+                <h2>{selected?.name ?? selectedWorkspaceOrganization?.name}</h2>
                 <dl>
-                  <div><dt>Organization code</dt><dd>{selected.code}</dd></div>
-                  <div><dt>Organization type</dt><dd>{selected.organizationTypeName ?? 'Not specified'}</dd></div>
-                  <div><dt>Status</dt><dd>{selected.isActive ? 'Active' : 'Inactive'}</dd></div>
+                  <div><dt>Organization code</dt><dd>{selected?.code ?? selectedWorkspaceOrganization?.code}</dd></div>
+                  {selected ? (
+                    <>
+                      <div><dt>Organization type</dt><dd>{selected.organizationTypeName ?? 'Not specified'}</dd></div>
+                      <div><dt>Status</dt><dd>{selected.isActive ? 'Active' : 'Inactive'}</dd></div>
+                    </>
+                  ) : (
+                    <div><dt>Your role</dt><dd>{selectedWorkspaceOrganization?.role}</dd></div>
+                  )}
                 </dl>
               </section>
             )}
             <section className="case-card admin-panel">
-              <h2>Memberships for {selected?.name ?? 'selected organization'}</h2>
+              <h2>
+                Memberships for {
+                  selected?.name ??
+                  selectedWorkspaceOrganization?.name ??
+                  'selected organization'
+                }
+              </h2>
               <div className="data-grid-toolbar">
                 <label className="data-grid-filter">
                   <span>Search memberships</span>

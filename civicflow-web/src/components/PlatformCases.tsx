@@ -9,6 +9,7 @@ import {
     type CaseStatus,
     type CaseUpdateKind,
     type Organization,
+    type PagedResponse,
     type PlatformCaseDetail,
     type PlatformCaseDocumentEntry,
     type PlatformCasePage,
@@ -71,9 +72,11 @@ export function PlatformCases() {
     useEffect(() => {
         let mounted = true
 
-        void requestJson<Organization[]>('/api/organizations')
+        void requestJson<PagedResponse<Organization>>(
+            '/api/organizations?page=1&pageSize=100',
+        )
             .then((loaded) => {
-                if (mounted) setOrganizations(loaded)
+                if (mounted) setOrganizations(loaded.items)
             })
             .catch(() => {
                 // The organization filter degrades to "All organizations";
