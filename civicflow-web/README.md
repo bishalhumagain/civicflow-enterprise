@@ -18,6 +18,8 @@ Implemented:
 - Role-derived navigation and views: the sidebar, the active view, and the API calls are computed from the roles the API reports.
 - Organization and platform dashboards visualize API-backed case status, priority, and weekly/monthly activity data; the platform dashboard also shows live organization, account, membership, and invitation totals.
 - Shared responsive workspace navigation, visible keyboard focus, a skip link, reduced-motion support, and accessible chart labels and data summaries.
+- Organization members see a trusted, current-organization `My Organization` view with role-limited team details; case workspaces use distinct list/details tabs, save feedback, and unsaved-change protection.
+- Case document previews fetch content through the existing authorized API routes; PDFs and images render inline, while unsupported types remain downloadable.
 - Toast notifications and responsive layout.
 - TypeScript compilation, Vite production build, and ESLint validation pass.
 
@@ -63,10 +65,18 @@ cp .env.example .env.local
 | Variable | Purpose | Local default |
 |---|---|---|
 | `VITE_API_BASE_URL` | CivicFlow API base URL | `http://localhost:5001` |
+| `VITE_DEV_PORT` | Vite browser port; Vite refuses fallback ports | `5173` |
+| `VITE_DEV_HTTPS` | Serve Vite over HTTPS using the exported .NET development certificate | `false` |
+| `VITE_DEV_CERTIFICATE` | Path to the local-only PFX when HTTPS is enabled | `.certs/localhost.pfx` |
+| `VITE_DEV_CERTIFICATE_PASSWORD` | Local-only PFX password | unset |
 
 The standalone API launch profile listens on port `5001`; Docker Compose uses the separate `API_BASE_URL` in the repository-root `.env` (default port `5000`). The workspace resolves active organization memberships from the authenticated session with `GET /api/organizations/me`; no organization ID is configured in the frontend. `.env` and `.env.local` are gitignored; only `.env.example` is committed. The API enforces its own session, anti-forgery, membership, organization, and role checks — frontend configuration is not a security boundary. Restart `npm run dev` after changing the API URL (Vite reads it at startup).
 
 > **Browser origin**: `vite.config.ts` is authoritative for the local browser URL (`http://localhost:5173`) and uses `strictPort`, so Vite will report a port conflict instead of silently switching origins. The API's Development `Frontend:BaseUrl` must match this origin because it creates verification and invitation links. If changing the Vite port, update `Frontend:BaseUrl` too. Development CORS permits loopback origins on any port; the actual Vite URL, not a CORS allowlist entry, is the source of truth for the browser.
+
+### HTTPS development
+
+The API also listens at `https://localhost:7001`. To run both apps over HTTPS, follow the repository README's **Optional local HTTPS** instructions to trust and export the .NET development certificate. Set `VITE_API_BASE_URL=https://localhost:7001`, `VITE_DEV_HTTPS=true`, and the local certificate path/password in `.env.local`; start the API with `Frontend__BaseUrl=https://localhost:5173`. Never check in `.certs`, PFX files, or a certificate password. To use a non-default Vite port, set `VITE_DEV_PORT` and keep `Frontend__BaseUrl` aligned; strict port behavior prevents authentication from unexpectedly moving to 5174/5175.
 
 ## Components
 

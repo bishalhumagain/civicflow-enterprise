@@ -28,7 +28,7 @@ export type CaseRecord = {
   assignedToStaffMemberId?: string | null
   assignedRole?: 'CaseWorker' | 'Viewer' | null
 }
-export type StaffMember = { id: string; fullName: string; email: string; phoneNumber: string | null; isActive: boolean }
+export type StaffMember = { id: string; fullName: string; email: string; phoneNumber: string | null; isActive: boolean; organizationRole?: string }
 export type HistoryEntry = {
   id: string
   previousStatus: CaseStatus

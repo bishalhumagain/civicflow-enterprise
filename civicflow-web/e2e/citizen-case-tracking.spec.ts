@@ -647,6 +647,7 @@ test('platform administrator reviews all cases and can filter by organization', 
     await row.getByRole('button').click()
 
     const detail = page.locator('aside.platform-case-detail')
+    await expect(page.getByRole('tab', { name: 'Case details' })).toHaveAttribute('aria-selected', 'true')
     await expect(detail).toContainText(state.referenceNumber)
     await expect(detail).toContainText(E2E_ORGANIZATION_NAME)
     await expect(detail).toContainText(E2E_CITIZEN_ONE)
@@ -654,6 +655,12 @@ test('platform administrator reviews all cases and can filter by organization', 
     await expect(detail).toContainText(staffInternalDocumentName)
     await expect(detail.getByText('Staff only')).toBeVisible()
     await expect(detail.getByText('Internal', { exact: true })).toBeVisible()
+
+    await detail.getByRole('button', { name: `Preview ${staffInternalDocumentName}` }).click()
+    const preview = page.getByRole('dialog', { name: staffInternalDocumentName })
+    await expect(preview.getByText('Preview is not available for this file type. Download the file to open it.')).toBeVisible()
+    await preview.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(preview).not.toBeVisible()
   } finally {
     await context.close()
   }

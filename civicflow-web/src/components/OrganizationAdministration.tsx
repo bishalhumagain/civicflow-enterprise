@@ -4,6 +4,7 @@ import { PaginationControls } from './PaginationControls'
 import { normalizeWhitespace, validateRequired } from '../utils/validation'
 import { InvitationManager } from './InvitationManager'
 import { Icon } from './Icon'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import { formatDate } from '../utils/format'
 import {
   activateOrganization,
@@ -23,6 +24,11 @@ import {
 const UNCATEGORIZED_ID = '00000000-0000-0000-0000-000000000001'
 
 type AdminTab = 'organizations' | 'types' | 'members'
+type PendingConfirmation = {
+  title: string
+  description: string
+  action: () => Promise<void>
+}
 
 export function OrganizationAdministration({
   authenticated,
@@ -108,6 +114,7 @@ export function OrganizationAdministration({
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null)
 
   const loadTypes = useCallback(async () => {
     setTypesLoading(true)
@@ -239,19 +246,19 @@ export function OrganizationAdministration({
     )
   }
 
-  async function handleDeleteOrganization(org: Organization) {
-    if (!confirm(`Are you sure you want to delete ${org.name}? This action cannot be undone.`)) {
-      return
-    }
-
-    await run(
-      `delete-${org.id}`,
-      async () => {
-        await deleteOrganization(org.id)
-        refreshData()
-      },
-      'Organization deleted.',
-    )
+  function handleDeleteOrganization(org: Organization) {
+    setPendingConfirmation({
+      title: 'Delete organization?',
+      description: `Delete ${org.name}? This action cannot be undone.`,
+      action: () => run(
+        `delete-${org.id}`,
+        async () => {
+          await deleteOrganization(org.id)
+          refreshData()
+        },
+        'Organization deleted.',
+      ),
+    })
   }
 
   function startEditing(org: Organization) {
@@ -365,23 +372,19 @@ export function OrganizationAdministration({
     )
   }
 
-  async function handleDeleteType(item: OrganizationType) {
-    if (
-      !confirm(
-        `Delete ${item.name}? This cannot be undone. Only unused types can be deleted.`,
-      )
-    ) {
-      return
-    }
-
-    await run(
-      `type-delete-${item.id}`,
-      async () => {
-        await deleteOrganizationType(item.id)
-        await loadTypes()
-      },
-      'Organization type deleted.',
-    )
+  function handleDeleteType(item: OrganizationType) {
+    setPendingConfirmation({
+      title: 'Delete organization type?',
+      description: `Delete ${item.name}? This cannot be undone. Only unused types can be deleted.`,
+      action: () => run(
+        `type-delete-${item.id}`,
+        async () => {
+          await deleteOrganizationType(item.id)
+          await loadTypes()
+        },
+        'Organization type deleted.',
+      ),
+    })
   }
 
   // ── Members & invitations filter handlers ──────────────────────────────
@@ -965,6 +968,16 @@ export function OrganizationAdministration({
           </section>
         ) : (
           <>
+            {!canManageOrganizations && selected && (
+              <section className="case-card my-organization-card">
+                <h2>{selected.name}</h2>
+                <dl>
+                  <div><dt>Organization code</dt><dd>{selected.code}</dd></div>
+                  <div><dt>Organization type</dt><dd>{selected.organizationTypeName ?? 'Not specified'}</dd></div>
+                  <div><dt>Status</dt><dd>{selected.isActive ? 'Active' : 'Inactive'}</dd></div>
+                </dl>
+              </section>
+            )}
             <section className="case-card admin-panel">
               <h2>Memberships for {selected?.name ?? 'selected organization'}</h2>
               <div className="data-grid-toolbar">
@@ -1061,14 +1074,28 @@ export function OrganizationAdministration({
 
   return (
     <>
+      <ConfirmationDialog
+        confirmLabel="Delete"
+        destructive
+        loading={busy !== null}
+        open={pendingConfirmation !== null}
+        onCancel={() => setPendingConfirmation(null)}
+        onConfirm={async () => {
+          if (!pendingConfirmation) return
+          await pendingConfirmation.action()
+          setPendingConfirmation(null)
+        }}
+        title={pendingConfirmation?.title ?? ''}
+        description={pendingConfirmation?.description ?? ''}
+      />
       <div className="page-heading">
         <div>
-          <p className="eyebrow">ORGANIZATION ADMINISTRATION</p>
-          <h1>Organizations</h1>
+          <p className="eyebrow">{canManageOrganizations ? 'PLATFORM ADMINISTRATION' : 'ORGANIZATION WORKSPACE'}</p>
+          <h1>{canManageOrganizations ? 'Organizations' : 'My Organization'}</h1>
           <p className="muted">
             {canManageOrganizations
               ? 'Manage organizations, the type catalogue, and their members.'
-              : 'Manage members and invitations for the organizations you administer.'}
+              : 'Organization details, staff memberships, and invitations for your organization.'}
           </p>
         </div>
       </div>

@@ -3,6 +3,7 @@ import type { PagedResponse, StaffMember } from '../domain'
 import { MAX_PHONE_LENGTH, sanitizePhoneInput, validatePhone } from '../utils/validation'
 import { Icon } from './Icon'
 import { PaginationControls } from './PaginationControls'
+import { ConfirmationDialog } from './ConfirmationDialog'
 
 /**
  * The organization's team contact list. Membership roles, activation, and
@@ -33,6 +34,7 @@ export function StaffDirectory({
   const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [pendingStatusChange, setPendingStatusChange] = useState<StaffMember | null>(null)
 
   function startEditing(member: StaffMember) {
     setEditingPhoneFor(member.id)
@@ -96,6 +98,7 @@ export function StaffDirectory({
                 <div>
                   <strong>{member.fullName}</strong>
                   <span>{member.email}</span>
+                  <span className="role-badge">{member.organizationRole ?? 'Staff'}</span>
                   {canManage && editingPhoneFor === member.id ? (
                     <span style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <input
@@ -166,7 +169,7 @@ export function StaffDirectory({
                   <button
                     className="secondary-button"
                     disabled={loading}
-                    onClick={() => void onToggle(member)}
+                    onClick={() => setPendingStatusChange(member)}
                     type="button"
                   >
                     {member.isActive ? 'Deactivate' : 'Reactivate'}
@@ -180,6 +183,21 @@ export function StaffDirectory({
           onPageChange={(page) => onQueryChange({ ...query, page })}
           onPageSizeChange={(pageSize) => onQueryChange({ ...query, page: 1, pageSize })} />
       </section>
+      <ConfirmationDialog
+        open={pendingStatusChange !== null}
+        title={pendingStatusChange?.isActive ? 'Deactivate staff member?' : 'Reactivate staff member?'}
+        description={pendingStatusChange
+          ? `${pendingStatusChange.fullName} will ${pendingStatusChange.isActive ? 'no longer' : ''} have active staff access in this organization.`
+          : ''}
+        confirmLabel={pendingStatusChange?.isActive ? 'Deactivate' : 'Reactivate'}
+        destructive={pendingStatusChange?.isActive === true}
+        loading={loading}
+        onCancel={() => setPendingStatusChange(null)}
+        onConfirm={async () => {
+          if (pendingStatusChange) await onToggle(pendingStatusChange)
+          setPendingStatusChange(null)
+        }}
+      />
     </>
   )
 }

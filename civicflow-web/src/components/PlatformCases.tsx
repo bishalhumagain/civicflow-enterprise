@@ -18,6 +18,7 @@ import { formatDateTime, formatFileSize, formatNumber } from '../utils/format'
 import { Icon } from './Icon'
 import { StatCard } from './StatCard'
 import { StatusPill } from './StatusPill'
+import { DocumentPreviewButton } from './DocumentPreviewButton'
 
 const priorityOptions: CasePriority[] = ['Critical', 'High', 'Normal', 'Low']
 
@@ -44,6 +45,7 @@ export function PlatformCases() {
     const [totalPages, setTotalPages] = useState(1)
     const [totalCount, setTotalCount] = useState(0)
     const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+    const [activePanel, setActivePanel] = useState<'list' | 'details'>('list')
     const [detail, setDetail] = useState<PlatformCaseDetail | null>(null)
     const [searchInput, setSearchInput] = useState('')
     const [search, setSearch] = useState('')
@@ -263,6 +265,21 @@ export function PlatformCases() {
         }
     }
 
+    async function loadDocument(document: PlatformCaseDocumentEntry): Promise<Blob> {
+        const response = await apiRequest(
+            `/api/platform/cases/${document.caseId}/documents/${document.id}`,
+            '',
+        )
+
+        if (response.status === 401) throw new Error('Your session is missing or has expired. Sign in again.')
+        if (response.status === 403 || response.status === 404) {
+            throw new Error('You are not authorized to preview this document.')
+        }
+        if (!response.ok) throw new Error(`Document preview failed with HTTP ${response.status}.`)
+
+        return response.blob()
+    }
+
     return (
         <>
             <div className="page-heading">
@@ -332,8 +349,33 @@ export function PlatformCases() {
                 />
             </section>
 
-            <div className="case-layout platform-case-layout">
-                <section className="case-card">
+            <div aria-label="Platform case workspace sections" className="case-workspace-tabs" role="tablist">
+                <button
+                    aria-selected={activePanel === 'list'}
+                    aria-controls="platform-cases-panel"
+                    className={activePanel === 'list' ? 'active' : ''}
+                    onClick={() => setActivePanel('list')}
+                    role="tab"
+                    type="button"
+                >Cases</button>
+                <button
+                    aria-selected={activePanel === 'details'}
+                    aria-controls="platform-case-details-panel"
+                    className={activePanel === 'details' ? 'active' : ''}
+                    disabled={!selectedCase}
+                    onClick={() => setActivePanel('details')}
+                    role="tab"
+                    type="button"
+                >Case details</button>
+            </div>
+            <div className="case-layout platform-case-layout case-workspace-layout">
+                <section
+                    aria-label="Cases"
+                    className="case-card"
+                    hidden={activePanel !== 'list'}
+                    id="platform-cases-panel"
+                    role="tabpanel"
+                >
                     <div className="case-toolbar platform-case-toolbar data-grid-toolbar">
                         <div className="search data-grid-search">
                             <Icon className="search-icon" name="search" />
@@ -480,7 +522,10 @@ export function PlatformCases() {
                                                 <button
                                                     aria-pressed={selectedCaseId === item.id}
                                                     className="case-row-button"
-                                                    onClick={() => setSelectedCaseId(item.id)}
+                                                    onClick={() => {
+                                                        setSelectedCaseId(item.id)
+                                                        setActivePanel('details')
+                                                    }}
                                                     type="button"
                                                 >
                                                     <strong>{item.referenceNumber}</strong>
@@ -529,9 +574,19 @@ export function PlatformCases() {
                     </div>
                 </section>
 
-                <aside className="detail-card platform-case-detail">
+                <aside
+                    aria-label="Case details"
+                    className="detail-card platform-case-detail"
+                    hidden={activePanel !== 'details'}
+                    id="platform-case-details-panel"
+                    role="tabpanel"
+                >
                     <div className="detail-header">
                         <span>PLATFORM CASE DETAILS</span>
+                        <button className="case-details-back" onClick={() => setActivePanel('list')} type="button">
+                            <Icon className="button-icon" name="arrow-left" />
+                            <span>Back to cases</span>
+                        </button>
                     </div>
 
                     {detailError && (
@@ -563,7 +618,7 @@ export function PlatformCases() {
 
                             <div className="detail-section">
                                 <h3>Overview</h3>
-                                <dl>
+                                <dl className="platform-case-overview">
                                     <div>
                                         <dt>Organization</dt>
                                         <dd>
@@ -612,6 +667,10 @@ export function PlatformCases() {
                                     <ul>
                                         {activeDetail.documents.map((document) => (
                                             <li key={document.id}>
+                                                <DocumentPreviewButton
+                                                    document={document}
+                                                    loadDocument={() => loadDocument(document)}
+                                                />{' '}
                                                 <button
                                                     className="document-link"
                                                     onClick={() => void downloadDocument(document)}

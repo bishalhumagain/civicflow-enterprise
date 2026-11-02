@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using PublicServiceCaseManagement.Api.Domain.Organizations;
 using PublicServiceCaseManagement.Api.Infrastructure.Authorization;
@@ -8,6 +9,7 @@ using PublicServiceCaseManagement.Api.Infrastructure.Identity;
 using PublicServiceCaseManagement.Api.Features.Staff.Contracts;
 using PublicServiceCaseManagement.Api.Features.Staff.Services;
 using PublicServiceCaseManagement.Api.Infrastructure.Pagination;
+using PublicServiceCaseManagement.Api.Infrastructure.Persistence;
 
 namespace PublicServiceCaseManagement.Api.Features.Staff;
 
@@ -16,6 +18,7 @@ namespace PublicServiceCaseManagement.Api.Features.Staff;
 [Route("api/staff")]
 public sealed class StaffController(
     IStaffService staffService,
+    CivicFlowDbContext dbContext,
     IBusinessEndpointAccess businessEndpointAccess,
     ICurrentOrganizationContext organizationContext) : ControllerBase
 {
@@ -191,6 +194,10 @@ public sealed class StaffController(
             pageSize,
             search,
             cancellationToken);
+        var rolesByEmail = await GetOrganizationRolesAsync(
+            organizationId.Value,
+            result.Items.Select(staff => staff.Email).ToArray(),
+            cancellationToken);
 
         return Ok(new PagedResponse<object>(
             result.Items.Select(staff => (object)new
@@ -201,11 +208,44 @@ public sealed class StaffController(
             PhoneNumber = organizationRole == OrganizationRole.OrganizationAdmin
                 ? staff.PhoneNumber
                 : null,
+            OrganizationRole = rolesByEmail.GetValueOrDefault(staff.Email) ?? "Staff",
             staff.IsActive,
             staff.CreatedAt,
             staff.UpdatedAt
         }).ToList(),
             result.Page, result.PageSize, result.TotalCount, result.TotalPages));
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> GetOrganizationRolesAsync(
+        Guid organizationId,
+        string[] emails,
+        CancellationToken cancellationToken)
+    {
+        if (emails.Length == 0)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var normalizedEmails = emails
+            .Select(email => email.ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var roles = await (
+            from user in dbContext.ApplicationUsers.AsNoTracking()
+            join membership in dbContext.OrganizationMemberships.AsNoTracking()
+                on user.Id equals membership.UserId
+            where membership.OrganizationId == organizationId &&
+                  user.NormalizedEmail != null &&
+                  normalizedEmails.Contains(user.NormalizedEmail)
+            select new
+            {
+                Email = user.Email!,
+                Role = membership.Role.ToString()
+            })
+            .ToListAsync(cancellationToken);
+
+        return roles.ToDictionary(
+            item => item.Email,
+            item => item.Role,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     [HttpPatch("{id:guid}/deactivate")]

@@ -1,6 +1,8 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
 import { Icon } from './Icon'
+import { DocumentPreviewButton } from './DocumentPreviewButton'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import { formatDateTime, formatFileSize } from '../utils/format'
 import {
   MAX_CASE_DESCRIPTION_LENGTH,
@@ -62,6 +64,8 @@ export function CaseDetails({
   onAssignmentChange,
   onUpload,
   onDownload,
+  onLoadDocument,
+  onUnsavedChangesChange,
   onAddUpdate,
 }: {
   caseRecord: CaseRecord | null
@@ -88,6 +92,8 @@ export function CaseDetails({
   ) => Promise<void>
   onUpload: (file: File, visibleToCitizen: boolean) => Promise<void>
   onDownload: (document: CaseDocument) => Promise<void>
+  onLoadDocument: (document: CaseDocument) => Promise<Blob>
+  onUnsavedChangesChange: (hasUnsavedChanges: boolean) => void
   onAddUpdate: (kind: CaseUpdateKind, message: string) => Promise<boolean>
 }) {
   const [assignmentRole, setAssignmentRole] =
@@ -117,6 +123,28 @@ export function CaseDetails({
   const editDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const updateMessageRef = useRef<HTMLTextAreaElement | null>(null)
 
+  const editTitle = caseRecord && caseDraft?.caseId === caseRecord.id
+    ? caseDraft.title
+    : caseRecord?.title ?? ''
+  const editDescription = caseRecord && caseDraft?.caseId === caseRecord.id
+    ? caseDraft.description
+    : caseRecord?.description ?? ''
+  const hasUnsavedChanges = !!caseRecord && (
+    editTitle !== caseRecord.title || editDescription !== caseRecord.description
+  )
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [hasUnsavedChanges])
+
   if (!caseRecord) {
     return (
       <aside className="detail-card">
@@ -125,12 +153,6 @@ export function CaseDetails({
     )
   }
 
-  const editTitle = caseDraft?.caseId === caseRecord.id
-    ? caseDraft.title
-    : caseRecord.title
-  const editDescription = caseDraft?.caseId === caseRecord.id
-    ? caseDraft.description
-    : caseRecord.description
   const deleteConfirmationOpen = deleteConfirmationCaseId === caseRecord.id
   const selectedStatus = pendingStatus?.caseId === caseRecord.id
     ? pendingStatus.status
@@ -180,6 +202,7 @@ export function CaseDetails({
                   title: normalizedTitle,
                   description: normalizedDescription,
                 })
+                onUnsavedChangesChange(false)
               }
             })
           }}
@@ -194,11 +217,11 @@ export function CaseDetails({
               id="case-edit-title"
               maxLength={MAX_CASE_TITLE_LENGTH}
               minLength={MIN_CASE_TITLE_LENGTH}
-              onChange={(event) => setCaseDraft({
-                caseId: caseRecord.id,
-                title: event.target.value,
-                description: editDescription,
-              })}
+              onChange={(event) => {
+                const title = event.target.value
+                setCaseDraft({ caseId: caseRecord.id, title, description: editDescription })
+                onUnsavedChangesChange(title !== caseRecord.title || editDescription !== caseRecord.description)
+              }}
               ref={editTitleRef}
               required
               value={editTitle}
@@ -221,11 +244,11 @@ export function CaseDetails({
               id="case-edit-description"
               maxLength={MAX_CASE_DESCRIPTION_LENGTH}
               minLength={MIN_CASE_DESCRIPTION_LENGTH}
-              onChange={(event) => setCaseDraft({
-                caseId: caseRecord.id,
-                title: editTitle,
-                description: event.target.value,
-              })}
+              onChange={(event) => {
+                const description = event.target.value
+                setCaseDraft({ caseId: caseRecord.id, title: editTitle, description })
+                onUnsavedChangesChange(editTitle !== caseRecord.title || description !== caseRecord.description)
+              }}
               ref={editDescriptionRef}
               required
               value={editDescription}
@@ -240,8 +263,9 @@ export function CaseDetails({
               {editDescriptionError}
             </span>
           )}
+          <div className="case-edit-form-actions">
           <button
-            className="secondary-button"
+            className="primary-button"
             disabled={
               actionLoading ||
               caseRecord.id.startsWith('demo-') ||
@@ -253,8 +277,9 @@ export function CaseDetails({
             type="submit"
           >
             <Icon className="button-icon" name="save" />
-            <span>Save case details</span>
+            <span>{actionLoading ? 'Saving…' : 'Save case details'}</span>
           </button>
+          </div>
         </form>
       ) : (
         <>
@@ -450,6 +475,10 @@ export function CaseDetails({
               <ul>
                 {documents.map((document) => (
                   <li key={document.id}>
+                    <DocumentPreviewButton
+                      document={document}
+                      loadDocument={() => onLoadDocument(document)}
+                    />{' '}
                     <button
                       className="document-link"
                       disabled={actionLoading}
@@ -686,44 +715,20 @@ export function CaseDetails({
         </div>
       )}
 
-      {deleteConfirmationOpen && (
-        <div
-          aria-labelledby="delete-case-title"
-          aria-modal="true"
-          className="case-confirmation-backdrop"
-          role="dialog"
-        >
-          <div className="case-confirmation">
-            <span className="case-confirmation-icon" aria-hidden="true">!</span>
-            <h2 id="delete-case-title">Delete this case?</h2>
-            <p>
-              <strong>{caseRecord.referenceNumber}</strong> and its attached
-              documents will be permanently deleted. This cannot be undone.
-            </p>
-            <div className="case-confirmation-actions">
-              <button
-                className="secondary-button"
-                disabled={actionLoading}
-                onClick={() => setDeleteConfirmationCaseId(null)}
-                type="button"
-              >
-                Keep case
-              </button>
-              <button
-                className="danger-button"
-                disabled={actionLoading}
-                onClick={() => {
-                  setDeleteConfirmationCaseId(null)
-                  void onDelete()
-                }}
-                type="button"
-              >
-                {actionLoading ? 'Deleting…' : 'Confirm deletion'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={deleteConfirmationOpen}
+        title="Delete this case?"
+        description={`${caseRecord.referenceNumber} and its attached documents will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete case"
+        cancelLabel="Keep case"
+        destructive
+        loading={actionLoading}
+        onCancel={() => setDeleteConfirmationCaseId(null)}
+        onConfirm={async () => {
+          await onDelete()
+          setDeleteConfirmationCaseId(null)
+        }}
+      />
     </aside>
   )
 }

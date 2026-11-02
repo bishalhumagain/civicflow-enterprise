@@ -719,7 +719,7 @@ cp PublicServiceCaseManagement.Api/appsettings.template.json PublicServiceCaseMa
 
 Edit `appsettings.json`:
 - `ConnectionStrings:CivicFlow` — use the `civicflow_migrator` credentials for migrations, `civicflow_runtime` for the running API
-- `Cors:AllowedOrigins` — production/staging origins; Development already trusts loopback HTTP origins on any port
+- `Cors:AllowedOrigins` — production/staging origins; Development already trusts loopback HTTP(S) origins on any port
 - `Frontend:BaseUrl` — the frontend URL (for email-verification, password-reset, and invitation links)
 - `Application:Name` — product name shown in the header and copyright footer (default: `CivicFlow Enterprise`)
 - `Jwt:SigningKey` — at least 32 random bytes for signing short-lived access tokens (environment variable `Jwt__SigningKey`); the API refuses to start without it
@@ -747,7 +747,7 @@ dotnet ef database update \
 dotnet run --project PublicServiceCaseManagement.Api
 ```
 
-The API launch profile listens on `http://localhost:5001`. The separate Docker Compose setup uses the root `.env` values (`API_HOST_PORT` and `API_BASE_URL`, defaulting to port 5000).
+The API launch profile listens on `http://localhost:5001` and `https://localhost:7001`. To use HTTPS, create and trust a local .NET development certificate, then set the frontend API URL to `https://localhost:7001` as described below. The separate Docker Compose setup uses the root `.env` values (`API_HOST_PORT` and `API_BASE_URL`, defaulting to port 5000).
 
 ### Step 6: Run the Frontend
 
@@ -758,7 +758,40 @@ npm ci
 npm run dev
 ```
 
-The Vite config is the source of truth for the browser dev origin: it binds `http://localhost:5173` and fails rather than silently switching ports. `Frontend:BaseUrl` in API Development settings must match this origin because it is used to create email links. If port 5173 is occupied, stop its existing process or deliberately change the Vite port and `Frontend:BaseUrl` together. Development CORS permits loopback origins on any port; it does not determine the browser URL.
+The Vite config is the source of truth for the browser dev port: it binds port `5173` by default and fails rather than silently switching ports. Set `VITE_DEV_PORT` in `civicflow-web/.env.local` to choose another port; update `Frontend:BaseUrl` in the API environment to the same browser origin because it is used to create email links. Development CORS permits loopback origins on HTTP and HTTPS and any port; it does not choose the browser URL.
+
+#### Optional local HTTPS
+
+The HTTP workflow above remains supported. To run both the Vite frontend and API on HTTPS with the trusted .NET development certificate:
+
+```bash
+# Create and trust a local development certificate (one-time per machine).
+dotnet dev-certs https --trust
+dotnet dev-certs https --check --trust
+
+# Export the certificate for Vite's Node HTTPS server. Choose a local-only password.
+mkdir -p civicflow-web/.certs
+dotnet dev-certs https --export-path civicflow-web/.certs/localhost.pfx --password "<local-only-password>"
+```
+
+Set these values in `civicflow-web/.env.local` (never commit the PFX or this file):
+
+```dotenv
+VITE_API_BASE_URL=https://localhost:7001
+VITE_DEV_PORT=5173
+VITE_DEV_HTTPS=true
+VITE_DEV_CERTIFICATE=.certs/localhost.pfx
+VITE_DEV_CERTIFICATE_PASSWORD=<same-local-only-password>
+```
+
+Start the API with the browser origin used to build verification and invitation links, then start Vite:
+
+```bash
+Frontend__BaseUrl=https://localhost:5173 dotnet run --project PublicServiceCaseManagement.Api --launch-profile PublicServiceCaseManagement.Api
+cd civicflow-web && npm run dev
+```
+
+Open `https://localhost:5173`; the API HTTPS endpoint is `https://localhost:7001` (HTTP remains on `http://localhost:5001`). The ASP.NET Core development certificate enables secure cookies on HTTPS requests; cookies remain HttpOnly and SameSite=Lax, and CSRF validation stays enabled. For a different frontend port, update both `VITE_DEV_PORT` and `Frontend__BaseUrl`; for a different API port, update `VITE_API_BASE_URL` and the launch profile together. Vite never silently falls back to another port. To remove the Vite certificate file, delete only `civicflow-web/.certs/localhost.pfx`; `dotnet dev-certs https --clean` removes development certificates for the whole user profile and should only be used when intentionally resetting the machine's .NET development certificates.
 
 ### Step 7: Create Your First Organization Login
 

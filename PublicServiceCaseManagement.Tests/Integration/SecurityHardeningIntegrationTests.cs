@@ -87,17 +87,20 @@ public sealed class SecurityHardeningIntegrationTests
     }
 
     [Theory]
-    [InlineData(5173)]
-    [InlineData(5174)]
-    [InlineData(5175)]
-    public async Task Development_AllowsVitePorts_WithCredentials(int port)
+    [InlineData("http", 5173)]
+    [InlineData("http", 5174)]
+    [InlineData("http", 5175)]
+    [InlineData("https", 5173)]
+    public async Task Development_AllowsViteOrigins_WithCredentials(
+        string scheme,
+        int port)
     {
         await using var factory = new CivicFlowApiFactory(
             environmentName: "Development");
 
         using var client = factory.CreateClient();
 
-        var origin = $"http://localhost:{port}";
+        var origin = $"{scheme}://localhost:{port}";
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             "/api/auth/csrf");

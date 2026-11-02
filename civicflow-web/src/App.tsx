@@ -61,6 +61,8 @@ import {StatCard} from './components/StatCard'
 import {CaseDetails} from './components/CaseDetails'
 import {StaffDirectory} from './components/StaffDirectory'
 import {OrganizationAdministration} from './components/OrganizationAdministration'
+import {MyOrganization} from './components/MyOrganization'
+import {PlatformAdminProfile} from './components/PlatformAdminProfile'
 import {PlatformDirectory, type DirectoryQuery} from './components/PlatformDirectory'
 import {AuditLog} from './components/AuditLog'
 import {emptyAuditFilters, type AuditFilters} from './utils/audit'
@@ -86,6 +88,7 @@ import {ForgotPasswordPage} from './pages/ForgotPasswordPage'
 import {ResetPasswordPage} from './pages/ResetPasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import {useToast} from './components/Toast'
+import {ConfirmationDialog} from './components/ConfirmationDialog'
 import type {LoginCredentials} from './components/LoginForm'
 import {useAppConfig} from './app-config'
 import {
@@ -113,6 +116,14 @@ function App() {
     const [sessionChecked, setSessionChecked] = useState(false)
     const [cases, setCases] = useState<CaseRecord[]>([])
     const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+    const [caseWorkspacePanel, setCaseWorkspacePanel] = useState<'list' | 'details'>('list')
+    const [caseHasUnsavedChanges, setCaseHasUnsavedChanges] = useState(false)
+    const [pendingUnsavedNavigation, setPendingUnsavedNavigation] = useState<{
+        caseId?: string
+        panel?: 'list' | 'details'
+        view?: WorkspaceView
+        signOut?: boolean
+    } | null>(null)
 
     const [caseHistoryData, setCaseHistoryData] = useState<CaseHistoryData | null>(null)
     const [caseUpdatesData, setCaseUpdatesData] = useState<CaseUpdatesData | null>(null)
@@ -193,6 +204,43 @@ function App() {
     const [auditLoading, setAuditLoading] = useState(false)
 
     const selectedCase = cases.find((item) => item.id === selectedCaseId) ?? null
+    function navigateToCase(caseId: string) {
+        if (caseHasUnsavedChanges) {
+            setPendingUnsavedNavigation({caseId, panel: 'details', view: 'cases'})
+            return
+        }
+
+        setViewSelection('cases')
+        setSelectedCaseId(caseId)
+        setCaseWorkspacePanel('details')
+    }
+
+    function navigateToPanel(panel: 'list' | 'details') {
+        if (caseHasUnsavedChanges && panel !== caseWorkspacePanel) {
+            setPendingUnsavedNavigation({panel})
+            return
+        }
+
+        setCaseWorkspacePanel(panel)
+    }
+
+    function navigateToWorkspaceView(view: WorkspaceView) {
+        if (caseHasUnsavedChanges && view !== activeView) {
+            setPendingUnsavedNavigation({view})
+            return
+        }
+
+        setViewSelection(view)
+    }
+
+    function navigateToSignOut() {
+        if (caseHasUnsavedChanges) {
+            setPendingUnsavedNavigation({signOut: true})
+            return
+        }
+
+        void handleSignOut()
+    }
     const activeOrganization = workspaceOrganizations.find(
         (item) => item.id === organizationId,
     ) ?? null
@@ -219,14 +267,14 @@ function App() {
         if (organizationAccess) {
             views.push('cases', 'staff', 'activity')
 
-            if (!platformAdminAccess && organizationAdminAccess) {
+            if (!platformAdminAccess) {
                 views.push('organizations')
             }
         }
 
-        // Shared self-service profile for citizens and organization staff.
-        // Platform administrators are excluded — the API refuses their identity.
-        if (citizenAccess || organizationAccess) {
+        // Citizens and organization staff use the self-service profile; platform
+        // administrators receive a platform-specific account summary.
+        if (citizenAccess || organizationAccess || platformAdminAccess) {
             views.push('profile')
         }
 
@@ -239,7 +287,7 @@ function App() {
         }
 
         return views
-    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess, organizationAdminAccess])
+    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
     // The view is derived from the roles the API reports, so a citizen can
     // never land on an organization-only surface, even if a stale selection
@@ -269,8 +317,8 @@ function App() {
             items.push({view: 'staff', label: 'Team contacts', icon: 'staff'})
             items.push({view: 'activity', label: 'Activity log', icon: 'activity'})
 
-            if (!platformAdminAccess && organizationAdminAccess) {
-                items.push({view: 'organizations', label: 'Organizations', icon: 'building'})
+            if (!platformAdminAccess) {
+                items.push({view: 'organizations', label: 'My Organization', icon: 'building'})
             }
         }
 
@@ -285,7 +333,7 @@ function App() {
         }
 
         return items
-    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess, organizationAdminAccess])
+    }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
     const history = caseHistoryData && caseHistoryData.caseId === selectedCase?.id
         ? caseHistoryData.items
@@ -604,14 +652,26 @@ function App() {
     }, [currentUser, platformAdminAccess, organizationAdminAccess, activeView, selectedOrganizationId, retryVersion, membershipsQuery])
 
     useEffect(() => {
-        if (!currentUser || (!organizationAccess && !organizationAdminAccess) || activeView !== 'staff') return
+        if (!currentUser || (!organizationAccess && !organizationAdminAccess) ||
+            (activeView !== 'staff' && activeView !== 'organizations')) return
         let mounted = true
         const query = new URLSearchParams({ page: String(staffDirectoryQuery.page), pageSize: String(staffDirectoryQuery.pageSize) })
         if (staffDirectoryQuery.search.trim()) query.set('search', staffDirectoryQuery.search.trim())
         if (staffDirectoryQuery.isActive !== null) query.set('isActive', String(staffDirectoryQuery.isActive))
-        void requestJson<PagedResponse<StaffMember>>(`/api/staff?${query}`)
-            .then((result) => { if (mounted) setStaffDirectoryPage(result) })
-            .catch((reason: unknown) => { if (mounted) setError(reason instanceof Error ? reason.message : 'Staff could not be loaded.') })
+
+        async function loadStaffDirectory() {
+            setAdminLoading(true)
+            try {
+                const result = await requestJson<PagedResponse<StaffMember>>(`/api/staff?${query}`)
+                if (mounted) setStaffDirectoryPage(result)
+            } catch (reason) {
+                if (mounted) setError(reason instanceof Error ? reason.message : 'Staff could not be loaded.')
+            } finally {
+                if (mounted) setAdminLoading(false)
+            }
+        }
+
+        void loadStaffDirectory()
         return () => { mounted = false }
     }, [currentUser, organizationAccess, organizationAdminAccess, activeView, staffDirectoryQuery, retryVersion])
 
@@ -1436,9 +1496,27 @@ function App() {
         }
     }
 
+    async function loadCaseDocument(document: CaseDocument): Promise<Blob> {
+        if (!currentUser || !organizationId) {
+            throw new Error('Your session is missing or has expired. Sign in again.')
+        }
+
+        const response = await apiRequest(
+            `/api/cases/${document.caseId}/documents/${document.id}`,
+            organizationId,
+        )
+
+        if (response.status === 401) throw new Error('Your session is missing or has expired. Sign in again.')
+        if (response.status === 403 || response.status === 404) {
+            throw new Error('You are not authorized to preview this document.')
+        }
+        if (!response.ok) throw new Error(`Document preview failed with HTTP ${response.status}.`)
+
+        return response.blob()
+    }
+
     async function setStaffActive(member: StaffMember) {
         if (!currentUser || !organizationId) return
-        if (!window.confirm(`${member.isActive ? 'Deactivate' : 'Reactivate'} ${member.fullName}?`)) return
 
         setAdminLoading(true)
         setError(null)
@@ -1698,7 +1776,9 @@ function App() {
 
     const workspaceCaption = activePortal === 'citizen'
         ? currentUser.email
-        : activeOrganization?.name ?? 'Organization membership required'
+        : activePortal === 'platform-admin'
+            ? 'Platform administrator'
+            : activeOrganization?.name ?? 'Organization membership required'
 
     const viewLabels: Record<WorkspaceView, string> = {
         'citizen-dashboard': 'Dashboard',
@@ -1709,7 +1789,7 @@ function App() {
         staff: 'Staff & team',
         activity: 'Activity log',
         'organization-dashboard': 'Dashboard',
-        organizations: 'Organizations',
+        organizations: platformAdminAccess ? 'Organizations' : 'My Organization',
         'platform-dashboard': 'Dashboard',
         'platform-cases': 'All cases',
         'platform-directory': 'Directory',
@@ -1724,7 +1804,7 @@ function App() {
             <aside className="sidebar">
                 <button
                     className="brand brand-button"
-                    onClick={() => setViewSelection(
+                    onClick={() => navigateToWorkspaceView(
                         availableViews.includes('organization-dashboard')
                             ? 'organization-dashboard'
                             : availableViews.includes('platform-dashboard')
@@ -1771,7 +1851,7 @@ function App() {
                             title={item.label}
                             className={activeView === item.view ? 'active' : ''}
                             key={item.view}
-                            onClick={() => setViewSelection(item.view)}
+                            onClick={() => navigateToWorkspaceView(item.view)}
                             type="button"
                         >
                             <Icon aria-hidden="true" className="nav-icon" name={item.icon} />
@@ -1794,8 +1874,7 @@ function App() {
                         <NotificationCenter
                             onOpenCase={organizationAccess
                                 ? (caseId) => {
-                                    setViewSelection('cases')
-                                    setSelectedCaseId(caseId)
+                                    navigateToCase(caseId)
                                 }
                                 : citizenAccess
                                     ? openCitizenCase
@@ -1804,8 +1883,8 @@ function App() {
                         <ProfileMenu
                             email={currentUser.email}
                             fullName={currentUser.fullName}
-                            onOpenProfile={() => setViewSelection('profile')}
-                            onSignOut={handleSignOut}
+                            onOpenProfile={() => navigateToWorkspaceView('profile')}
+                            onSignOut={navigateToSignOut}
                         />
                     </div>
                 </header>
@@ -1853,7 +1932,9 @@ function App() {
                                     onTrackCase={openCitizenCase}
                                 />
                             ) : activeView === 'profile' ? (
-                                <ProfilePage/>
+                                platformAdminAccess
+                                    ? <PlatformAdminProfile user={currentUser}/>
+                                    : <ProfilePage/>
                             ) : activeView === 'staff' && organizationAccess ? (
                                 <StaffDirectory
                                     staff={staffDirectoryPage.items}
@@ -1999,6 +2080,14 @@ function App() {
                                     onRevokeInvitation={(invitationId) =>
                                         revokeInvitation(selectedOrganizationId, invitationId)}
                                 />
+                            ) : activeView === 'organizations' && organizationAccess ? (
+                                <MyOrganization
+                                    organization={activeOrganization}
+                                    staffPage={staffDirectoryPage}
+                                    staffQuery={staffDirectoryQuery}
+                                    onStaffQueryChange={setStaffDirectoryQuery}
+                                    loading={adminLoading}
+                                />
                             ) : organizationAccess ? (
                                 <>
                                     <div className="page-heading">
@@ -2118,8 +2207,33 @@ function App() {
                                         </div>
                                     </div>
 
-                                    <div className="case-layout">
-                                        <section className="case-card">
+                                    <div aria-label="Case workspace sections" className="case-workspace-tabs" role="tablist">
+                                        <button
+                                            aria-selected={caseWorkspacePanel === 'list'}
+                                            aria-controls="organization-cases-panel"
+                                            className={caseWorkspacePanel === 'list' ? 'active' : ''}
+                                            onClick={() => navigateToPanel('list')}
+                                            role="tab"
+                                            type="button"
+                                        >Cases</button>
+                                        <button
+                                            aria-selected={caseWorkspacePanel === 'details'}
+                                            aria-controls="organization-case-details-panel"
+                                            className={caseWorkspacePanel === 'details' ? 'active' : ''}
+                                            disabled={!selectedCase}
+                                            onClick={() => navigateToPanel('details')}
+                                            role="tab"
+                                            type="button"
+                                        >Case details</button>
+                                    </div>
+                                    <div className="case-layout case-workspace-layout">
+                                        <section
+                                            aria-label="Cases"
+                                            className="case-card"
+                                            hidden={caseWorkspacePanel !== 'list'}
+                                            id="organization-cases-panel"
+                                            role="tabpanel"
+                                        >
                                             <div className="case-toolbar data-grid-toolbar">
                                                 <div className="search data-grid-search">
                                                     <Icon className="search-icon" name="search" />
@@ -2195,7 +2309,7 @@ function App() {
                                                                     <button
                                                                         aria-pressed={selectedCase?.id === item.id}
                                                                         className="case-row-button"
-                                                                        onClick={() => setSelectedCaseId(item.id)}
+                                                                        onClick={() => navigateToCase(item.id)}
                                                                         type="button"
                                                                     >
                                                                         <strong>{item.referenceNumber}</strong>
@@ -2237,6 +2351,13 @@ function App() {
                                             </div>
                                         </section>
 
+                                        <div
+                                            aria-label="Case details"
+                                            className="case-details-panel"
+                                            hidden={caseWorkspacePanel !== 'details'}
+                                            id="organization-case-details-panel"
+                                            role="tabpanel"
+                                        >
                                         <CaseDetails
                                             caseRecord={selectedCase}
                                             history={history}
@@ -2265,7 +2386,10 @@ function App() {
                                             onAssignmentChange={assignCase}
                                             onUpload={uploadDocument}
                                             onDownload={downloadDocument}
+                                            onLoadDocument={loadCaseDocument}
+                                            onUnsavedChangesChange={setCaseHasUnsavedChanges}
                                         />
+                                        </div>
                                     </div>
                                 </>
                             ) : (
@@ -2286,6 +2410,24 @@ function App() {
                     )}
 
                 </section>
+                <ConfirmationDialog
+                    open={pendingUnsavedNavigation !== null}
+                    title="Discard unsaved case changes?"
+                    description="Your case edits have not been saved. Continue and discard those changes?"
+                    confirmLabel="Discard changes"
+                    cancelLabel="Continue editing"
+                    destructive
+                    onCancel={() => setPendingUnsavedNavigation(null)}
+                    onConfirm={() => {
+                        const navigation = pendingUnsavedNavigation
+                        setCaseHasUnsavedChanges(false)
+                        if (navigation?.caseId) setSelectedCaseId(navigation.caseId)
+                        if (navigation?.panel) setCaseWorkspacePanel(navigation.panel)
+                        if (navigation?.view) setViewSelection(navigation.view)
+                        if (navigation?.signOut) void handleSignOut()
+                        setPendingUnsavedNavigation(null)
+                    }}
+                />
                 <AppFooter />
             </main>
         </div>

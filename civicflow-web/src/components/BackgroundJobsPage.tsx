@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api'
 import { Icon } from './Icon'
 import { formatDateTime } from '../utils/format'
+import { ConfirmationDialog } from './ConfirmationDialog'
 
 type JobSummary = {
   id: string
@@ -34,7 +35,13 @@ export function BackgroundJobsPage() {
   const [result, setResult] = useState<JobPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [changingJobId, setChangingJobId] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<{
+    job: JobSummary
+    action: 'cancel' | 'retry'
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const actionInProgress = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,18 +63,21 @@ export function BackgroundJobsPage() {
   }, [load])
 
   const changeJob = async (job: JobSummary, action: 'cancel' | 'retry') => {
-    const actionLabel = action === 'retry' ? 'retry' : 'cancel'
-    if (!window.confirm(`Are you sure you want to ${actionLabel} job ${job.id}?`)) return
-
+    if (actionInProgress.current) return
+    actionInProgress.current = true
     setError(null)
+    setNotice(null)
     setChangingJobId(job.id)
     try {
       await request(`/api/platform/jobs/${job.id}/${action}`, { method: 'POST' })
+      setNotice(action === 'retry' ? 'Job retry was queued.' : 'Job cancellation was recorded.')
       await load()
     } catch {
       setError(`The job could not be ${action === 'retry' ? 'retried' : 'cancelled'}.`)
     } finally {
+      actionInProgress.current = false
       setChangingJobId(null)
+      setPendingAction(null)
     }
   }
 
@@ -110,6 +120,7 @@ export function BackgroundJobsPage() {
             <button className="document-link" onClick={() => void load()} type="button">Retry</button>
           </div>
         )}
+        {notice && <p aria-live="polite" className="success-notice" role="status">{notice}</p>}
 
         {loading ? (
           <p className="muted empty-state">Loading jobs…</p>
@@ -148,7 +159,7 @@ export function BackgroundJobsPage() {
                         <button
                           className="secondary-button"
                           disabled={changingJobId !== null}
-                          onClick={() => void changeJob(job, 'retry')}
+                          onClick={() => setPendingAction({ job, action: 'retry' })}
                           type="button"
                         >
                           <Icon className="button-icon" name="refresh" />
@@ -159,7 +170,7 @@ export function BackgroundJobsPage() {
                         <button
                           className="secondary-button"
                           disabled={changingJobId !== null}
-                          onClick={() => void changeJob(job, 'cancel')}
+                          onClick={() => setPendingAction({ job, action: 'cancel' })}
                           type="button"
                         >
                           <Icon className="button-icon" name="x" />
@@ -182,6 +193,22 @@ export function BackgroundJobsPage() {
           </span>
         </div>
       </section>
+      <ConfirmationDialog
+        open={pendingAction !== null}
+        title={pendingAction?.action === 'retry' ? 'Retry failed job?' : 'Cancel queued job?'}
+        description={pendingAction
+          ? pendingAction.action === 'retry'
+            ? `Job ${pendingAction.job.id} will be returned to the queue for another attempt.`
+            : `This will prevent job ${pendingAction.job.id} from running. The cancellation is recorded and cannot be undone.`
+          : ''}
+        confirmLabel={pendingAction?.action === 'retry' ? 'Retry job' : 'Cancel job'}
+        destructive={pendingAction?.action !== 'retry'}
+        loading={pendingAction !== null && changingJobId === pendingAction.job.id}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={async () => {
+          if (pendingAction) await changeJob(pendingAction.job, pendingAction.action)
+        }}
+      />
     </>
   )
 }

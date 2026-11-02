@@ -523,13 +523,14 @@ var allowedOrigins = builder.Configuration
 // Development-only trust rule for the Vite dev server. The configured browser
 // port is fixed in vite.config.ts, but local overrides can choose another one;
 // a fixed origin allowlist would then break login. Cookies are scoped to
-// localhost (shared across ports), so accept only first-party loopback HTTP
+// localhost (shared across ports), so accept only first-party loopback HTTP(S)
 // origins — never a public host, wildcard, or arbitrary origin with
 // credentials. This predicate is never consulted outside Development.
 static bool IsTrustedLoopbackOrigin(string origin)
 {
     if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
-        uri.Scheme != Uri.UriSchemeHttp)
+        (uri.Scheme != Uri.UriSchemeHttp &&
+         uri.Scheme != Uri.UriSchemeHttps))
     {
         return false;
     }
