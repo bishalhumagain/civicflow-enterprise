@@ -64,7 +64,7 @@ export function StaffDirectory({
           <h1>Team contacts</h1>
           <p className="muted">
             {canManage
-              ? 'Contact details for the people who work on this organization’s cases. Membership roles and invitations are managed from Organizations.'
+              ? 'Contact details for the people who work on this organization\'s cases. Membership roles and invitations are managed from Organizations.'
               : 'View the staff directory and case assignment contacts.'}
           </p>
         </div>
@@ -95,12 +95,12 @@ export function StaffDirectory({
             {staff.map((member) => (
               <article className="directory-member" key={member.id}>
                 <span className="avatar">{member.fullName.slice(0, 2).toUpperCase()}</span>
-                <div>
+                <div className="directory-member-content">
                   <strong>{member.fullName}</strong>
                   <span>{member.email}</span>
                   <span className="role-badge">{member.organizationRole ?? 'Staff'}</span>
                   {canManage && editingPhoneFor === member.id ? (
-                    <span style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <div className="phone-edit-form">
                       <input
                         aria-describedby={
                           phoneError !== null ? `staff-phone-error-${member.id}` : undefined
@@ -117,23 +117,25 @@ export function StaffDirectory({
                           setPhoneError(null)
                         }}
                       />
-                      <button
-                        className="primary-button"
-                        disabled={loading || validatePhone(phoneNumber) !== null}
-                        onClick={() => void savePhone(member)}
-                        type="button"
-                      >
-                        <Icon className="button-icon" name="save" />
-                        <span>Save</span>
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={loading}
-                        onClick={() => setEditingPhoneFor(null)}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
+                      <div className="phone-edit-actions">
+                        <button
+                          className="primary-button"
+                          disabled={loading || validatePhone(phoneNumber) !== null}
+                          onClick={() => void savePhone(member)}
+                          type="button"
+                        >
+                          <Icon className="button-icon" name="save" />
+                          <span>Save</span>
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={loading}
+                          onClick={() => setEditingPhoneFor(null)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                       {phoneError !== null && (
                         <span
                           className="field-error"
@@ -143,31 +145,32 @@ export function StaffDirectory({
                           {phoneError}
                         </span>
                       )}
-                    </span>
+                    </div>
                   ) : (
-                    <span>
-                      {canManage
-                        ? member.phoneNumber ?? 'No phone number'
-                        : 'Contact details restricted'}{' '}
+                    <div className="contact-details">
+                      <span className="phone-number">
+                        {canManage
+                          ? member.phoneNumber ?? 'No phone number'
+                          : 'Contact details restricted'}
+                      </span>
                       {canManage && (
                         <button
                           className="link-button"
                           disabled={loading}
                           onClick={() => startEditing(member)}
-                          style={{ display: 'inline', padding: 0 }}
                           type="button"
                         >
                           <Icon className="button-icon" name="edit" />
                           <span>Edit</span>
                         </button>
                       )}
-                    </span>
+                    </div>
                   )}
-                  <small>{member.isActive ? 'Active' : 'Inactive'}</small>
+                  <small className="status-badge">{member.isActive ? 'Active' : 'Inactive'}</small>
                 </div>
                 {canManage && (
                   <button
-                    className="secondary-button"
+                    className="secondary-button compact-button"
                     disabled={loading}
                     onClick={() => setPendingStatusChange(member)}
                     type="button"

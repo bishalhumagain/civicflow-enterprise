@@ -663,6 +663,7 @@ function App() {
     useEffect(() => {
         if (!currentUser || (!organizationAccess && !organizationAdminAccess) ||
             (activeView !== 'staff' && activeView !== 'organizations')) return
+        if (!platformAdminAccess && !organizationId) return
         let mounted = true
         const query = new URLSearchParams({ page: String(staffDirectoryQuery.page), pageSize: String(staffDirectoryQuery.pageSize) })
         if (staffDirectoryQuery.search.trim()) query.set('search', staffDirectoryQuery.search.trim())
@@ -682,7 +683,7 @@ function App() {
 
         void loadStaffDirectory()
         return () => { mounted = false }
-    }, [currentUser, organizationAccess, organizationAdminAccess, activeView, staffDirectoryQuery, retryVersion])
+    }, [currentUser, organizationAccess, organizationAdminAccess, activeView, staffDirectoryQuery, retryVersion, organizationId, platformAdminAccess, administrationOrganizationId])
 
     useEffect(() => {
         if (!currentUser || !platformAdminAccess || activeView !== 'platform-directory') return

@@ -76,12 +76,14 @@ export function MyOrganization({
             {staffPage.items.map((member) => (
               <article className="directory-member" key={member.id}>
                 <span className="avatar">{member.fullName.slice(0, 2).toUpperCase()}</span>
-                <div>
+                <div className="directory-member-content">
                   <strong>{member.fullName}</strong>
                   <span>{member.email}</span>
                   <span className="role-badge">{member.organizationRole ?? 'Staff'}</span>
-                  <span>Contact details restricted</span>
-                  <small>{member.isActive ? 'Active' : 'Inactive'}</small>
+                  <div className="contact-details">
+                    <span className="phone-number">Contact details restricted</span>
+                  </div>
+                  <small className="status-badge">{member.isActive ? 'Active' : 'Inactive'}</small>
                 </div>
               </article>
             ))}
