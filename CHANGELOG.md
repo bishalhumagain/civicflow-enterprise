@@ -26,10 +26,13 @@
 
 ### Changed
 
+- Development email delivery now falls back to the API console when no SMTP relay is configured. `LoggingEmailSender` prints the recipient, subject, and full body, so verification, password-reset, and invitation links are immediately usable locally. When `Smtp:Host` and `Smtp:FromAddress` are set, Development uses the real SMTP sender instead. The console output contains sensitive one-time tokens and must not be shared or retained.
 - Repository layout cleanup without behaviour changes. Each backend feature now keeps controllers at its root and groups contracts under `Contracts/` with services and their interfaces under `Services/`; namespaces follow the folders. Shared domain helpers moved to `Domain/Common`, tests are split into `Integration/` and `Support/`, and the frontend audit/invitation helpers moved to `utils/` while app configuration, toasts, and route/storage helpers were consolidated into cohesive modules. Endpoints and supported behaviour are unchanged.
+- Case details are now saved deliberately. Title, description, status, priority, and assignment are edited in one staged form and persisted together only when **Save changes** is pressed; priority and assignment no longer auto-save on change. Unsaved edits still trigger the existing navigation guard and unload prompt.
 
 ### Removed
 
+- Case deletion is no longer available anywhere. The `DELETE /api/cases/{id}` endpoint, `ICaseService.DeleteAsync`/`CaseService.DeleteAsync`, the `ConfirmCaseDeletionRequest` contract, the `case.deleted` audit action, the case-details danger zone and confirmation dialog, and the delete integration tests were removed. Cases are retained permanently; a regression test asserts the endpoint responds with `405 Method Not Allowed`.
 - Repository audit cleanup. Deleted unused frontend assets (`hero.png`, `react.svg`, `vite.svg`, `public/icons.svg`). Removed API client wrappers that no view called (platform overview/users/staff/citizens, organization/membership/invitation helpers, citizen self-profile, and password change), the unused `ServerConfiguration` binding and its `Server` template block, and the corresponding unused template keys. Backend endpoints and supported behaviour are unchanged.
 
 ### Fixed
@@ -67,9 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EF Core/PostgreSQL persistent background jobs, attempt history, transactional in-app notification outbox, lease-based hosted worker, bounded exponential retries, stale-lease recovery, retention cleanup, and SuperAdmin-only audited job inspection/retry/cancel APIs.
 - Authenticated-user notification APIs and a workspace notification panel; platform administrators now have a status-filtered background-job monitor. Case submission, assignment, and status changes notify only the authenticated submitter or active assigned staff account.
 - Migrations `AddPersistentBackgroundJobsAndNotifications` and `AddBackgroundJobConcurrencyVersion`, worker configuration defaults, and integration tests for outbox idempotency, notification recipient isolation/read state, job state transitions, and platform job authorization.
-- Assigned CaseWorkers can now edit case title and description; only organization administrators can permanently delete cases, after explicit confirmation. Case deletion removes its assignment/status history and document metadata, records an audit event, and deletes the associated stored files.
+- Assigned CaseWorkers can now edit case title and description. (Case deletion was later removed; see the Unreleased section.)
 - Organization staff can now use the activity screen without receiving a forbidden response: organization administrators retain organization-wide activity visibility, while CaseWorkers and Viewers are constrained server-side to events performed by their own authenticated account.
-- Regression tests cover staff audit actor isolation, CaseWorker detail edits, Viewer read-only behavior, and organization-admin-confirmed deletion.
+- Regression tests cover staff audit actor isolation, CaseWorker detail edits, and Viewer read-only behavior.
 - Citizen intake now submits multipart case requests to an active organization selected from the authenticated citizen API, stores the submitting user, and supports an optional arbitrary file attachment (10 MB limit). Staff-created cases continue to use the authenticated organization context.
 - Case assignment now records a case-specific `CaseWorker` or `Viewer` role in the case and assignment history. Organization administrators alone can assign or reassign cases; staff list and detail APIs return only cases assigned to them, and Viewer assignments are read-only. Existing assignments are migrated as `CaseWorker`.
 - Authenticated organization selector: `GET /api/organizations/me` returns only the current active account's active organization memberships and their organization roles. The SPA no longer uses a build-time organization ID; it resolves memberships after session restoration and supports switching among authorized organizations.

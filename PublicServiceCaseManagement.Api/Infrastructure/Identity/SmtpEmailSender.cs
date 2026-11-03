@@ -10,6 +10,19 @@ namespace PublicServiceCaseManagement.Api.Infrastructure.Identity;
 /// </summary>
 public sealed class SmtpEmailSender : IEmailSender
 {
+    /// <summary>
+    /// Reports whether a transport has been configured. Development uses this
+    /// to fall back to console delivery instead of failing when the local
+    /// environment has no SMTP relay.
+    /// </summary>
+    public static bool IsConfigured(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Smtp");
+
+        return !string.IsNullOrWhiteSpace(section["Host"]) &&
+               !string.IsNullOrWhiteSpace(section["FromAddress"]);
+    }
+
     private readonly string host;
     private readonly int port;
     private readonly string fromAddress;

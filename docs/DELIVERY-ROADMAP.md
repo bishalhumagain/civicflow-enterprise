@@ -75,7 +75,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 | **Browser-level verification** | A nine-test Playwright suite now verifies the citizen tracking and staff update journeys, cross-citizen isolation, session expiry, CSRF rejection, registration, password-recovery, and intake field validation, normalized payloads, and click stability in Chromium against disposable PostgreSQL. Portal sign-in, invitation redemption, platform administration, and the PAT UI still rely on integration tests, HTTP runs, TypeScript compilation, lint, and a production build. |
 | **Audit trail** | Append-only and read-only through the API; retention, export, and alerting policies are not implemented. The audit event table is intentionally not RLS-protected (platform reads are gated by the super-administrator check, organization reads are scoped in the query service). |
 | **Multi-organization** | An account that holds both a citizen and a staff role may use both of those portals; a super administrator may only use the platform portal. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`. |
-| **Email delivery** | Invitation delivery uses the development `LoggingEmailSender`; a real SMTP/provider implementation is still required for production delivery, and the emailed link is logged at `Information` level locally. |
+| **Email delivery** | Invitation delivery uses the development `LoggingEmailSender` when SMTP is unconfigured; a real SMTP/provider implementation is still required for production delivery, and the emailed link is logged at `Warning` level locally. |
 
 ### Unstarted or blocked by a security design dependency
 

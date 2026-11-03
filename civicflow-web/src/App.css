@@ -1776,6 +1776,40 @@ select:not([multiple]) {
   min-height: 40px;
 }
 
+.case-details-form .detail-section {
+  padding: 18px 0 4px;
+  border-bottom: 0;
+}
+
+.case-details-form .detail-section h3 {
+  margin-bottom: 12px;
+}
+
+.case-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.case-save-bar .primary-button {
+  min-height: 40px;
+}
+
+.case-workflow-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.case-workflow-summary div {
+  align-items: center;
+  margin: 0;
+}
+
 .case-details-back {
   display: inline-flex;
   align-items: center;
@@ -1908,15 +1942,20 @@ select:not([multiple]) {
 
 .content {
   width: 100%;
-  max-width: 1540px;
+  max-width: 1500px;
   margin-inline: auto;
-  padding: clamp(24px, 3vw, 40px) clamp(20px, 3.4vw, 48px);
+  padding: 34px 40px;
 }
 
 .content > * {
   min-width: 0;
 }
 
+/*
+ * Keep every top-level section on the same left edge as the page heading and
+ * the tab strip. Individual sections must not be centred or given their own
+ * narrower max-width, otherwise cards drift away from the tabs above them.
+ */
 .content > .page-heading,
 .content > .dashboard-heading,
 .content > .stat-grid,
@@ -1925,17 +1964,20 @@ select:not([multiple]) {
 .content > .analytics-grid,
 .content > .case-layout,
 .content > .profile-layout,
-.content > .background-jobs-page {
+.content > .background-jobs-page,
+.content > .case-card,
+.content > .admin-panel,
+.content > .data-grid-tabs {
   width: 100%;
-  max-width: 1320px;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
 }
 
 .page-heading,
 .dashboard-heading {
   align-items: flex-end;
   gap: var(--space-4);
-  margin: 0 auto var(--space-6);
+  margin: 0 0 var(--space-6);
 }
 
 .page-heading > div:first-child,
@@ -1970,25 +2012,21 @@ select:not([multiple]) {
 .dashboard-stat-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: var(--space-4);
-  margin: 0 auto var(--space-6);
-}
-
-.case-card,
-.admin-panel,
-.analytics-card {
-  padding: var(--space-6);
+  margin: 0 0 var(--space-6);
 }
 
 .content > .case-card,
 .content > .admin-panel {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto var(--space-6);
+  margin-bottom: var(--space-6);
 }
 
 .content > .case-card:last-child,
 .content > .admin-panel:last-child {
   margin-bottom: 0;
+}
+
+.content > .data-grid-tabs {
+  justify-content: flex-start;
 }
 
 .case-card h2,
@@ -1999,7 +2037,6 @@ select:not([multiple]) {
 }
 
 .section-heading {
-  align-items: center;
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -2063,9 +2100,15 @@ select:not([multiple]) {
   text-align: center;
 }
 
+@media (max-width: 1050px) {
+  .content {
+    padding: 28px 22px;
+  }
+}
+
 @media (max-width: 760px) {
   .content {
-    padding: var(--space-6) var(--space-4);
+    padding: 24px 16px;
   }
 
   .page-heading,
@@ -2079,23 +2122,11 @@ select:not([multiple]) {
     width: 100%;
     justify-content: flex-start;
   }
-
-  .case-card,
-  .admin-panel,
-  .analytics-card {
-    padding: var(--space-5);
-  }
 }
 
 @media (max-width: 520px) {
   .content {
     padding: var(--space-5) var(--space-3);
-  }
-
-  .case-card,
-  .admin-panel,
-  .analytics-card {
-    padding: var(--space-4);
   }
 
   .section-heading {

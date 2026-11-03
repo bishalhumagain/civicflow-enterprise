@@ -79,12 +79,11 @@ Additional boundaries:
   are read-only. Assignment itself is OrganizationAdmin-only and only accepts
   active staff in the same organization.
 - Organization administrators can read and manage cases in their active
-  organization, and can delete only cases they created after sending the
-  explicit confirmation request. Platform SuperAdmins retain deletion access
-  within their selected organization. Neither role can use a frontend-supplied
-  creator identifier; case ownership is taken from the authenticated account.
-  Organization administrators cannot grant themselves or another member the
-  `OrganizationAdmin` membership role.
+  organization. Case deletion is not available to any role, including Platform
+  SuperAdmins; cases are retained permanently. Neither role can use a
+  frontend-supplied creator identifier; case ownership is taken from the
+  authenticated account. Organization administrators cannot grant themselves or
+  another member the `OrganizationAdmin` membership role.
 - Citizens may submit to any organization returned by the active public intake
   directory. The authenticated user ID is assigned server-side; the request
   cannot set a creator ID.
@@ -212,7 +211,6 @@ active staff record and assigned cases.
 | `GET /api/cases?page={n}&pageSize={n}` | Active organization member; defaults page `1`, pageSize `20`, page range `1–1,000,000`, pageSize range `1–100` | `200 PagedCasesResponse`; admin gets org cases, staff get their assignments only. |
 | `GET /api/cases/{id:guid}` | OrganizationAdmin or assigned staff | `200 CreateCaseResponse`; `404` missing, cross-org, or unassigned case. |
 | `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details with the same title/description bounds and normalization as creation. |
-| `DELETE /api/cases/{id:guid}` | OrganizationAdmin who created the case, or SuperAdmin in the selected organization; `ConfirmCaseDeletionRequest` must explicitly confirm | `204`; `400` missing confirmation, `403` unauthorized role or creator, `404` inaccessible case; deletes case/history/document metadata and stored files and records an audit event. |
 | `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` (`newStatus`, optional `explanation`, `explanationVisibleToCitizen`) | `200 ChangeCaseStatusResponse`; `400` invalid transition/explanation, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. The transition is always citizen-visible; the explanation is projected to the citizen timeline only when the visibility flag is true. |
 | `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries including explanation and `isVisibleToCitizen`; `404` inaccessible case. |
 | `POST /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned CaseWorker; `AddCaseUpdateRequest` (`kind`: `PublicUpdate`, `InformationRequest`, or `InternalNote`; message 1–4,000) | `201 CaseUpdateResponse`; `400` invalid kind/message or closed case, `403` Viewer/unassigned write, `404` inaccessible case; records audit and notifies the submitter for citizen-visible kinds. `InformationRequest` moves the case to `AwaitingInformation` with a citizen-visible history entry. `InternalNote` and non-visible entries never reach the citizen projection. |
@@ -474,10 +472,11 @@ Treat response-only schemas as output contracts, not writable database models.
   magic-signature checks for declared PDF/PNG/JPEG/GIF types. Arbitrary other
   types remain allowed, and malware scanning is not implemented. Citizens cannot edit a submitted case or add attachments
   after submission.
-- Development email is suppressed; the sender logs neither recipients, subjects,
-  message bodies, nor one-time action links. Configure SMTP outside Development
-  for actual delivery. Authentication integration tests use an in-memory email
-  capture service.
+- Development email is not delivered when SMTP is unconfigured; the sender
+  prints recipients, subjects, message bodies, and one-time action links to the
+  API console. Treat that output as sensitive. Configure SMTP outside
+  Development for actual delivery. Authentication integration tests use an
+  in-memory email capture service.
 - PostgreSQL worker claim, SMTP delivery, and lease recovery require a live
   PostgreSQL instance and SMTP relay; EF InMemory tests do not exercise that
   provider-specific execution path.

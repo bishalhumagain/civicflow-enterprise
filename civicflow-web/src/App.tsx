@@ -58,7 +58,7 @@ import {
 import {requestJson, setRequestOrganizationId} from './api-client'
 import {StatusPill} from './components/StatusPill'
 import {StatCard} from './components/StatCard'
-import {CaseDetails} from './components/CaseDetails'
+import {CaseDetails, type CaseDetailsDraft} from './components/CaseDetails'
 import {StaffDirectory} from './components/StaffDirectory'
 import {OrganizationAdministration} from './components/OrganizationAdministration'
 import {MyOrganization} from './components/MyOrganization'
@@ -1233,83 +1233,6 @@ function App() {
         }
     }
 
-    async function changeStatus(
-        status: CaseStatus,
-        explanation?: string,
-        explanationVisibleToCitizen = false,
-    ) {
-        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
-
-        const caseId = selectedCase.id
-
-        setActionLoading(true)
-        setError(null)
-
-        try {
-            const updated = await requestJson<{ id: string; status: CaseStatus; updatedAt: string }>(
-                `/api/cases/${caseId}/status`,
-                {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        newStatus: status,
-                        explanation: explanation?.trim() || null,
-                        explanationVisibleToCitizen,
-                    }),
-                },
-            )
-
-            setCases((current) => current.map((item) => (
-                item.id === updated.id ? {...item, status: updated.status} : item
-            )))
-
-            const loadedHistory = await requestJson<HistoryEntry[]>(
-                `/api/cases/${caseId}/history`,
-            )
-
-            setCaseHistoryData({caseId, items: loadedHistory})
-            setRetryVersion((version) => version + 1)
-            showToast('Status updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Status update failed. Your role may not permit this action.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setActionLoading(false)
-        }
-    }
-
-    async function changePriority(priority: CasePriority) {
-        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
-
-        const caseId = selectedCase.id
-
-        setActionLoading(true)
-        setError(null)
-
-        try {
-            const updated = await requestJson<{ id: string; priority: CasePriority; updatedAt: string }>(
-                `/api/cases/${caseId}/priority`,
-                {
-                    method: 'PATCH',
-                    body: JSON.stringify({ newPriority: priority }),
-                },
-            )
-
-            setCases((current) => current.map((item) => (
-                item.id === updated.id ? {...item, priority: updated.priority} : item
-            )))
-
-            setRetryVersion((version) => version + 1)
-            showToast('Priority updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Priority update failed. Your role may not permit this action.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setActionLoading(false)
-        }
-    }
-
     async function addCaseUpdate(
         kind: CaseUpdateKind,
         message: string,
@@ -1357,85 +1280,101 @@ function App() {
         }
     }
 
-    async function updateCaseDetails(title: string, description: string): Promise<boolean> {
+    async function saveCaseDetails(draft: CaseDetailsDraft): Promise<boolean> {
         if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return false
 
         const caseId = selectedCase.id
+        const original = selectedCase
         setActionLoading(true)
         setError(null)
 
         try {
-            const updated = await requestJson<CaseRecord>(`/api/cases/${caseId}`, {
-                method: 'PUT',
-                body: JSON.stringify({title, description}),
-            })
-            setCases((current) => current.map((item) => (
-                item.id === caseId
-                    ? {...item, title: updated.title, description: updated.description}
-                    : item
-            )))
+            if (draft.title !== original.title || draft.description !== original.description) {
+                const updated = await requestJson<CaseRecord>(`/api/cases/${caseId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({title: draft.title, description: draft.description}),
+                })
+                setCases((current) => current.map((item) => (
+                    item.id === caseId
+                        ? {...item, title: updated.title, description: updated.description}
+                        : item
+                )))
+            }
+
+            let statusChanged = false
+            if (draft.status !== original.status) {
+                const explanation = draft.statusExplanation.trim()
+                const updated = await requestJson<{ id: string; status: CaseStatus; updatedAt: string }>(
+                    `/api/cases/${caseId}/status`,
+                    {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            newStatus: draft.status,
+                            explanation: explanation.length > 0 ? explanation : null,
+                            explanationVisibleToCitizen:
+                                explanation.length > 0 && draft.statusExplanationVisible,
+                        }),
+                    },
+                )
+                setCases((current) => current.map((item) => (
+                    item.id === updated.id ? {...item, status: updated.status} : item
+                )))
+                statusChanged = true
+            }
+
+            if (draft.priority !== original.priority) {
+                const updated = await requestJson<{ id: string; priority: CasePriority; updatedAt: string }>(
+                    `/api/cases/${caseId}/priority`,
+                    {
+                        method: 'PATCH',
+                        body: JSON.stringify({newPriority: draft.priority}),
+                    },
+                )
+                setCases((current) => current.map((item) => (
+                    item.id === updated.id ? {...item, priority: updated.priority} : item
+                )))
+            }
+
+            if (
+                draft.assignedToStaffMemberId &&
+                (draft.assignedToStaffMemberId !== (original.assignedToStaffMemberId ?? '') ||
+                    draft.assignedRole !== (original.assignedRole ?? 'CaseWorker'))
+            ) {
+                await requestJson(`/api/cases/${caseId}/assignment`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        staffMemberId: draft.assignedToStaffMemberId,
+                        role: draft.assignedRole,
+                    }),
+                })
+                setCases((current) => current.map((item) => (
+                    item.id === caseId
+                        ? {
+                            ...item,
+                            assignedToStaffMemberId: draft.assignedToStaffMemberId,
+                            assignedRole: draft.assignedRole,
+                        }
+                        : item
+                )))
+            }
+
+            if (statusChanged) {
+                const loadedHistory = await requestJson<HistoryEntry[]>(
+                    `/api/cases/${caseId}/history`,
+                )
+                setCaseHistoryData({caseId, items: loadedHistory})
+            }
+
             setRetryVersion((version) => version + 1)
-            showToast('Case details saved.', 'success')
+            showToast('Case changes saved.', 'success')
             return true
         } catch (reason) {
             const message = reason instanceof Error
                 ? reason.message
-                : 'Case details could not be saved.'
+                : 'Case changes could not be saved.'
             setError(message)
             showToast(message, 'error')
             return false
-        } finally {
-            setActionLoading(false)
-        }
-    }
-
-    async function deleteCase() {
-        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-')) return
-
-        const caseId = selectedCase.id
-        setActionLoading(true)
-        setError(null)
-
-        try {
-            await requestJson<void>(`/api/cases/${caseId}`, {
-                method: 'DELETE',
-                body: JSON.stringify({confirmed: true}),
-            })
-            setCases((current) => current.filter((item) => item.id !== caseId))
-            setSelectedCaseId(null)
-            setRetryVersion((version) => version + 1)
-            showToast('Case deleted.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error
-                ? reason.message
-                : 'Case could not be deleted.'
-            setError(message)
-            showToast(message, 'error')
-        } finally {
-            setActionLoading(false)
-        }
-    }
-
-    async function assignCase(
-        staffMemberId: string,
-        role: 'CaseWorker' | 'Viewer',
-    ) {
-        if (!currentUser || !organizationId || !selectedCase || selectedCase.id.startsWith('demo-') || !staffMemberId) return
-
-        setActionLoading(true)
-        setError(null)
-
-        try {
-            await requestJson(`/api/cases/${selectedCase.id}/assignment`, {
-                method: 'PATCH',
-                body: JSON.stringify({staffMemberId, role}),
-            })
-            setRetryVersion((version) => version + 1)
-            showToast('Assignment updated.', 'success')
-        } catch (reason) {
-            const message = reason instanceof Error ? reason.message : 'Assignment failed. Your role may not permit this action.'
-            setError(message)
-            showToast(message, 'error')
         } finally {
             setActionLoading(false)
         }
@@ -2334,14 +2273,9 @@ function App() {
                                                         member.email.toLowerCase() === currentUser.email.toLowerCase(),
                                                     ))
                                             }
-                                            canDeleteCase={activeOrganization?.role === 'OrganizationAdmin'}
                                             actionLoading={actionLoading}
-                                            onStatusChange={changeStatus}
-                                            onPriorityChange={changePriority}
+                                            onSave={saveCaseDetails}
                                             onAddUpdate={addCaseUpdate}
-                                            onUpdate={updateCaseDetails}
-                                            onDelete={deleteCase}
-                                            onAssignmentChange={assignCase}
                                             onUpload={uploadDocument}
                                             onDownload={downloadDocument}
                                             onLoadDocument={loadCaseDocument}

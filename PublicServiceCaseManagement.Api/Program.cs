@@ -519,8 +519,12 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
 builder.Services.AddScoped<IJwtAccessTokenIssuer, JwtAccessTokenIssuer>();
-if (isDevelopment)
+if (isDevelopment && !SmtpEmailSender.IsConfigured(builder.Configuration))
 {
+    // No SMTP relay is configured locally, so print the full message (and
+    // therefore any one-time verification, reset, or invitation link) to the
+    // API console. Registering the real sender here would make local
+    // registration and invitations fail without a mail server.
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 }
 else

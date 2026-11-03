@@ -91,7 +91,7 @@ Covered by automated integration tests:
 - Assignment role changes between CaseWorker and Viewer are recorded in assignment history
 - Staff case lists and identifier lookups are restricted to assigned cases; unassigned and another staff member's cases return no data
 - CaseWorker assignments can update cases, while Viewer assignments are read-only; only organization administrators can assign cases
-- Organization administrators can update case details and permanently delete cases only after confirmation; CaseWorkers cannot delete, and Viewer detail updates are forbidden
+- Organization administrators can update case details; CaseWorker detail updates are limited to their assigned CaseWorker cases and Viewer detail updates are forbidden. Cases cannot be deleted: `DELETE /api/cases/{id}` is not routed and returns `405 Method Not Allowed`.
 - CaseWorkers and Viewers can read their own organization activity without seeing other actors' events, including when attempting to filter by another actor ID
 - `GET /api/organizations/me` returns only the caller's active memberships; non-member organization selection is forbidden
 - Organization dashboard statistics reject an organization ID outside the caller's resolved membership context
@@ -322,7 +322,7 @@ npm run test:e2e
 
 `CIVICFLOW_E2E_API_URL` and `CIVICFLOW_E2E_WEB_URL` override the API and frontend URLs when the defaults differ. The suite seeds its own confirmed accounts and organization, uses a fixed disposable-only password, and must never be pointed at a persistent or production database. Generated reports and failure traces are gitignored.
 
-Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. The Development placeholder suppresses delivery and logs only a generic warning; it never logs recipients, subjects, bodies, or action tokens.
+Automated authentication tests replace `IEmailSender` with an in-memory capture sink. For a manual local or production run, configure `Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, and `Smtp:UseSsl=true`; SMTP credentials are optional only when the relay uses network-level authentication. Outside Development, the API validates SMTP configuration at startup. In Development without SMTP configuration, the API prints the full message (recipient, subject, body, and one-time link) to the console instead of delivering it; treat that output as sensitive.
 
 > Do not run the migration command against a persistent or production database. Do not put database passwords, email credentials, or any tokens in the repository, test output, or documentation.
 

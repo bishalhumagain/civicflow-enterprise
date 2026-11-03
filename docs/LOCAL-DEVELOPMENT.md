@@ -122,10 +122,12 @@ The business endpoints setting defaults to `false`; the user-secrets setting
 above enables organization workflows for local development. Health endpoints
 remain available regardless of that flag.
 
-The Development email sender suppresses delivery and does not log the
-recipient, subject, body, or one-time links. Use the automated authentication
-tests, which capture messages in memory, or configure the TLS SMTP sender in a
-non-Development environment to test actual delivery.
+When no SMTP relay is configured in Development, the API prints the full
+message, including the recipient, subject, body, and one-time link, to its
+console. Do not share or retain that output. Configure the TLS SMTP sender
+(`Smtp:Host`, `Smtp:Port`, `Smtp:FromAddress`, `Smtp:UseSsl=true`) to deliver
+real mail locally, or use the automated authentication tests, which capture
+messages in memory.
 
 ## 4. Run the frontend
 

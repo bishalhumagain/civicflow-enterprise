@@ -338,25 +338,27 @@ The workspace resolves the active organization from the signed-in account's acti
 
 The organization is fixed to the authenticated staff workspace; staff do not select an organization in the case form. Organization administrators can assign a case to an active staff member and choose the per-case role **CaseWorker** (can update details, status, and documents) or **Viewer** (read-only). Staff see only cases assigned to them.
 
-Organization administrators can edit case title and description and can permanently delete a case. Deletion opens an explicit confirmation dialog and removes the case, its history, and attached documents. CaseWorkers can edit title and description only for cases assigned to them with the CaseWorker role; Viewers cannot make changes. No staff member can delete a case.
+Organization administrators can edit a case's title, description, status, priority, and assignment in the case details form. Changes are staged locally and only take effect when **Save changes** is pressed at the end of the form. CaseWorkers can edit title, description, status, and priority only for cases assigned to them with the CaseWorker role; Viewers cannot make changes. Cases cannot be deleted by anyone.
 
 ### 5.3 Updating Case Status
 
 1. Select a case from the cases list
 2. In the case details panel, use the status dropdown
-3. Select the new status
-4. The status will update according to the state machine:
+3. Select the new status and, optionally, record an explanation
+4. Click **"Save changes"** at the end of the case details form
+5. The status will update according to the state machine:
    - Submitted → UnderReview → Assigned → InProgress → AwaitingInformation → Resolved → Closed/Rejected
-5. Status history will be refreshed
-6. Closed and rejected cases cannot be edited
+6. Status history will be refreshed
+7. Closed and rejected cases cannot be edited
 
 ### 5.4 Assigning a Case
 
 1. Select a case from the cases list
 2. In the case details panel, use the assignment controls
-3. Select a staff member from the dropdown
-4. Assignment will be updated with audit tracking
-5. Assignment history will reflect the change
+3. Select a staff member and the per-case role
+4. Click **"Save changes"** at the end of the case details form
+5. Assignment will be updated with audit tracking
+6. Assignment history will reflect the change
 
 ### 5.5 Managing Documents
 
@@ -569,7 +571,7 @@ clients should keep using the HttpOnly session cookie.
 - Watch for toast notifications — they provide real-time feedback
 - Check the browser console for additional error details in development
 - Ensure all required environment variables are configured
-- In Development, verification, password-reset, and invitation links are printed to the API console because email is not delivered. They contain sensitive, one-time tokens: use only in a private local run and never share or retain the logs. Outside Development, configure SMTP delivery as described in the [README](../README.md).
+- In Development without SMTP configured, verification, password-reset, and invitation links are printed to the API console because email is not delivered. They contain sensitive, one-time tokens: use only in a private local run and never share or retain the logs. Configure SMTP delivery as described in the [README](../README.md) to send real email instead.
 - A personal access token is displayed only once, at creation; if you lose it, revoke it and create a new one
 
 ---
@@ -605,7 +607,7 @@ clients should keep using the HttpOnly session cookie.
 
 | Area | Limitation |
 |---|---|
-| **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development does not deliver email; it prints sensitive, one-time links to the API console automatically. Use only in a private local run and never share or retain the logs. |
+| **Email delivery** | Account lifecycle and invitation email require TLS-enabled SMTP outside Development; case notification email uses durable retries. Development without SMTP configured does not deliver email; it prints sensitive, one-time links to the API console. Use only in a private local run and never share or retain the logs. |
 | **Notifications** | Notification count is polled once per minute; push/WebSocket delivery and SMS are not implemented. Invitation lifecycle events use the existing invitation email flow, not the job queue. |
 | **Citizen portal scope** | Citizens may submit cases to active organizations, attach an optional arbitrary file up to 10 MB, and fully track their own submitted cases: searchable/filterable/sortable list, detail, citizen-visible timeline and updates, information requests and responses, and citizen-visible documents. Citizens have no access to the staff case workspace, staff administration, or other citizens' cases. |
 | **Citizen tracking scope** | Citizens cannot edit a submitted request, add attachments after submission, or reopen a closed/rejected request. Tracking is available in the web portal only; there is no dedicated mobile app or push channel. |

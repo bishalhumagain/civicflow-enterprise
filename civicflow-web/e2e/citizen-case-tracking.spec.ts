@@ -218,23 +218,23 @@ test('staff records public updates, a confidential note, an information request,
     await expect(detail.getByText(state.referenceNumber)).toBeVisible()
     await expect(detail.getByLabel('Case title')).toHaveValue(title)
 
-    const statusForm = detail.locator('.status-change-form')
-    await statusForm.locator('select').selectOption('UnderReview')
-    await statusForm.locator('textarea').fill(statusExplanation)
+    const statusForm = detail.locator('.case-details-form')
+    await statusForm.locator('#status-explanation').fill(statusExplanation)
+    await statusForm.locator('select').first().selectOption('UnderReview')
     await statusForm
       .getByRole('checkbox', { name: /Include this explanation/ })
       .check()
     await detail
-      .getByRole('button', { name: 'Apply status change' })
+      .getByRole('button', { name: 'Save changes' })
       .click()
 
     await expect(detail.locator('.status-pill')).toHaveText('Under review')
 
     // An invalid jump must surface the server rule instead of silently
     // pretending the transition succeeded.
-    await statusForm.locator('select').selectOption('Closed')
+    await statusForm.locator('select').first().selectOption('Closed')
     await detail
-      .getByRole('button', { name: 'Apply status change' })
+      .getByRole('button', { name: 'Save changes' })
       .click()
     await expect(
       page
@@ -242,7 +242,7 @@ test('staff records public updates, a confidential note, an information request,
         .getByRole('alert')
         .filter({ hasText: 'A case cannot transition from UnderReview to Closed.' }),
     ).toBeVisible()
-    await statusForm.locator('select').selectOption('UnderReview')
+    await statusForm.locator('select').first().selectOption('UnderReview')
 
     const communication = detail
       .locator('.detail-section')

@@ -17,5 +17,3 @@ public sealed record UpdateCaseRequest(
         Case.MaximumDescriptionLength,
         MinimumLength = Case.MinimumDescriptionLength)]
     string Description);
-
-public sealed record ConfirmCaseDeletionRequest(bool Confirmed);

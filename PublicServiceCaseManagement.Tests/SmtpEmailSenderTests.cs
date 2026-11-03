@@ -35,6 +35,23 @@ public sealed class SmtpEmailSenderTests
         Assert.NotNull(sender);
     }
 
+    [Theory]
+    [InlineData("smtp.example.test", "no-reply@example.test", true)]
+    [InlineData("", "no-reply@example.test", false)]
+    [InlineData("smtp.example.test", "", false)]
+    [InlineData(" ", " ", false)]
+    public void IsConfigured_RequiresHostAndSenderAddress(
+        string host,
+        string fromAddress,
+        bool expected)
+    {
+        var configuration = CreateConfiguration(
+            ("Smtp:Host", host),
+            ("Smtp:FromAddress", fromAddress));
+
+        Assert.Equal(expected, SmtpEmailSender.IsConfigured(configuration));
+    }
+
     [Fact]
     public void Constructor_RejectsIncompleteCredentials()
     {

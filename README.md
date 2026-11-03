@@ -142,9 +142,10 @@ visibility.
 - Document access checks the caller's case-level permission and document
   visibility before opening a file. Local storage paths are not returned by
   metadata APIs.
-- Development email is suppressed and no recipient, message, or one-time link
-  is written to application logs. A TLS-enabled SMTP relay is required outside
-  Development.
+- Development email is not delivered unless SMTP is configured. When it is
+  unconfigured, the API prints each message, including its one-time
+  verification, reset, or invitation link, to the console. A TLS-enabled SMTP
+  relay is required outside Development.
 
 Security and endpoint details are maintained in
 [docs/API-AUTHORIZATION.md](docs/API-AUTHORIZATION.md) and
@@ -290,9 +291,9 @@ Capture instructions and role requirements are in
   malware scanning is not implemented.
 - The hosted worker currently processes `notification.email` jobs;
   invitations use their existing synchronous email path.
-- Development suppresses email delivery. Manual verification and invitations
-  require a configured SMTP environment; automated authentication tests use a
-  capturing email sender.
+- Development does not deliver email unless SMTP is configured; the API
+  prints unconfigured messages, including one-time links, to its console.
+  Automated authentication tests use a capturing email sender.
 - PostgreSQL RLS and Playwright journeys are opt-in and require disposable
   PostgreSQL infrastructure; they are not exercised by every default local
   test run.

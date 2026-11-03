@@ -25,13 +25,6 @@ public interface ICaseService
         CancellationToken cancellationToken,
         Guid? authorizedStaffMemberId = null);
 
-    Task<IReadOnlyList<string>?> DeleteAsync(
-        Guid organizationId,
-        Guid caseId,
-        Guid requestingUserId,
-        bool isPlatformAdmin,
-        CancellationToken cancellationToken);
-
     Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
         Guid organizationId,
         int page,

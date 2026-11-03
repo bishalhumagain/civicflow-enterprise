@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { StatusPill } from './StatusPill'
 import { Icon } from './Icon'
 import { DocumentPreviewButton } from './DocumentPreviewButton'
-import { ConfirmationDialog } from './ConfirmationDialog'
 import { formatDateTime, formatFileSize } from '../utils/format'
 import {
   MAX_CASE_DESCRIPTION_LENGTH,
@@ -46,6 +45,32 @@ const staffUpdateKinds: CaseUpdateKind[] = [
   'InternalNote',
 ]
 
+const priorityOptions: CasePriority[] = ['Critical', 'High', 'Normal', 'Low']
+
+export type CaseDetailsDraft = {
+  title: string
+  description: string
+  status: CaseStatus
+  priority: CasePriority
+  assignedToStaffMemberId: string
+  assignedRole: 'CaseWorker' | 'Viewer'
+  statusExplanation: string
+  statusExplanationVisible: boolean
+}
+
+function createDraft(caseRecord: CaseRecord): CaseDetailsDraft {
+  return {
+    title: caseRecord.title,
+    description: caseRecord.description,
+    status: caseRecord.status,
+    priority: caseRecord.priority,
+    assignedToStaffMemberId: caseRecord.assignedToStaffMemberId ?? '',
+    assignedRole: caseRecord.assignedRole ?? 'CaseWorker',
+    statusExplanation: '',
+    statusExplanationVisible: false,
+  }
+}
+
 export function CaseDetails({
   caseRecord,
   history,
@@ -56,12 +81,7 @@ export function CaseDetails({
   canAssignCases,
   canEditCase,
   actionLoading,
-  onStatusChange,
-  onPriorityChange,
-  onUpdate,
-  canDeleteCase,
-  onDelete,
-  onAssignmentChange,
+  onSave,
   onUpload,
   onDownload,
   onLoadDocument,
@@ -77,41 +97,17 @@ export function CaseDetails({
   canAssignCases: boolean
   canEditCase: boolean
   actionLoading: boolean
-  onStatusChange: (
-    status: CaseStatus,
-    explanation?: string,
-    explanationVisibleToCitizen?: boolean,
-  ) => Promise<void>
-  onPriorityChange: (priority: CasePriority) => Promise<void>
-  onUpdate: (title: string, description: string) => Promise<boolean>
-  canDeleteCase: boolean
-  onDelete: () => Promise<void>
-  onAssignmentChange: (
-    staffMemberId: string,
-    role: 'CaseWorker' | 'Viewer',
-  ) => Promise<void>
+  onSave: (draft: CaseDetailsDraft) => Promise<boolean>
   onUpload: (file: File, visibleToCitizen: boolean) => Promise<void>
   onDownload: (document: CaseDocument) => Promise<void>
   onLoadDocument: (document: CaseDocument) => Promise<Blob>
   onUnsavedChangesChange: (hasUnsavedChanges: boolean) => void
   onAddUpdate: (kind: CaseUpdateKind, message: string) => Promise<boolean>
 }) {
-  const [assignmentRole, setAssignmentRole] =
-    useState<'CaseWorker' | 'Viewer'>('CaseWorker')
-  const [caseDraft, setCaseDraft] = useState<{
+  const [draftState, setDraftState] = useState<{
     caseId: string
-    title: string
-    description: string
+    values: CaseDetailsDraft
   } | null>(null)
-  const [deleteConfirmationCaseId, setDeleteConfirmationCaseId] =
-    useState<string | null>(null)
-  const [pendingStatus, setPendingStatus] = useState<{
-    caseId: string
-    status: CaseStatus
-  } | null>(null)
-  const [statusExplanation, setStatusExplanation] = useState('')
-  const [statusExplanationVisible, setStatusExplanationVisible] =
-    useState(false)
   const [documentVisible, setDocumentVisible] = useState(false)
   const [documentError, setDocumentError] = useState<string | null>(null)
   const [updateKind, setUpdateKind] =
@@ -123,15 +119,26 @@ export function CaseDetails({
   const editDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const updateMessageRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const editTitle = caseRecord && caseDraft?.caseId === caseRecord.id
-    ? caseDraft.title
-    : caseRecord?.title ?? ''
-  const editDescription = caseRecord && caseDraft?.caseId === caseRecord.id
-    ? caseDraft.description
-    : caseRecord?.description ?? ''
-  const hasUnsavedChanges = !!caseRecord && (
-    editTitle !== caseRecord.title || editDescription !== caseRecord.description
+  const draft = caseRecord
+    ? draftState?.caseId === caseRecord.id
+      ? draftState.values
+      : createDraft(caseRecord)
+    : null
+
+  const hasUnsavedChanges = !!caseRecord && !!draft && (
+    draft.title !== caseRecord.title ||
+    draft.description !== caseRecord.description ||
+    draft.status !== caseRecord.status ||
+    draft.priority !== caseRecord.priority ||
+    (canAssignCases && (
+      draft.assignedToStaffMemberId !== (caseRecord.assignedToStaffMemberId ?? '') ||
+      draft.assignedRole !== (caseRecord.assignedRole ?? 'CaseWorker')
+    ))
   )
+
+  useEffect(() => {
+    onUnsavedChangesChange(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onUnsavedChangesChange])
 
   useEffect(() => {
     if (!hasUnsavedChanges) return
@@ -145,7 +152,7 @@ export function CaseDetails({
     return () => window.removeEventListener('beforeunload', warnBeforeUnload)
   }, [hasUnsavedChanges])
 
-  if (!caseRecord) {
+  if (!caseRecord || !draft) {
     return (
       <aside className="detail-card">
         <p className="muted empty-state">Select a case to view details.</p>
@@ -153,14 +160,57 @@ export function CaseDetails({
     )
   }
 
-  const deleteConfirmationOpen = deleteConfirmationCaseId === caseRecord.id
-  const selectedStatus = pendingStatus?.caseId === caseRecord.id
-    ? pendingStatus.status
-    : caseRecord.status
-  const statusChanged = selectedStatus !== caseRecord.status
-  const editTitleError = validateCaseTitle(editTitle)
-  const editDescriptionError = validateCaseDescription(editDescription)
+  const record = caseRecord
+  const isDemo = caseRecord.id.startsWith('demo-')
+  const editTitleError = validateCaseTitle(draft.title)
+  const editDescriptionError = validateCaseDescription(draft.description)
   const updateError = validateCaseUpdate(updateMessage)
+  const assignedStaffName = staff.find(
+    (member) => member.id === caseRecord.assignedToStaffMemberId,
+  )?.fullName
+
+  function updateDraft(patch: Partial<CaseDetailsDraft>) {
+    const base = draftState && draftState.caseId === record.id
+      ? draftState.values
+      : createDraft(record)
+    setDraftState({
+      caseId: record.id,
+      values: { ...base, ...patch },
+    })
+  }
+
+  function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (editTitleError !== null) {
+      editTitleRef.current?.focus()
+      return
+    }
+
+    if (editDescriptionError !== null) {
+      editDescriptionRef.current?.focus()
+      return
+    }
+
+    if (!hasUnsavedChanges) return
+
+    const statusExplanation = normalizeMultiline(draft.statusExplanation)
+    const payload: CaseDetailsDraft = {
+      ...draft,
+      title: normalizeWhitespace(draft.title),
+      description: normalizeMultiline(draft.description),
+      statusExplanation,
+      statusExplanationVisible:
+        statusExplanation.length > 0 && draft.statusExplanationVisible,
+    }
+
+    void onSave(payload).then((saved) => {
+      if (saved) {
+        setDraftState(null)
+        onUnsavedChangesChange(false)
+      }
+    })
+  }
 
   return (
     <aside className="detail-card">
@@ -177,36 +227,7 @@ export function CaseDetails({
       </div>
 
       {canEditCase ? (
-        <form
-          className="case-edit-form"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault()
-
-            if (editTitleError !== null) {
-              editTitleRef.current?.focus()
-              return
-            }
-
-            if (editDescriptionError !== null) {
-              editDescriptionRef.current?.focus()
-              return
-            }
-
-            const normalizedTitle = normalizeWhitespace(editTitle)
-            const normalizedDescription = normalizeMultiline(editDescription)
-
-            void onUpdate(normalizedTitle, normalizedDescription).then((saved) => {
-              if (saved) {
-                setCaseDraft({
-                  caseId: caseRecord.id,
-                  title: normalizedTitle,
-                  description: normalizedDescription,
-                })
-                onUnsavedChangesChange(false)
-              }
-            })
-          }}
-        >
+        <form className="case-edit-form case-details-form" onSubmit={handleSave}>
           <label>
             Case title
             <input
@@ -217,14 +238,10 @@ export function CaseDetails({
               id="case-edit-title"
               maxLength={MAX_CASE_TITLE_LENGTH}
               minLength={MIN_CASE_TITLE_LENGTH}
-              onChange={(event) => {
-                const title = event.target.value
-                setCaseDraft({ caseId: caseRecord.id, title, description: editDescription })
-                onUnsavedChangesChange(title !== caseRecord.title || editDescription !== caseRecord.description)
-              }}
+              onChange={(event) => updateDraft({ title: event.target.value })}
               ref={editTitleRef}
               required
-              value={editTitle}
+              value={draft.title}
             />
           </label>
           {editTitleError !== null && (
@@ -244,14 +261,12 @@ export function CaseDetails({
               id="case-edit-description"
               maxLength={MAX_CASE_DESCRIPTION_LENGTH}
               minLength={MIN_CASE_DESCRIPTION_LENGTH}
-              onChange={(event) => {
-                const description = event.target.value
-                setCaseDraft({ caseId: caseRecord.id, title: editTitle, description })
-                onUnsavedChangesChange(editTitle !== caseRecord.title || description !== caseRecord.description)
-              }}
+              onChange={(event) =>
+                updateDraft({ description: event.target.value })
+              }
               ref={editDescriptionRef}
               required
-              value={editDescription}
+              value={draft.description}
             />
           </label>
           {editDescriptionError !== null && (
@@ -263,172 +278,179 @@ export function CaseDetails({
               {editDescriptionError}
             </span>
           )}
-          <div className="case-edit-form-actions">
-          <button
-            className="primary-button"
-            disabled={
-              actionLoading ||
-              caseRecord.id.startsWith('demo-') ||
-              editTitleError !== null ||
-              editDescriptionError !== null ||
-              (editTitle.trim() === caseRecord.title &&
-                editDescription.trim() === caseRecord.description)
-            }
-            type="submit"
-          >
-            <Icon className="button-icon" name="save" />
-            <span>{actionLoading ? 'Saving…' : 'Save case details'}</span>
-          </button>
+
+          <div className="detail-section">
+            <h3>Workflow</h3>
+            <label>
+              Status
+              <select
+                disabled={actionLoading || isDemo}
+                onChange={(event) =>
+                  updateDraft({ status: event.target.value as CaseStatus })
+                }
+                value={draft.status}
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Explanation <small className="muted">(optional)</small>
+              <textarea
+                aria-describedby="status-explanation-hint"
+                disabled={actionLoading || isDemo}
+                id="status-explanation"
+                maxLength={MAX_STATUS_EXPLANATION_LENGTH}
+                onChange={(event) =>
+                  updateDraft({ statusExplanation: event.target.value })
+                }
+                placeholder="Record why the case is moving to this status."
+                rows={3}
+                value={draft.statusExplanation}
+              />
+            </label>
+            <small className="muted" id="status-explanation-hint">
+              {draft.statusExplanation.length}/{MAX_STATUS_EXPLANATION_LENGTH}{' '}
+              characters. Explanations are internal unless shared below.
+            </small>
+            <label className="checkbox-control">
+              <input
+                checked={draft.statusExplanationVisible}
+                disabled={
+                  actionLoading ||
+                  isDemo ||
+                  draft.statusExplanation.trim().length === 0
+                }
+                onChange={(event) =>
+                  updateDraft({
+                    statusExplanationVisible: event.target.checked,
+                  })
+                }
+                type="checkbox"
+              />
+              <span>Include this explanation in the citizen timeline</span>
+            </label>
+
+            <label>
+              Priority
+              <select
+                aria-label="Case priority"
+                disabled={actionLoading || isDemo}
+                onChange={(event) =>
+                  updateDraft({ priority: event.target.value as CasePriority })
+                }
+                value={draft.priority}
+              >
+                {priorityOptions.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {canAssignCases && (
+              <>
+                <label>
+                  Assign to
+                  <select
+                    disabled={actionLoading || isDemo}
+                    onChange={(event) =>
+                      updateDraft({
+                        assignedToStaffMemberId: event.target.value,
+                      })
+                    }
+                    value={draft.assignedToStaffMemberId}
+                  >
+                    <option disabled value="">
+                      Select staff member
+                    </option>
+                    {staff.filter((member) => member.isActive).map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Case role
+                  <select
+                    disabled={actionLoading || isDemo}
+                    onChange={(event) =>
+                      updateDraft({
+                        assignedRole: event.target.value as
+                          | 'CaseWorker'
+                          | 'Viewer',
+                      })
+                    }
+                    value={draft.assignedRole}
+                  >
+                    <option value="CaseWorker">CaseWorker</option>
+                    <option value="Viewer">Viewer</option>
+                  </select>
+                </label>
+              </>
+            )}
+          </div>
+
+          <div className="case-save-bar">
+            <span className="muted" aria-live="polite">
+              {hasUnsavedChanges
+                ? 'You have unsaved changes.'
+                : 'All changes saved.'}
+            </span>
+            <button
+              className="primary-button"
+              disabled={
+                actionLoading ||
+                isDemo ||
+                !hasUnsavedChanges ||
+                editTitleError !== null ||
+                editDescriptionError !== null
+              }
+              type="submit"
+            >
+              <Icon className="button-icon" name="save" />
+              <span>{actionLoading ? 'Saving…' : 'Save changes'}</span>
+            </button>
           </div>
         </form>
       ) : (
         <>
           <h2 className="case-details-title">{caseRecord.title}</h2>
           <p className="case-description">{caseRecord.description}</p>
+
+          <div className="detail-section">
+            <h3>Workflow</h3>
+            <dl className="case-workflow-summary">
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <StatusPill status={caseRecord.status} />
+                </dd>
+              </div>
+              <div>
+                <dt>Priority</dt>
+                <dd>{caseRecord.priority}</dd>
+              </div>
+              <div>
+                <dt>Assigned to</dt>
+                <dd>
+                  {assignedStaffName ?? 'Unassigned'}
+                  {assignedStaffName ? ` (${caseRecord.assignedRole ?? 'CaseWorker'})` : ''}
+                </dd>
+              </div>
+            </dl>
+          </div>
         </>
       )}
 
       <div className="detail-section">
-        <h3>Workflow</h3>
-        <form
-          className="status-change-form"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault()
-            if (!statusChanged) return
-
-            const explanation = normalizeMultiline(statusExplanation)
-
-            void onStatusChange(
-              selectedStatus,
-              explanation.length > 0 ? explanation : undefined,
-              explanation.length > 0 && statusExplanationVisible,
-            ).then(() => {
-              setPendingStatus(null)
-              setStatusExplanation('')
-              setStatusExplanationVisible(false)
-            })
-          }}
-        >
-          <label>
-            Status
-            <select
-              disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
-              onChange={(event) => setPendingStatus({
-                caseId: caseRecord.id,
-                status: event.target.value as CaseStatus,
-              })}
-              value={selectedStatus}
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>{statusLabels[status]}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Explanation <small className="muted">(optional)</small>
-            <textarea
-              aria-describedby="status-explanation-hint"
-              disabled={actionLoading || !canEditCase}
-              id="status-explanation"
-              maxLength={MAX_STATUS_EXPLANATION_LENGTH}
-              onChange={(event) => setStatusExplanation(event.target.value)}
-              placeholder="Record why the case is moving to this status."
-              rows={3}
-              value={statusExplanation}
-            />
-          </label>
-          <small className="muted" id="status-explanation-hint">
-            {statusExplanation.length}/{MAX_STATUS_EXPLANATION_LENGTH} characters.
-            Explanations are internal unless shared below.
-          </small>
-          <label className="checkbox-control">
-            <input
-              checked={statusExplanationVisible}
-              disabled={
-                actionLoading ||
-                !canEditCase ||
-                statusExplanation.trim().length === 0
-              }
-              onChange={(event) =>
-                setStatusExplanationVisible(event.target.checked)
-              }
-              type="checkbox"
-            />
-            <span>Include this explanation in the citizen timeline</span>
-          </label>
-          <button
-            className="secondary-button"
-            disabled={
-              actionLoading ||
-              !canEditCase ||
-              !statusChanged ||
-              caseRecord.id.startsWith('demo-')
-            }
-            type="submit"
-          >
-            <Icon className="button-icon" name="save" />
-            <span>{actionLoading ? 'Updating…' : 'Apply status change'}</span>
-          </button>
-        </form>
-
-        <label>
-          Priority
-          <select
-            aria-label="Case priority"
-            disabled={actionLoading || !canEditCase || caseRecord.id.startsWith('demo-')}
-            onChange={(event) => void onPriorityChange(event.target.value as CasePriority)}
-            value={caseRecord.priority}
-          >
-            <option value="Critical">Critical</option>
-            <option value="High">High</option>
-            <option value="Normal">Normal</option>
-            <option value="Low">Low</option>
-          </select>
-        </label>
-
-        {canAssignCases && (
-          <>
-            <label>
-              Assign to
-              <select
-                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
-                value={caseRecord.assignedToStaffMemberId ?? ''}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    void onAssignmentChange(event.target.value, assignmentRole)
-                  }
-                }}
-              >
-                <option value="">Select staff member</option>
-                {staff.filter((member) => member.isActive).map((member) => (
-                  <option key={member.id} value={member.id}>{member.fullName}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Case role
-              <select
-                disabled={actionLoading || caseRecord.id.startsWith('demo-')}
-                value={caseRecord.assignedRole ?? assignmentRole}
-                onChange={(event) => {
-                  const role = event.target.value as 'CaseWorker' | 'Viewer'
-                  setAssignmentRole(role)
-                  if (caseRecord.assignedToStaffMemberId) {
-                    void onAssignmentChange(caseRecord.assignedToStaffMemberId, role)
-                  }
-                }}
-              >
-                <option value="CaseWorker">CaseWorker</option>
-                <option value="Viewer">Viewer</option>
-              </select>
-            </label>
-          </>
-        )}
-      </div>
-
-      <div className="detail-section">
         <h3>Documents</h3>
-        {caseRecord.id.startsWith('demo-') ? (
+        {isDemo ? (
           <p className="muted">Documents are available for live cases.</p>
         ) : (
           <>
@@ -509,7 +531,7 @@ export function CaseDetails({
 
       <div className="detail-section">
         <h3>Citizen communication</h3>
-        {caseRecord.id.startsWith('demo-') ? (
+        {isDemo ? (
           <p className="muted">Updates are available for live cases.</p>
         ) : (
           <>
@@ -643,7 +665,7 @@ export function CaseDetails({
 
       <div className="detail-section timeline">
         <h3>Status history</h3>
-        {caseRecord.id.startsWith('demo-') || history.length === 0 ? (
+        {isDemo || history.length === 0 ? (
           <p className="muted">No recorded status changes yet.</p>
         ) : (
           history.map((item) => (
@@ -676,7 +698,7 @@ export function CaseDetails({
 
       <div className="detail-section timeline">
         <h3>Assignment history</h3>
-        {caseRecord.id.startsWith('demo-') || assignmentHistory.length === 0 ? (
+        {isDemo || assignmentHistory.length === 0 ? (
           <p className="muted">No recorded assignments yet.</p>
         ) : (
           assignmentHistory.map((item) => (
@@ -696,39 +718,6 @@ export function CaseDetails({
           ))
         )}
       </div>
-
-      {canDeleteCase && !caseRecord.id.startsWith('demo-') && (
-        <div className="case-danger-zone">
-          <div>
-            <strong>Delete case</strong>
-            <p>This permanently removes the case and its attached documents.</p>
-          </div>
-          <button
-            className="danger-button"
-            disabled={actionLoading}
-            onClick={() => setDeleteConfirmationCaseId(caseRecord.id)}
-            type="button"
-          >
-            <Icon className="button-icon" name="trash" />
-            <span>Delete</span>
-          </button>
-        </div>
-      )}
-
-      <ConfirmationDialog
-        open={deleteConfirmationOpen}
-        title="Delete this case?"
-        description={`${caseRecord.referenceNumber} and its attached documents will be permanently deleted. This cannot be undone.`}
-        confirmLabel="Delete case"
-        cancelLabel="Keep case"
-        destructive
-        loading={actionLoading}
-        onCancel={() => setDeleteConfirmationCaseId(null)}
-        onConfirm={async () => {
-          await onDelete()
-          setDeleteConfirmationCaseId(null)
-        }}
-      />
     </aside>
   )
 }

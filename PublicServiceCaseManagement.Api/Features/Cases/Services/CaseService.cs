@@ -122,67 +122,6 @@ public sealed class CaseService(
         return caseEntity;
     }
 
-    public async Task<IReadOnlyList<string>?> DeleteAsync(
-        Guid organizationId,
-        Guid caseId,
-        Guid requestingUserId,
-        bool isPlatformAdmin,
-        CancellationToken cancellationToken)
-    {
-        var caseEntity = await dbContext.Cases
-            .SingleOrDefaultAsync(
-                item => item.Id == caseId &&
-                        item.OrganizationId == organizationId,
-                cancellationToken);
-        if (caseEntity is null)
-            return null;
-
-        if (!isPlatformAdmin &&
-            caseEntity.SubmittedByUserId != requestingUserId)
-        {
-            throw new UnauthorizedAccessException(
-                "Only the case creator or a platform administrator may delete this case.");
-        }
-
-        var documents = await dbContext.CaseDocuments
-            .Where(document => document.CaseId == caseId &&
-                               document.OrganizationId == organizationId)
-            .ToListAsync(cancellationToken);
-        var statusHistory = await dbContext.CaseStatusHistories
-            .Where(history => history.CaseId == caseId &&
-                              history.OrganizationId == organizationId)
-            .ToListAsync(cancellationToken);
-        var assignmentHistory = await dbContext.CaseAssignmentHistories
-            .Where(history => history.CaseId == caseId &&
-                              history.OrganizationId == organizationId)
-            .ToListAsync(cancellationToken);
-        var updates = await dbContext.CaseUpdates
-            .Where(update => update.CaseId == caseId &&
-                             update.OrganizationId == organizationId)
-            .ToListAsync(cancellationToken);
-
-        dbContext.CaseDocuments.RemoveRange(documents);
-        dbContext.CaseStatusHistories.RemoveRange(statusHistory);
-        dbContext.CaseAssignmentHistories.RemoveRange(assignmentHistory);
-        dbContext.CaseUpdates.RemoveRange(updates);
-        dbContext.Cases.Remove(caseEntity);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await auditLogger.RecordAsync(
-            new AuditRecord
-            {
-                Category = AuditCategory.Case,
-                Action = AuditActions.CaseDeleted,
-                OrganizationId = organizationId,
-                EntityType = "Case",
-                EntityId = caseId.ToString(),
-                Details = $"{caseEntity.ReferenceNumber} {caseEntity.Title}"
-            },
-            cancellationToken);
-
-        return documents.Select(document => document.StorageKey).ToArray();
-    }
-
     public async Task<(IReadOnlyList<Case> Items, int TotalCount)> GetPageAsync(
         Guid organizationId,
         int page,
