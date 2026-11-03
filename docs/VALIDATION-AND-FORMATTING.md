@@ -97,13 +97,35 @@ The migration has a full `Down` path that drops every constraint it adds. Constr
 | `401` | No valid session or token, or an expired session. |
 | `403` | Authenticated but not allowed, including cross-portal and read-only role attempts. |
 | `404` | Unknown resource or a resource outside the caller scope, including cross-tenant and cross-citizen identifiers. |
+| `408` | The operation timed out. |
 | `409` | Duplicate or conflicting write. |
 | `410` | Invitation no longer available. |
 | `423` | Account locked after repeated failed sign-ins. |
 | `429` | Rate limit exceeded. |
 | `503` | Database readiness failure. |
 
-Framework validation returns the MVC validation envelope. Feature failures commonly return `{ "error": "..." }`; authentication failures may also return a stable `code`. Global unhandled failures return a generic message without exception details.
+Framework validation returns the MVC validation envelope. Feature failures commonly return `{ "error": "..." }`; authentication failures may also return a stable `code`.
+
+Unhandled exceptions are caught by `GlobalExceptionHandlerMiddleware`. The middleware persists the exception through `IErrorLogger` with the caller's user ID, the resolved organization ID, and the request path, method, and query string (also written to `application_errors` when the database is reachable), then responds with a generic envelope that never discloses exception details:
+
+```json
+{
+  "error": "An unexpected error occurred. Please try again or contact support if the problem persists.",
+  "statusCode": 500,
+  "timestamp": "2026-11-03T00:00:00Z"
+}
+```
+
+Known exception types map to stable status codes and user-friendly messages; anything else returns `500`:
+
+| Exception | Status | User message |
+|---|---|---|
+| `UnauthorizedAccessException` | `401` | You are not authorized to perform this action. |
+| `ArgumentException` | `400` | Invalid input provided. Please check your data and try again. |
+| `InvalidOperationException` | `400` | The operation could not be completed due to the current state. |
+| `KeyNotFoundException` | `404` | The requested resource was not found. |
+| `TimeoutException` | `408` | The operation timed out. Please try again later. |
+| any other `Exception` | `500` | An unexpected error occurred. Please try again or contact support if the problem persists. |
 
 ## 10. Security Implications
 

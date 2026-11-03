@@ -140,6 +140,17 @@ Covered by automated integration tests:
 - The platform and organization audit endpoints enforce their role and scope rules
 - The staff phone update accepts a valid number, rejects an invalid one with `400`, and persists the change
 
+### Platform case directory
+
+Covered by `PlatformCaseDirectoryApiIntegrationTests` (6 tests) against the EF InMemory provider and a synthetic authentication handler:
+- `GET /api/platform/cases` returns cases across organizations for a super administrator
+- Organization, status, priority, and search filters are applied
+- `GET /api/platform/cases/{id}` returns the full cross-tenant detail (status history, updates, assignment history, and document metadata)
+- Non-super-administrators receive `403`; an unknown case returns `404`
+- `GET /api/dashboard/platform/organizations` counts cases per organization
+
+Note that the InMemory provider does not exercise PostgreSQL RLS; the `SELECT`-only `platform_read` policies are covered by the opt-in PostgreSQL suite (see [PostgreSQL migrations and runtime-role restrictions](#postgresql-migrations-and-runtime-role-restrictions)).
+
 ### Cases
 
 Covered by automated integration tests:
@@ -173,11 +184,12 @@ Covered by automated integration tests:
 
 `CitizenCaseTrackingRlsTests` (4 tests) runs against a disposable PostgreSQL database when both connection strings are supplied. It applies the real EF Core migrations with an administrative connection, then probes the policies through a non-superuser, non-`BYPASSRLS` runtime login. Verified results:
 
-- The migrations were applied and the citizen tracking migration entries (`AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, and `AddCitizenTrackingRls`) are present in `__EFMigrationsHistory`.
-- RLS is enabled and forced on `cases`, `case_status_history`, `case_updates`, `case_documents`, and `staff_members`.
+- The migrations were applied and the tracking migration entries (`AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, `AddCitizenTrackingRls`, and `AddPlatformReadRls`) are present in `__EFMigrationsHistory`.
+- RLS is enabled and forced on `cases`, `case_status_history`, `case_assignment_history`, `case_updates`, `case_documents`, and `staff_members`.
 - A citizen context sees only its own case and its visible updates, visible documents, visible status entries, and the assigned staff row; internal notes and internal documents are invisible.
 - The owning organization context sees the full tenant, including internal notes and internal documents, but no other organization.
 - Citizen writes to an internal note, another citizen's case, or another citizen's history are rejected with PostgreSQL `42501`; a same-case visible write succeeds.
+- A platform read context (`civicflow.platform_read='on'`) sees rows from every seeded organization across the tenant tables, and the six `*_platform_read` policies are `SELECT`-only: `UPDATE` and `DELETE` affect zero rows and an `INSERT` is rejected with PostgreSQL `42501`.
 - The runtime role cannot create schema objects and is confirmed not to be a superuser or hold `BYPASSRLS`.
 
 See [RLS-DESIGN.md](RLS-DESIGN.md) for the policy design. The suite is opt-in rather than part of the default test run; wiring the disposable PostgreSQL fixture into CI remains open.
@@ -352,6 +364,7 @@ Automated authentication tests replace `IEmailSender` with an in-memory capture 
 - Citizen tracking lists are paged and support search, status filtering, and deterministic sorting.
 - A browser journey verifies those flows through the real cookie/CSRF session, including session expiry and CSRF rejection.
 - Cross-organization case and document access is denied without data disclosure.
+- Platform case inspection is read-only: the platform read context can read across organizations but cannot write (opt-in RLS suite asserts `UPDATE`/`DELETE` affect no rows and `INSERT` fails with `42501`).
 - Case list/detail/update operations remain organization scoped; assignment authorization and the absence of a case-deletion route are independently asserted.
 - PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.
 - Runtime database role can read application tables but cannot create schema objects or bypass the tested role boundary.

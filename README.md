@@ -139,6 +139,11 @@ visibility.
 - PostgreSQL runtime connections use a non-owner role that cannot bypass RLS.
   Identity and membership-resolution tables are not RLS-protected; their access
   is controlled by Identity and application authorization.
+- Platform administrators inspect cases across organizations through a
+  transaction-local, `SELECT`-only `civicflow.platform_read` context
+  (`AddPlatformReadRls`); the all-command tenant policies still govern writes,
+  so the platform path cannot mutate data. See
+  [docs/RLS-DESIGN.md](docs/RLS-DESIGN.md).
 - Document access checks the caller's case-level permission and document
   visibility before opening a file. Local storage paths are not returned by
   metadata APIs.
@@ -303,12 +308,14 @@ Capture instructions, role requirements, and the coverage rationale are in
 - Development does not deliver email unless SMTP is configured; the API
   prints unconfigured messages, including one-time links, to its console.
   Automated authentication tests use a capturing email sender.
+- Personal access tokens are managed through the API (`GET/POST/DELETE /api/auth/tokens`) or by API clients; the web application has no token-management screen.
 - PostgreSQL RLS and Playwright journeys are opt-in and require disposable
   PostgreSQL infrastructure; they are not exercised by every default local
   test run.
 - API error envelopes are not fully uniform: model validation, feature errors,
-  and authentication flows use different response shapes. Clients should
-  handle the documented status and body formats.
+  and authentication flows use different response shapes. Unhandled exceptions
+  return a generic `{error, statusCode, timestamp}` envelope without exception
+  details. Clients should handle the documented status and body formats.
 
 These are current implementation constraints, not claims about planned
 functionality. See the [integration verification record](docs/INTEGRATION-VERIFICATION.md)

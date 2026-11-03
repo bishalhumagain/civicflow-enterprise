@@ -19,10 +19,14 @@ This document defines how CivicFlow Enterprise documentation is maintained to en
 |---|---|---|
 | `README.md` | All audiences (developers, managers, operators, security reviewers) | Setup, project structure, features, prerequisites, technology stack, API reference, or development commands change |
 | `CHANGELOG.md` | All audiences | Any meaningful change (features, fixes, breaking changes, important updates) |
+| `docs/API-AUTHORIZATION.md` | Developers, API consumers, security reviewers | Endpoints, request/response shapes, role rules, pagination, or error-envelope conventions change |
 | `docs/USER_MANUAL.md` | End users (citizens, staff, administrators) | User-facing behavior, screens, workflows, permissions, roles, or error handling change |
 | `docs/DELIVERY-ROADMAP.md` | Project managers, developers | Implementation status, delivery sequence, or testing strategy changes |
 | `docs/INTEGRATION-VERIFICATION.md` | Security reviewers, developers | Test coverage, verification results, or acceptance evidence change |
+| `docs/LOCAL-DEVELOPMENT.md` | Developers, operators | Setup, commands, configuration reference, or local verification steps change |
 | `docs/RLS-DESIGN.md` | Security reviewers, database engineers | RLS policies, protected tables, or database role configuration change |
+| `docs/VALIDATION-AND-FORMATTING.md` | Developers, reviewers | Validation rules, normalization, database constraints, display formats, or error-status table change |
+| `docs/SCREENSHOTS.md` | All audiences | Captures, capture procedure, required roles, or coverage rationale change |
 | `docs/RELEASE-VERIFICATION.md` | Release engineers, security reviewers | Release signing workflow, provenance metadata, or CI pipeline changes |
 | `docs/DOCUMENTATION_WORKFLOW.md` | All contributors | This file — update when the documentation process itself changes |
 | `CIVICFLOW-PROVENANCE.json` | Release engineers | Project identity metadata (owner, repository, license status, release verification) |

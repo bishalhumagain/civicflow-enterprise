@@ -62,8 +62,8 @@ self-service routes are exempt and remain available.
 | Own account/profile and own PATs | Read/update own profile; own tokens | Own profile/tokens | Own profile/tokens | Own profile/tokens | Own tokens; platform profile is not provided |
 | Citizen case intake | Submit to an active organization; list/read own submitted cases | No | No | No | No |
 | Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers; Organizations view for administered organizations | Platform directory and organization administration |
-| Case reads | Own submitted cases only (summary and status history) | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
-| Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign | No implicit case-wide bypass |
+| Case reads | Own submitted cases only (summary and status history) | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | Platform-wide read-only case inspection (`/api/platform/cases`); no global write access |
+| Case changes | No | Read-only | Assigned CaseWorker case details/status/priority/documents only | Organization cases; assign/reassign | No implicit case-wide bypass |
 | Notifications | Own notifications only | Own notifications only | Own notifications only | Own notifications only | Own notifications only |
 | Background jobs | No | No | No | No | Global job summaries/details and state-eligible retry/cancel |
 | Memberships/invitations | No | No | No | Selected organization they administer; cannot grant `OrganizationAdmin`; invitations create `CaseWorker` memberships | Platform-authorized organization membership and invitation operations, including permitted admin provisioning |
@@ -74,6 +74,12 @@ Additional boundaries:
 
 - `StaffClient` means authenticated platform `staff` or `superadmin`; it does
   not establish an organization role by itself.
+- Platform-wide case inspection (`GET /api/platform/cases*`) is read-only and
+  requires the platform-level `SuperAdmin` role. Queries run inside a
+  transaction-local `civicflow.platform_read` context whose PostgreSQL
+  policies are `SELECT`-only; the platform flag is never a write path, and
+  status, assignment, communication, and document changes remain scoped to
+  the owning organization.
 - CaseWorker write permission is limited to the case assigned to their active
   staff record with the `CaseWorker` case assignment role. Viewer assignments
   are read-only. Assignment itself is OrganizationAdmin-only and only accepts
@@ -212,6 +218,7 @@ active staff record and assigned cases.
 | `GET /api/cases/{id:guid}` | OrganizationAdmin or assigned staff | `200 CreateCaseResponse`; `404` missing, cross-org, or unassigned case. |
 | `PUT /api/cases/{id:guid}` | OrganizationAdmin or assigned CaseWorker; `UpdateCaseRequest` | `200 CreateCaseResponse`; `400` invalid/business-closed case, `403` Viewer/unassigned write, `404` inaccessible case; updates permitted case details with the same title/description bounds and normalization as creation. |
 | `PATCH /api/cases/{id:guid}/status` | OrganizationAdmin or assigned CaseWorker; `ChangeCaseStatusRequest` (`newStatus`, optional `explanation`, `explanationVisibleToCitizen`) | `200 ChangeCaseStatusResponse`; `400` invalid transition/explanation, `403` Viewer/unassigned write, `404` inaccessible case; persists status history and audit. The transition is always citizen-visible; the explanation is projected to the citizen timeline only when the visibility flag is true. |
+| `PATCH /api/cases/{id:guid}/priority` | OrganizationAdmin or assigned CaseWorker; `ChangeCasePriorityRequest` (`newPriority`, a `CasePriority` value) | `200` `{id, referenceNumber, priority, updatedAt}`; `400` invalid priority or closed/rejected case, `403` Viewer/unassigned write, `404` inaccessible case; persists the new priority and records `case.priority_changed` in the audit trail. |
 | `GET /api/cases/{id:guid}/history` | OrganizationAdmin or assigned staff | `200` status-history entries including explanation and `isVisibleToCitizen`; `404` inaccessible case. |
 | `POST /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned CaseWorker; `AddCaseUpdateRequest` (`kind`: `PublicUpdate`, `InformationRequest`, or `InternalNote`; message 1–4,000) | `201 CaseUpdateResponse`; `400` invalid kind/message or closed case, `403` Viewer/unassigned write, `404` inaccessible case; records audit and notifies the submitter for citizen-visible kinds. `InformationRequest` moves the case to `AwaitingInformation` with a citizen-visible history entry. `InternalNote` and non-visible entries never reach the citizen projection. |
 | `GET /api/cases/{id:guid}/updates` | OrganizationAdmin or assigned staff | `200 CaseUpdateResponse[]`; staff see internal and citizen-visible entries with visibility and author IDs; `404` inaccessible case. |
@@ -234,6 +241,22 @@ isolation. A citizen list or identifier lookup is constrained to
 `SubmittedByUserId = caller`; another citizen's case returns `404` without
 disclosing whether it exists. Citizen routes do not accept an organization
 selector.
+
+### Platform case inspection (read-only)
+
+These routes serve platform super administrators. They are read-only: status,
+assignment, communication, and document changes remain scoped to the owning
+organization, and the queries run inside a transaction-local
+`civicflow.platform_read` context whose PostgreSQL policies are `SELECT`-only.
+They require the platform `SuperAdmin` role and the business-endpoints gate;
+when the gate is disabled they return `404`, and a non-super-admin receives
+`403`.
+
+| Method and path | Access / parameters | Response and effects |
+|---|---|---|
+| `GET /api/platform/cases?page={n}&pageSize={n}&organizationId={guid}&status={status}&priority={priority}&search={text}&sort={sort}` | SuperAdmin; page defaults `1`, pageSize defaults `20` (ranges `1–1,000,000` and `1–100`); `search` up to 200 characters; `sort` one of `created_desc` (default), `created_asc`, `updated_desc`, `updated_asc`, `priority_desc`, `reference_asc` | `200 PlatformCasePageResponse` (`items`, `page`, `pageSize`, `totalCount`, `totalPages`) with the reference number, title, status, priority, organization, assignee, submitter, and timestamps; `400` for an unsupported sort value. |
+| `GET /api/platform/cases/{caseId:guid}` | SuperAdmin | `200 PlatformCaseDetailResponse` with the case summary, submitter and assignee, status history, updates, assignment history, and document metadata; `404` unknown case. Internal notes, internal-only documents, and non-visible explanations are included — platform inspection is not subject to citizen visibility rules. |
+| `GET /api/platform/cases/{caseId:guid}/documents/{documentId:guid}` | SuperAdmin | `200` file stream with range support; `404` unknown case/document/file. Any document, including internal-only ones, is downloadable by a super administrator. |
 
 ### Notifications and background jobs
 
@@ -261,6 +284,8 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `GET /api/organizations/{organizationId:guid}/audit` | SuperAdmin, or active same-organization member; same audit query filters | `200 AuditEventPageResponse`; OrganizationAdmin sees org events; Viewer/CaseWorker actor filter is mandatory and cannot be widened by query. |
 | `GET /api/platform/users?page={n}&pageSize={n}&search={text}&isStaff={bool}&isCitizen={bool}&sort={value}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformUserSummary>`; platform-wide account and role/membership summaries. Search/filter/sort are applied server-side. |
 | `PATCH /api/platform/users/{userId:guid}/platform-role` | SuperAdmin-only provisioning API; `ChangePlatformRoleRequest` | `204`; synchronizes the platform-role field and Identity role, rotates the security stamp, and audits each change. Ordinary user-management screens do not expose this control. |
+| `PATCH /api/platform/users/{userId:guid}/activate` | SuperAdmin | `204`; activates the account and rotates the security stamp so the change applies to live sessions. Unknown account: `404` (`KeyNotFoundException`, generic error envelope). |
+| `PATCH /api/platform/users/{userId:guid}/deactivate` | SuperAdmin | `204`; deactivates the account and rotates the security stamp so live sessions lose access on the next request. Unknown account: `404` (`KeyNotFoundException`, generic error envelope). |
 | `GET /api/platform/staff?page={n}&pageSize={n}&organizationId={guid}&isActive={bool}&search={text}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformStaffSummary>`; platform-wide memberships, optionally filtered by organization, membership state, and search. |
 | `PUT /api/platform/staff/{userId:guid}` | SuperAdmin; `UpdatePlatformStaffRequest` | `200 PlatformUserSummary`; updates a staff account's full name and phone number. `400` invalid name/phone; `404` missing account; `409` account has no organization membership. |
 | `GET /api/platform/citizens?page={n}&pageSize={n}&search={text}&sort={value}` | SuperAdmin; page defaults `1`, pageSize defaults `25` (maximum `100`) | `200 PagedResponse<PlatformCitizenSummary>`; citizen accounts joined to their citizen profile; search and sort are server-side. |
@@ -269,6 +294,7 @@ The worker accepts only the registered `notification.email` type and looks up th
 | `PATCH /api/platform/citizens/{userId:guid}/deactivate` | SuperAdmin | `204`; deactivates the citizen account. |
 | `GET /api/platform/overview` | SuperAdmin | `200 PlatformOverviewResponse`; platform counters. |
 | `GET /api/dashboard/platform` | SuperAdmin | `200 CaseStatistics`; platform-wide statistics. |
+| `GET /api/dashboard/platform/organizations` | SuperAdmin | `200 PlatformOrganizationCaseBreakdown[]`; one entry per organization with `organizationId`, `organizationName`, `organizationCode`, `isActive`, `totalCases`, `openCases`, `resolvedCases`, `criticalPriorityCases`, and `highPriorityCases`. Reads through the platform read-only context. |
 | `GET /api/dashboard/organization?organizationId={guid}` | Active organization member; optional ID must match resolved membership | `200 CaseStatistics`; `403` absent/mismatched organization context. |
 | `GET /api/errors?isHandled={bool}&page={n}&pageSize={n}` | SuperAdmin; page defaults `1`, range `1–1,000,000`; pageSize defaults `25`, range `1–200` | `200 PagedResponse<ApplicationError>` with accurate total metadata; `400` out-of-range pagination. Error records include diagnostic details and are platform-admin-only. |
 | `GET /api/errors/{errorId:guid}` | SuperAdmin | `200 ApplicationError`; `404` unknown error. |
@@ -282,8 +308,17 @@ The worker accepts only the registered `notification.email` type and looks up th
 - DataAnnotations and `[ApiController]` model binding return `400` for invalid
   request models or invalid pagination. Business-rule failures currently use
   controller-specific `{error}` objects; authentication flows use stable
-  `code` and `error` values; the global exception middleware returns a generic
-  server error without exception details.
+  `code` and `error` values.
+- Unhandled exceptions are caught by `GlobalExceptionHandlerMiddleware`.
+  The middleware logs the exception with the caller's user ID, organization
+  ID, and the request path, method, and query string via `IErrorLogger`
+  (persisted to `application_errors`), then returns `application/json` with a
+  generic envelope that never includes exception details:
+  `{ "error": "<user-friendly message>", "statusCode": <code>, "timestamp": "<utc>" }`.
+  Known exceptions map to stable responses (`UnauthorizedAccessException` →
+  `401`, `ArgumentException` → `400`, `InvalidOperationException` → `400`,
+  `KeyNotFoundException` → `404`, `TimeoutException` → `408`); anything else
+  returns `500`. See [VALIDATION-AND-FORMATTING.md](VALIDATION-AND-FORMATTING.md) §9.
 - Validation and normalization rules are shared across the API, domain, and
   database. Trimming and whitespace collapsing happen before length checks;
   optional blanks become `null`; emails are trimmed and lower-cased;
@@ -366,7 +401,7 @@ section explains how to interpret the main route families.
 | `GET /api/health`, `GET /api/health/ready`, `GET /api/config/public` | Service-wide status or safe public configuration | No identity or request body is needed. Readiness reports `503` if PostgreSQL is unavailable. |
 | `/api/auth/*` login, registration, recovery, logout, CSRF, and token exchange routes | Credentials or one-time invitation/recovery token in the request body; otherwise the authenticated principal | `POST /api/auth/login` takes `LoginRequest`; `POST /api/auth/logout` invalidates the caller's session; neither route accepts a target user ID. |
 | `GET /api/auth/me`, `/api/profile/me`, `/api/citizens/me`, `/api/organizations/me` | Validated authenticated principal and server-side account/membership lookup | These return only the caller's data, as described above. |
-| `GET` collection routes such as `/api/cases`, `/api/citizens/cases`, `/api/organizations`, `/api/staff`, `/api/platform/cases`, and `/api/notifications` | Authorized collection scope, optionally narrowed by query parameters | Example: `GET /api/citizens/cases?page=1&pageSize=20&status=UnderReview` returns only the caller's cases. |
+| `GET` collection routes such as `/api/cases`, `/api/citizens/cases`, `/api/organizations`, `/api/staff`, `/api/platform/cases`, `/api/dashboard/platform/organizations`, and `/api/notifications` | Authorized collection scope, optionally narrowed by query parameters | Example: `GET /api/citizens/cases?page=1&pageSize=20&status=UnderReview` returns only the caller's cases. |
 | `POST /api/cases`, `POST /api/organizations`, and `POST /api/citizens/cases` | A new resource is created from the validated request body; identity and permitted organization scope are derived server-side | Staff case creation uses `CreateCaseRequest`; citizen intake uses multipart `CitizenCreateCaseRequest`, including its selected organization ID, which is independently validated. The response supplies the new case ID. |
 | `POST /api/notifications/read` | All unread, unexpired notifications belonging to the caller | The body is empty; it is a collection action and cannot affect another user's notifications. |
 | `GET /api/dashboard/organization` | The authenticated user's selected active membership; an optional `organizationId` query value is accepted only if it matches | The query value is a selector, not authority to read another organization's statistics. |
@@ -448,8 +483,8 @@ refer to these models to document their JSON body and response shape.
 | Registration and authentication | `RegisterRequest`, `LoginRequest`, `ResetPasswordRequest`, `ChangePasswordRequest`, `CurrentUserResponse` | Registration requires name, email, phone, identity numbers, and a password of 12–128 characters; Identity enforces the effective password policy. Login and recovery models carry credentials or one-time tokens only in request bodies. `CurrentUserResponse` contains safe identity and permission information, never credentials. |
 | Profiles | `ProfileResponse`, `UpdateProfileRequest`, `CitizenProfileResponse`, `CreateCitizenProfileRequest`, `UpdateCitizenProfileRequest` | Self-service profile updates exclude account role and organization membership. Optional contact and demographic fields are validated against their declared lengths and ranges. |
 | Organizations and memberships | `CreateOrganizationRequest`, `UpdateOrganizationRequest`, `OrganizationResponse`, `CreateOrganizationMembershipRequest`, `ChangeOrganizationMembershipRoleRequest`, `CreateInvitationRequest` | Organization and membership IDs identify existing records only where the route requires them. Role values are restricted by backend policy; Organization Admins cannot grant platform roles or promote other users to Organization Admin. |
-| Cases and updates | `CreateCaseRequest`, `CitizenCreateCaseRequest`, `UpdateCaseRequest`, `ChangeCaseStatusRequest`, `AddCaseUpdateRequest`, `CitizenCaseDetails` | Case titles, descriptions, status, priority, update messages, and upload metadata are validated. Citizen intake is multipart and validates the selected active organization; citizen case responses are scoped to the caller's own case. |
-| Documents | `CaseDocumentResponse`, `CitizenCaseDocument`, `PlatformCaseDocumentResponse` | Metadata responses do not disclose storage keys or local file paths. File streams are returned only through the corresponding authorized document route. |
+| Cases and updates | `CreateCaseRequest`, `CitizenCreateCaseRequest`, `UpdateCaseRequest`, `ChangeCaseStatusRequest`, `ChangeCasePriorityRequest`, `AddCaseUpdateRequest`, `CitizenCaseDetails`, `PlatformCaseSummary`, `PlatformCaseDetailResponse` | Case titles, descriptions, status, priority, update messages, and upload metadata are validated. Citizen intake is multipart and validates the selected active organization; citizen case responses are scoped to the caller's own case. Platform case schemas are read-only inspection contracts for super administrators. |
+| Documents | `CaseDocumentResponse`, `CitizenCaseDocument`, `PlatformCaseDocumentEntry` | Metadata responses do not disclose storage keys or local file paths. File streams are returned only through the corresponding authorized document route. |
 | Notifications and background jobs | `NotificationPageResponse`, `NotificationResponse`, `BackgroundJobPageResponse`, `BackgroundJobDetailsResponse` | Notification lists are limited to the caller. Job details omit raw payloads and stack traces; administrative routes require platform authorization. |
 
 Required fields, enum values, maximum lengths, ranges, and request/response

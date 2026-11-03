@@ -32,7 +32,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 - Organization administrators can invite staff but cannot grant OrganizationAdmin; platform administrators retain that provisioning privilege
 - xUnit domain, service, authorization, tenant-boundary, production-gate, notification-routing, JWT bearer, and document integration tests (535 tests; 531 run by default and 4 opt-in PostgreSQL RLS tests)
 - Opt-in PostgreSQL RLS tests that apply the real migrations and probe tenant and citizen ownership policies with the runtime role
-- Nine Playwright/Chromium browser journeys covering citizen submission/tracking, staff updates and information requests, confidentiality, pagination, cross-citizen isolation, session expiry, CSRF rejection, registration and intake validation, and password-recovery validation
+- Eleven Playwright/Chromium browser journeys covering citizen submission/tracking, staff updates and information requests, confidentiality, pagination, cross-citizen isolation, session expiry, CSRF rejection, registration and intake validation, and password-recovery validation
 - Disposable Compose fixtures for PostgreSQL roles
 
 **Authentication & identity:**
@@ -53,6 +53,8 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 **Platform administration:**
 - Platform directory: overview counters, every account with roles and memberships, and every staff membership, built on memberships so the organization RLS scope does not hide rows. Covered by unit tests and an over-HTTP run
 - Organization administration for super administrators: rename, activate/deactivate, and delete, with deletion refused while the organization holds cases and otherwise removing memberships, staff records, and pending invitations inside the organization transaction context
+- Platform-wide, read-only case inspection: `GET /api/platform/cases` (paged, filterable, searchable, sortable), case detail with history/updates/assignment history/documents, and document download, served through the `SELECT`-only `civicflow.platform_read` RLS context. Covered by EF InMemory integration tests and the opt-in RLS suite (`PlatformReadContextSeesAllTenantsButCannotWrite`)
+- Organization-type catalogue administration (create, rename, re-code, activate/deactivate, delete) with the immutable `Uncategorized` seed. Covered by integration tests
 
 **Dashboard & error tracking:**
 - Platform-wide and organization-scoped dashboard statistics: total cases, per-status counts, per-priority counts, weekly/monthly created/resolved trends
@@ -72,7 +74,7 @@ For an overview of the project's capabilities, see the [README](../README.md). F
 | **File storage** | Local file storage is suitable for development only. Object storage, malware scanning, retention, deletion, and download audit policy are not production-ready. |
 | **Test infrastructure** | Most automated API tests use EF Core InMemory and synthetic authentication; a subset exercises the real Identity cookie flow. PostgreSQL RLS tests and Playwright browser journeys exist but are opt-in and require a disposable database; they are not yet wired into CI. |
 | **PAT scopes** | Personal access tokens are deliberately scope-less: a token inherits the full role set of the account that created it. Fine-grained token scopes, per-token expiry policies enforced at a stricter default, and token listing visibility for administrators are not implemented. |
-| **Browser-level verification** | A nine-test Playwright suite now verifies the citizen tracking and staff update journeys, cross-citizen isolation, session expiry, CSRF rejection, registration, password-recovery, and intake field validation, normalized payloads, and click stability in Chromium against disposable PostgreSQL. Portal sign-in, invitation redemption, platform administration, and the PAT UI still rely on integration tests, HTTP runs, TypeScript compilation, lint, and a production build. |
+| **Browser-level verification** | An eleven-test Playwright suite now verifies the citizen tracking and staff update journeys, cross-citizen isolation, session expiry, CSRF rejection, registration, password-recovery, and intake field validation, normalized payloads, click stability, organization case filtering, and platform case inspection in Chromium against disposable PostgreSQL. Portal sign-in, invitation redemption, platform administration, and the PAT API still rely on integration tests, HTTP runs, TypeScript compilation, lint, and a production build. |
 | **Audit trail** | Append-only and read-only through the API; retention, export, and alerting policies are not implemented. The audit event table is intentionally not RLS-protected (platform reads are gated by the super-administrator check, organization reads are scoped in the query service). |
 | **Multi-organization** | An account that holds both a citizen and a staff role may use both of those portals; a super administrator may only use the platform portal. There is no per-organization sign-in selection yet, so a multi-organization staff member still picks the active organization through `X-Organization-Id`. |
 | **Email delivery** | Invitation delivery uses the development `LoggingEmailSender` when SMTP is unconfigured; a real SMTP/provider implementation is still required for production delivery, and the emailed link is logged at `Warning` level locally. |
@@ -114,7 +116,7 @@ The invitation path removes administrator-handled passwords entirely: the API em
 
 **Status:** Implemented against the disposable PostgreSQL stack; an opt-in automated suite now covers the tenant and citizen tracking policies. CI wiring remains.
 
-The API now derives organization context only after authentication and active membership resolution, sets it transaction-locally, cleans it up through request commit/rollback, and enables forced RLS for tenant-owned operational tables. Citizens use a separate transaction-local owner context. `CitizenCaseTrackingRlsTests` converts the disposable checks into repeatable opt-in integration tests; wiring them into CI and reviewing whether identity/membership tables require a separate policy design remain. See [RLS-DESIGN.md](RLS-DESIGN.md).
+The API now derives organization context only after authentication and active membership resolution, sets it transaction-locally, cleans it up through request commit/rollback, and enables forced RLS for tenant-owned operational tables. Citizens use a separate transaction-local owner context. A third, `SELECT`-only `civicflow.platform_read` context serves platform super administrators for read-only cross-organization inspection and platform dashboard aggregates; the all-command tenant policies still govern writes. `CitizenCaseTrackingRlsTests` converts the disposable checks into repeatable opt-in integration tests, including a platform-read test that proves cross-tenant reads succeed and writes are rejected; wiring them into CI and reviewing whether identity/membership tables require a separate policy design remain. See [RLS-DESIGN.md](RLS-DESIGN.md).
 
 **Acceptance:**
 - Missing context denies access.
@@ -183,7 +185,7 @@ These tests remain deferred selectively; existing security assertions must not b
 |---|---|---|---|
 | Exhaustive real-login permutation matrix (lockout, revocation, CSRF) | Medium | Requires a repeatable disposable database and email sink | Automated real-service harness is available |
 | Browser-level run of the invitation redemption flow | Medium | The Playwright runner exists but the onboarding journey is not yet automated | The `/setup-password` contract is stable and CI has a disposable database |
-| Full browser automation for login and all frontend workflows | Medium | The current nine-test suite covers citizen tracking, staff updates, registration, password recovery, and intake validation, not every surface | Remaining admin/onboarding workflows are prioritized for automation |
+| Full browser automation for login and all frontend workflows | Medium | The current eleven-test suite covers citizen tracking, staff updates, organization case filtering, platform case inspection, registration, password recovery, and intake validation, not every surface | Remaining admin/onboarding workflows are prioritized for automation |
 | Visual regression and responsive screenshot suite | Low | Does not protect authorization or data correctness | Core workflow and deployment demo are stable |
 | Load/stress testing | Medium | Requires representative deployment topology and traffic model | Production-like environment and performance targets exist |
 | Malware scanner outage/retry/recovery scenarios | High | Provider and failure contract are not selected | Scanner adapter and operational policy are approved |

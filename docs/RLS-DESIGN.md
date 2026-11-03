@@ -14,6 +14,7 @@ maintained in [API Contract and Authorization Matrix](API-AUTHORIZATION.md).
 - [Unprotected Tables](#unprotected-tables)
 - [Design Principles](#design-principles)
 - [Policy Shape](#policy-shape)
+- [Platform Read-Only Context](#platform-read-only-context)
 - [Application-Level Organization Predicates](#application-level-organization-predicates)
 - [Database Roles](#database-roles)
 - [Verification Results](#verification-results)
@@ -23,7 +24,7 @@ maintained in [API Contract and Authorization Matrix](API-AUTHORIZATION.md).
 
 ## Overview
 
-RLS is enabled and forced for six tenant-owned operational tables. Migration `20261019150000_AddTenantRowLevelSecurity` established the baseline for cases, status/assignment history, documents, and staff. Migration `20261024123000_AddCitizenCaseTrackingRls` added the first citizen owner branch for cases and status history. Migration `20261025070100_AddCitizenTrackingRls` adds `case_updates` and extends the status-history, document, and staff policies so the citizen tracking projection and response flow remain owner-scoped. The table owner is subject to the policies, and the runtime role cannot bypass them.
+RLS is enabled and forced for six tenant-owned operational tables. Migration `20261019150000_AddTenantRowLevelSecurity` established the baseline for cases, status/assignment history, documents, and staff. Migration `20261024123000_AddCitizenCaseTrackingRls` added the first citizen owner branch for cases and status history. Migration `20261025070100_AddCitizenTrackingRls` adds `case_updates` and extends the status-history, document, and staff policies so the citizen tracking projection and response flow remain owner-scoped. Migration `20261025150000_AddPlatformReadRls` adds a separate, `SELECT`-only cross-tenant read path for verified platform super administrators (see [Platform Read-Only Context](#platform-read-only-context)). The table owner is subject to the policies, and the runtime role cannot bypass them.
 
 RLS is a **database-level enforcement layer** that ensures queries on tenant-owned tables only return rows matching the current organization context. It works alongside — not instead of — application-level authorization checks.
 
@@ -47,7 +48,6 @@ All six tables carry an `OrganizationId` column that the RLS policy checks again
 ## Unprotected Tables
 
 The following tables are **not** RLS-protected, by design:
-
 | Table | Reason |
 |---|---|
 | `organizations` | Establishes the trusted identity-to-organization relationship; requires separate review if placed behind RLS |
@@ -136,6 +136,17 @@ A citizen context can therefore insert and read only its own visible rows. `case
 
 ---
 
+## Platform Read-Only Context
+
+A platform super administrator who is allowed to inspect cases across organizations uses a distinct, transaction-local read context instead of disabling or widening the tenant policies.
+
+- Migration `20261025150000_AddPlatformReadRls` creates a `<table>_platform_read` policy on each of the six tenant-owned tables. Each policy is `FOR SELECT` only and permits rows when the transaction-local setting `civicflow.platform_read` equals `'on'`.
+- The existing all-command tenant policies still govern `INSERT`, `UPDATE`, and `DELETE`, so the platform flag cannot become a write path. Normal organization and citizen contexts are unaffected.
+- `IOrganizationTransactionContext.BeginPlatformReadAsync` opens the request transaction and sets `civicflow.platform_read` with `set_config(..., true)`. It is used by `PlatformCaseService` (platform-wide case inspection and document download) and `DashboardService` (platform statistics and the per-organization breakdown).
+- The context is bound to the request transaction and cleared on commit/rollback, so pooled connections never retain the flag. A request cannot switch into an organization or citizen context after the platform read context has started, or vice versa.
+- The platform role check still happens in application code (`IsPlatformSuperAdminAsync`) alongside the business-endpoints gate; the RLS policy is defense in depth, not the sole control. Platform inspection responses include internal notes, internal-only documents, and non-visible explanations because platform oversight is not subject to citizen visibility rules.
+- The opt-in `CitizenCaseTrackingRlsTests` suite probes the platform-read policies: `PlatformReadContextSeesAllTenantsButCannotWrite` confirms that with `civicflow.platform_read='on'` the runtime role sees rows from every seeded organization, that the six `*_platform_read` policies are `SELECT`-only (`UPDATE` and `DELETE` affect zero rows, an `INSERT` is rejected with PostgreSQL `42501`), and that `TrackingTablesForceRlsAndTrackingMigrationIsApplied` asserts the `AddPlatformReadRls` migration is recorded in `__EFMigrationsHistory`.
+
 ## Application-Level Organization Predicates
 
 The application-level organization predicates (in `AuthenticatedOrganizationResolver` and the service layer) remain an additional defense. They:
@@ -184,6 +195,7 @@ These constraints are defense in depth, not a replacement for application valida
 The live disposable verification confirmed:
 
 - RLS is enabled and forced on all six tenant-owned operational tables, including `case_updates`.
+- A platform read context sees every tenant's rows while its policies permit only `SELECT`; `UPDATE`/`DELETE` affect no rows and an `INSERT` is rejected with `42501`.
 - The runtime role sees no rows without a context or with a different organization context.
 - A same-organization API case create/status update succeeds.
 - A cross-organization case request returns `403` without protected data.
@@ -195,7 +207,7 @@ The live disposable verification confirmed:
 
 ## Automated Coverage
 
-`CitizenCaseTrackingRlsTests` is an opt-in PostgreSQL suite (3 tests) that applies the real migrations and probes the policies with the admin and runtime roles. It is skipped unless both disposable connection strings are supplied:
+`CitizenCaseTrackingRlsTests` is an opt-in PostgreSQL suite (4 tests) that applies the real migrations and probes the policies with the admin and runtime roles. It is skipped unless both disposable connection strings are supplied:
 
 ```bash
 export CIVICFLOW_TEST_POSTGRES_ADMIN='Host=127.0.0.1;Port=55433;Database=civicflow;Username=civicflow_admin;Password=<local-admin-password>'
@@ -204,4 +216,4 @@ dotnet test PublicServiceCaseManagement.Tests/PublicServiceCaseManagement.Tests.
   --configuration Release --filter FullyQualifiedName~CitizenCaseTrackingRlsTests
 ```
 
-The suite asserts that migrations apply cleanly, that RLS is enabled and forced on the citizen tracking tables, that the citizen owner sees only visible rows, that the owner cannot write internal or cross-citizen rows, and that the runtime role cannot create schema objects. It targets a disposable database only and is not pointed at a shared or production instance. The remaining work is to wire the disposable PostgreSQL fixture into CI; until then the suite is opt-in and reported as skipped in the default `dotnet test` run.
+The suite asserts that migrations apply cleanly, that RLS is enabled and forced on the operational tables, that the citizen owner sees only visible rows, that the owner cannot write internal or cross-citizen rows, that the platform read context can read every tenant but cannot write, and that the runtime role cannot create schema objects. It targets a disposable database only and is not pointed at a shared or production instance. The remaining work is to wire the disposable PostgreSQL fixture into CI; until then the suite is opt-in and reported as skipped in the default `dotnet test` run.

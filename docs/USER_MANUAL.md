@@ -4,7 +4,7 @@
 
 **Audience:** Citizens, Government Officers (Staff), Organization Administrators, and Platform Super Administrators
 
-**Last Updated:** 2026-10-25
+**Last Updated:** 2026-11-03
 
 ---
 
@@ -35,7 +35,7 @@ This manual describes how to use the currently implemented features of CivicFlow
 |---|---|
 | **Implemented** | Staff workspace (cases, staff, organizations), first-party authentication with email/password and cookie sessions, portal-scoped sign-in (citizen, organization, and platform-admin portals), personal access tokens, case management operations, citizen self-service profile and dashboard, unified self-service profile for citizens and staff, persisted audit trail (platform-wide and organization-scoped), platform directory, organization management (including deletion), dashboard statistics (platform and organization), application error tracking, optional staff/invitation phone numbers, persisted in-app notifications, and a PostgreSQL-backed email job queue |
 | **Implemented** | Authenticated citizen case submission with active-organization selection and optional document upload, plus full citizen case tracking: searchable/filterable/sortable own-case list, detail view with citizen-visible timeline, public updates, information requests and responses, and citizen-visible documents |
-| **Verified** | Browser-level end-to-end journeys against a disposable PostgreSQL database (citizen submission and tracking, staff updates and information requests, cross-citizen isolation, session expiry, and CSRF rejection), in addition to automated integration tests |
+| **Verified** | Browser-level end-to-end journeys against a disposable PostgreSQL database (citizen submission and tracking, staff updates and information requests, cross-citizen isolation, session expiry, CSRF rejection, organization case filtering, and platform case inspection), in addition to automated integration tests |
 | **Limitations** | Some features require proper environment setup and role configuration; verification/reset/invitation emails require SMTP outside Development |
 
 ### Supported Environment
@@ -90,7 +90,7 @@ If your email address has not been confirmed yet, open **Forgot password** and c
 
 1. Navigate to `https://<your-civicflow-host>/super-platform-admin` (this page is intentionally not linked from the public site)
 2. Sign in with your platform administrator email and password
-3. You land in **Platform administration**, where you can manage organizations, memberships, invitations, view the directory, audit log, error tracker, dashboard, and your access tokens
+3. You land in **Platform administration**, where you can inspect all cases, manage organizations, memberships, invitations, view the directory, audit log, error tracker, dashboard, and background jobs
 
 A platform administrator cannot use `/admin` or the citizen portal with those same credentials; each portal is bound to its role.
 
@@ -111,7 +111,7 @@ Invitations expire (72 hours by default) and stop working after the first succes
 2. **Register**: provide your email and a password (minimum 12 characters with upper, lower, digit, and non-alphanumeric characters); a verification email is sent
 3. Confirm your email using the verification link, then sign in. If you need another verification email, open **Forgot password**, enter the account email, and choose **Resend verification email**. In Development the one-time link appears in the API console; otherwise it is emailed.
 4. After signing in, you land on your **citizen dashboard**, which shows your account status, recent cases, and the actions available to you; use **My cases** in the navigation to track all submissions
-5. Open **My profile** to create or update your profile
+5. Open **My profile** in the account menu to create or update your civil registry details (the shared, unified profile described in [5.14](#514-updating-your-unified-profile))
 6. Required fields: **Full Name** and **Email**. Optional fields include phone number, NID number, citizenship number, age, gender, and permanent/temporary addresses
 7. The profile is stored against your authenticated identity; NID and citizenship numbers must be unique when provided
 
@@ -157,32 +157,34 @@ Navigation and action icons use inline SVGs without a third-party icon service. 
 | **Dashboard** | Citizen overview with account status, recent cases, and quick actions (default view) |
 | **My cases** | Track submitted cases, open details, view staff updates, download shared documents, and respond to information requests |
 | **Public intake** | Submit a public service request |
-| **My profile** | Create or update your own citizen profile |
-| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
-| **Profile** | Unified self-service profile (civil registry details for citizens, contact details for staff) |
+
+The account menu (top right) opens **My profile**, switches the theme, or signs out. The **My profile** page is the shared, unified self-service profile described in [5.14](#514-updating-your-unified-profile).
 
 **Staff accounts (organization portal):**
 
 | Navigation entry | Description |
 |---|---|
-| **Cases** | Case management (default view) |
+| **Dashboard** | Organization-scoped case statistics overview (default view) |
+| **Cases** | Case management |
 | **Team contacts** | Staff contact directory and staff phone numbers |
-| **Organizations** | Organization administrators see the *Members & invitations* tab for organizations they administer (role changes, activation, invitations); the *Organization types* and *Organizations* tabs, along with organization CRUD, remain SuperAdmin-only |
+| **My Organization** | Organization administrators see the *Members & invitations* tab for organizations they administer (role changes, activation, invitations); the *Organization types* and *Organizations* tabs, along with organization CRUD, remain SuperAdmin-only |
 | **Activity log** | Organization administrators see the organization's audit trail; staff see only their own activity |
-| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
-| **Profile** | Unified self-service profile (contact details for staff) |
+
+The account menu (top right) opens **My profile**, switches the theme, or signs out. The **My profile** page is the shared, unified self-service profile described in [5.14](#514-updating-your-unified-profile).
 
 **Platform administrator accounts (platform administration):**
 
 | Navigation entry | Description |
 |---|---|
-| **Organizations** | Three inner tabs — *Organization types* (shared catalogue CRUD, SuperAdmin only), *Organizations* (organization CRUD), and *Members & invitations* (with an organization-type + organization filter). Default view. |
-| **Directory** | Platform overview counters plus Citizens, Staff, and All Users sections; account edits, platform-role changes, and links to organization membership management |
+| **Dashboard** | Platform account and organization totals plus case statistics (default view) |
+| **All cases** | Read-only inspection of every case across all organizations, with filtering and full case detail |
+| **Organizations** | Three inner tabs — *Organization types* (shared catalogue CRUD, SuperAdmin only), *Organizations* (organization CRUD), and *Members & invitations* (with an organization-type + organization filter) |
+| **Directory** | Platform overview counters plus Citizens, Staff, and All Users sections; account edits, platform-role changes, account activation/deactivation, and links to organization membership management |
 | **Audit log** | Platform-wide audit trail |
 | **Errors** | Application error list with filter (all/unhandled/handled) and mark-as-handled |
-| **Dashboard** | Platform account and organization totals plus case statistics, status, priority, and weekly/monthly activity charts |
-| **Access tokens** | Create, list, and revoke personal access tokens for API clients |
-| **Profile** | Unified self-service profile (contact details for staff) |
+| **Background jobs** | Queued email jobs with status, attempts, and retry/cancel controls |
+
+The account menu (top right) opens **My profile** (a read-only summary of the platform administrator account), switches the theme, or signs out.
 
 ### Common Controls
 
@@ -228,8 +230,7 @@ The Notifications button in the workspace header shows your unread count and a p
 - Organization administrators open **Organizations** to inspect and update memberships for the organizations they administer, invite staff (the invitee receives the Staff portal role and CaseWorker membership), deactivate/reactivate memberships, and manage invitations. They cannot grant OrganizationAdmin, create organizations, or edit/delete organization records; only platform administrators can.
 - Organization administrators can collect and update staff phone numbers and read the organization activity log.
 - View organization dashboard statistics
-- Manage personal access tokens
-- Update own profile
+- Update own profile (from the account menu)
 
 ### Platform job monitoring
 
@@ -240,6 +241,7 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 **Access requirements:** Authenticated platform super administrator account, signed in at `/super-platform-admin`.
 
 **Available actions:**
+- Inspect every case across all organizations from **All cases** (read-only): search, filter by organization, status, and priority, sort, page through results, and open a case's full detail and documents
 - Create, rename, deactivate, reactivate, and delete organizations
 - Manage the shared organization-type catalogue (create, rename, re-code, deactivate, reactivate, delete) from the *Organization types* tab; `Uncategorized` is protected and types in use cannot be deleted
 - Manage memberships and roles within any organization (add members with Viewer, CaseWorker, or OrganizationAdmin roles; update roles; activate/deactivate memberships)
@@ -249,8 +251,7 @@ Only platform Super Administrators can see the Background jobs screen. Filter by
 - View platform dashboard statistics (total cases, per-status, per-priority, weekly/monthly trends)
 - Track and manage application errors (list, filter, view detail, mark as handled)
 - Monitor background email jobs by status and attempt count; inspect sanitized failures and retry failed or cancel pending work. Job operations are audited and rate-limited.
-- Manage personal access tokens
-- Update own profile
+- Update own profile summary (from the account menu; platform administrators have a read-only account summary rather than the citizen/staff profile form)
 
 **Organization Administration UI Details**
 
@@ -294,12 +295,12 @@ The Organizations view is split into three inner tabs for platform administrator
 
 ### Citizen User
 
-**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, my cases, public case submission, their own profile, and access tokens. Case lists for other people, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, then follow each request from **My cases** with search, status filtering, sorting, and paging.
+**Status:** Citizens sign in through the **Citizen Portal** and stay inside the citizen workspace: dashboard, my cases, public case submission, and their own profile. Case lists for other people, staff administration, and organization administration are never part of a citizen session. Citizens can submit new cases to an active organization and optionally attach any file type up to 10 MB, then follow each request from **My cases** with search, status filtering, sorting, and paging.
 
 **Citizen workspace workflow:**
 1. Sign in through the **Citizen Portal**
 2. The dashboard opens and shows your account status, the portal you are signed in to, your three most recent cases, and quick actions
-3. Use the action cards to open **Public intake**, **My profile**, or **Access tokens**
+3. Use the action cards to open **Public intake** or **My profile**, or to view all your cases
 4. Open **My cases** in the navigation to see every request you submitted, with reference number, title, organization, current status, and last update time
 5. In **My cases**, search by reference or title, filter by status, change the sort order (recently updated, oldest update, newest, oldest), and page through longer lists
 6. Select **View details** on a request to open its full description and citizen-visible timeline, then **Back to my cases** to return
@@ -308,7 +309,7 @@ The Organizations view is split into three inner tabs for platform administrator
 
 **Citizen Profile workflow:**
 1. Sign in through the **Citizen Portal**
-2. Open **My profile** in the navigation (or the dashboard action card)
+2. Open **My profile** from the account menu or the dashboard action card (the shared profile page described in [5.14](#514-updating-your-unified-profile))
 3. Provide **Full Name** and **Email** (required); optionally add phone number, NID number, citizenship number, age (0–150), gender, and permanent/temporary addresses. Names collapse repeated spaces; identifiers are upper-cased; phone numbers must be 6–30 characters with at least 6 digits
 4. Submit to create the profile; submitting again updates the existing profile
 5. NID number and citizenship number must be unique across profiles when provided; the server rejects duplicates
@@ -365,7 +366,7 @@ Organization administrators can edit a case's title, description, status, priori
 **Uploading:**
 1. Select a case
 2. In the documents section, use the file upload control
-3. Select a file to upload (max 10MB; allowed: .pdf, .jpg, .jpeg, .png, .doc, .docx)
+3. Select a file to upload (max 10 MB; any declared file type; declared PDF/PNG/JPEG/GIF files must match their content signature)
 4. Upload will proceed if permitted
 
 **Downloading:**
@@ -462,38 +463,44 @@ The detail view shows a loading state while data is fetched and an error message
 ### 5.13 Managing Your Citizen Profile
 
 1. Sign in through the **Citizen Portal**
-2. Navigate to **My profile** (from the dashboard action card or the sidebar)
-3. If you are not signed in, you will be prompted to **Sign in**
-4. Fill in the required fields (**Full Name**, **Email**) and any optional details
-5. Submit to create or update your profile
-6. A confirmation message appears on success; validation or duplicate errors are shown in red
+2. Open **My profile** from the account menu (top right) or the dashboard action card
+3. Fill in the required fields (**Full Name**, **Email**) and any optional details
+4. Submit to create or update your profile
+5. A confirmation message appears on success; validation or duplicate errors are shown in red
 
-**Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected.
+**Note:** The server stores the profile against your authenticated identity. It does not accept a client-supplied user ID, and duplicate NID/citizenship numbers are rejected. This is the same shared, unified profile described in [5.14](#514-updating-your-unified-profile).
 
 ### 5.14 Updating Your Unified Profile
 
-The **Profile** page is a unified self-service profile available to both citizens and staff:
+The **Profile** page is a unified self-service profile available to citizens and staff:
 
-1. Open **Profile** in the navigation
+1. Open **My profile** in the account menu (top right)
 2. The page detects your account type (citizen or staff) from your roles
 3. For citizens: edit civil registry details (full name, email, phone, NID, citizenship number, age, gender, addresses)
 4. For staff: edit contact details (full name, phone number)
 5. Submit to save changes
 6. Changes are validated server-side and recorded in the audit trail
 
-**Note:** Super administrators do not have access to the Profile page (they use the platform administration surfaces only).
+**Note:** Platform super administrators see a read-only account summary on the same page instead of the editable form.
 
-### 5.15 Managing Personal Access Tokens
+### 5.15 Using Personal Access Tokens (API clients)
 
 Personal access tokens let an automated client (a script, an integration, a mobile app) call the API without a browser session. A token acts on behalf of the user who created it and carries that user's permissions.
 
-1. Sign in to CivicFlow (citizen, staff, or platform admin sign-in page)
-2. Open **Access tokens** in the navigation
-3. Enter a **name** that identifies the client or purpose (for example `nightly-sync`)
-4. Optionally choose an **expiry** (30 days, 90 days, 1 year, or never)
-5. Select **Create token**
-6. **Copy the token immediately** — it is shown exactly once and cannot be retrieved later
-7. Store it in the client's secret store; the server keeps only a hash of it
+**There is no in-app token management screen.** Tokens are created, listed, and revoked through the authenticated API itself (`GET`/`POST`/`DELETE /api/auth/tokens`), for example with `curl` against a signed-in session or another credential:
+
+```http
+POST /api/auth/tokens
+Authorization: Bearer <existing-credential>
+Content-Type: application/json
+
+{"name": "nightly-sync", "expiresInDays": 90}
+```
+
+- The plaintext token (`civicflow_pat_<publicId>_<secret>`) is returned **exactly once**, in the creation response. The server stores only a SHA-256 hash of it.
+- `expiresInDays` is optional (1–3650); omit it for a non-expiring token. At most 25 active tokens can exist per account.
+- List your tokens with `GET /api/auth/tokens` (the plaintext is never returned again) and revoke one with `DELETE /api/auth/tokens/{tokenId}`. Revocation takes effect immediately — requests using the token receive `401`.
+- Store the plaintext in the client's secret store; treat it like a password.
 
 **Using the token**
 
@@ -521,17 +528,21 @@ the active account and current roles on every request, but it does not revoke
 the PAT itself. Do not store bearer tokens in browser localStorage; browser
 clients should keep using the HttpOnly session cookie.
 
-**Revoking a token**
-
-1. Open **Access tokens**
-2. Find the token in the list and select **Revoke**
-3. The token stops working immediately — requests using it receive `401`
-
 **Notes**
 - A token is limited to the permissions of the account that created it; a citizen token cannot reach staff endpoints.
-- At most 25 active tokens can exist per account. Revoke tokens you no longer use.
 - Revoking a token does not end your browser session and does not affect other tokens.
 - Tokens must be treated as passwords: anyone holding one can act as you until it is revoked or expires.
+
+### 5.16 Inspecting Cases Across Organizations (Platform Administrators)
+
+Only platform super administrators can use **All cases** in the platform administration navigation. It provides read-only visibility into every case in the platform, without joining any organization:
+
+1. Open **All cases** in the navigation
+2. Use the organization filter, status filter, priority filter, search box, and sort control to narrow the list; page through results with pagination
+3. Select a case to open its full detail: organization, submitter, assignee, current status, status history (including internal explanations), the complete update timeline (including internal notes), assignment history, and document metadata
+4. Open document previews or downloads from the detail view; documents include internal-only files, so treat the screen as sensitive
+
+Actions that would modify a case — changing status, assignment, priority, notes, documents, or visibility — are **not available** here and remain with the owning organization's administrators and assignees. Platform inspection is enforced read-only by the API and at the database boundary (the inspection context is `SELECT`-only); attempts to use it as a write path fail.
 
 ---
 
