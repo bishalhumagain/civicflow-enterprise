@@ -253,35 +253,34 @@ documented in [docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.m
 
 ## Screenshots
 
-Screenshots are intentionally not embedded until real application captures are
-provided. The comments below are named placeholders, not broken image links.
-Capture instructions and role requirements are in
-[docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
+Real application captures with synthetic data live in `docs/screenshots/`.
+Capture instructions, role requirements, and the current status of each image
+are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
-<!-- SCREENSHOT: platform-admin-overview -->
-<!-- Capture: Platform Admin dashboard overview; show platform-level summary cards with synthetic data. -->
-<!-- Role: Platform Admin. Suggested filename: docs/screenshots/platform-admin-overview.png -->
-<!-- Relative image path: docs/screenshots/platform-admin-overview.png -->
+![Platform Admin dashboard overview](docs/screenshots/platform-admin-overview.png)
 
-<!-- SCREENSHOT: organization-admin-my-organization -->
-<!-- Capture: My Organization workspace with the organization profile and staff-role column visible. -->
-<!-- Role: Organization Admin. Suggested filename: docs/screenshots/organization-admin-my-organization.png -->
-<!-- Relative image path: docs/screenshots/organization-admin-my-organization.png -->
+*Platform Admin dashboard overview.*
 
-<!-- SCREENSHOT: staff-assigned-case -->
-<!-- Capture: Staff case workspace showing an assigned case and its status/history controls. -->
-<!-- Role: Staff with a CaseWorker assignment. Suggested filename: docs/screenshots/staff-assigned-case.png -->
-<!-- Relative image path: docs/screenshots/staff-assigned-case.png -->
+![My Organization workspace](docs/screenshots/organization-admin-my-organization.png)
 
-<!-- SCREENSHOT: citizen-case-tracking -->
-<!-- Capture: Citizen case list and a case detail timeline with citizen-visible updates. -->
-<!-- Role: Citizen. Suggested filename: docs/screenshots/citizen-case-tracking.png -->
-<!-- Relative image path: docs/screenshots/citizen-case-tracking.png -->
+*My Organization workspace with the organization profile and staff-role column.*
 
-<!-- SCREENSHOT: authorized-document-preview -->
-<!-- Capture: Case detail with the authorized document preview open; use a synthetic, non-sensitive PDF or image. -->
-<!-- Role: Organization Admin or assigned CaseWorker. Suggested filename: docs/screenshots/authorized-document-preview.png -->
-<!-- Relative image path: docs/screenshots/authorized-document-preview.png -->
+![Assigned case workspace with the explicit Save changes bar](docs/screenshots/staff-assigned-case.png)
+
+*Assigned case workspace showing the explicit **Save changes** bar and no delete action.*
+
+<!-- SCREENSHOT: staff-case-details-unsaved-changes -->
+<!-- Capture: Case details with edited fields showing "You have unsaved changes." and an enabled Save changes button. -->
+<!-- Role: Organization Admin or assigned CaseWorker. Suggested filename: docs/screenshots/staff-case-details-unsaved-changes.png -->
+<!-- Relative image path: docs/screenshots/staff-case-details-unsaved-changes.png -->
+
+![Citizen case tracking](docs/screenshots/citizen-case-tracking.png)
+
+*Citizen case list and a case detail timeline with citizen-visible updates.*
+
+![Authorized document preview](docs/screenshots/authorized-document-preview.png)
+
+*Authorized document preview opened from a synthetic case.*
 
 ## Known limitations and future improvements
 

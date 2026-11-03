@@ -1,17 +1,17 @@
 # Screenshot Guide
 
-The repository intentionally contains no screenshots. Capture the real
-application with synthetic, non-sensitive data, then add images at the
-suggested relative paths and replace the matching README placeholder with a
-Markdown image link.
+Application captures live under `docs/screenshots/` and use synthetic,
+non-sensitive data. This table records which captures are present and which are
+still required.
 
-| Screenshot ID | Suggested filename | Application path | Required role | What it should demonstrate | Capture notes |
-|---|---|---|---|---|---|
-| `platform-admin-overview` | `docs/screenshots/platform-admin-overview.png` | Sign in to the Platform Admin portal → Dashboard | Platform Admin (`SuperAdmin`) | Platform-level summary cards and navigation. | Use synthetic organizations and counts. Keep browser chrome and personal account details out of frame. |
-| `organization-admin-my-organization` | `docs/screenshots/organization-admin-my-organization.png` | Organization workspace → My Organization | Organization Admin | Current organization profile, team contacts, and visible organization-level staff roles. | Use one synthetic organization; ensure no other organization's data is visible. |
-| `staff-assigned-case` | `docs/screenshots/staff-assigned-case.png` | Organization workspace → Cases → open a case assigned to the signed-in CaseWorker | Staff with a `CaseWorker` assignment | Assigned-case context, status/history, and permitted staff actions. | Use a synthetic case; do not include real citizen information or credentials. |
-| `citizen-case-tracking` | `docs/screenshots/citizen-case-tracking.png` | Citizen portal → My Cases → open one of the citizen's cases | Citizen | Citizen-owned case list and citizen-visible progress timeline. | Use a synthetic account and case; keep internal notes and staff-only documents out of the capture. |
-| `authorized-document-preview` | `docs/screenshots/authorized-document-preview.png` | Organization workspace → Cases → open an authorized case → Documents → Preview | Organization Admin or assigned `CaseWorker` | Document preview opened through the authorized case interface. | Use a non-sensitive synthetic PDF or image. Do not capture local storage paths or browser developer tools. |
+| Screenshot ID | Status | Suggested filename | Application path | Required role | What it should demonstrate | Capture notes |
+|---|---|---|---|---|---|---|
+| `platform-admin-overview` | Added | `docs/screenshots/platform-admin-overview.png` | Sign in to the Platform Admin portal → Dashboard | Platform Admin (`SuperAdmin`) | Platform-level summary cards and navigation. | Use synthetic organizations and counts. Keep browser chrome and personal account details out of frame. |
+| `organization-admin-my-organization` | Added | `docs/screenshots/organization-admin-my-organization.png` | Organization workspace → My Organization | Organization Admin | Current organization profile, team contacts, and visible organization-level staff roles. | Use one synthetic organization; ensure no other organization's data is visible. |
+| `staff-assigned-case` | Added | `docs/screenshots/staff-assigned-case.png` | Organization workspace → Cases → open a case assigned to the signed-in CaseWorker | Staff with a `CaseWorker` assignment | Assigned-case context, status/history, the explicit **Save changes** bar, and permitted staff actions. | Use a synthetic case; do not include real citizen information or credentials. The capture should show that there is no delete action. |
+| `staff-case-details-unsaved-changes` | Required | `docs/screenshots/staff-case-details-unsaved-changes.png` | Organization workspace → Cases → open an editable case → change title, description, status, priority, or assignment without saving | Organization Admin or assigned `CaseWorker` | The staged-edit state: **"You have unsaved changes."** next to an enabled **Save changes** button at the end of the case details form. | Use synthetic values. Do not press **Save changes** before capturing. Keep the absence of any delete control visible. |
+| `citizen-case-tracking` | Added | `docs/screenshots/citizen-case-tracking.png` | Citizen portal → My Cases → open one of the citizen's cases | Citizen | Citizen-owned case list and citizen-visible progress timeline. | Use a synthetic account and case; keep internal notes and staff-only documents out of the capture. |
+| `authorized-document-preview` | Added | `docs/screenshots/authorized-document-preview.png` | Organization workspace → Cases → open an authorized case → Documents → Preview | Organization Admin or assigned `CaseWorker` | Document preview opened through the authorized case interface. | Use a non-sensitive synthetic PDF or image. Do not capture local storage paths or browser developer tools. |
 
 ## Capture checklist
 
@@ -25,4 +25,5 @@ Markdown image link.
   width.
 - Add each image under `docs/screenshots/` using the exact filename above.
 - Replace only the matching placeholder in `README.md`; preserve its
-  screenshot ID and update this guide if the navigation path changes.
+  screenshot ID. When an image is added or replaced, update its status in this
+  guide and update the capture notes if the navigation path changes.
