@@ -254,29 +254,24 @@ documented in [docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.m
 ## Screenshots
 
 Real application captures with synthetic data live in `docs/screenshots/`.
-Capture instructions, role requirements, and the current status of each image
-are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
-
-![Platform Admin dashboard overview](docs/screenshots/platform-admin-overview.png)
-
-*Platform Admin dashboard overview.*
-
-![My Organization workspace](docs/screenshots/organization-admin-my-organization.png)
-
-*My Organization workspace with the organization profile and staff-role column.*
-
-![Assigned case workspace with the explicit Save changes bar](docs/screenshots/staff-assigned-case.png)
-
-*Assigned case workspace showing the explicit **Save changes** bar and no delete action.*
-
-<!-- SCREENSHOT: staff-case-details-unsaved-changes -->
-<!-- Capture: Case details with edited fields showing "You have unsaved changes." and an enabled Save changes button. -->
-<!-- Role: Organization Admin or assigned CaseWorker. Suggested filename: docs/screenshots/staff-case-details-unsaved-changes.png -->
-<!-- Relative image path: docs/screenshots/staff-case-details-unsaved-changes.png -->
+Capture instructions, role requirements, and the coverage rationale are in
+[docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
 ![Citizen case tracking](docs/screenshots/citizen-case-tracking.png)
 
 *Citizen case list and a case detail timeline with citizen-visible updates.*
+
+![Assigned case workspace with the explicit Save changes bar](docs/screenshots/staff-assigned-case.png)
+
+*Assigned case workspace showing the workflow, explicit **Save changes** bar, and no delete action.*
+
+![My Organization workspace](docs/screenshots/organization-admin-my-organization.png)
+
+*My Organization workspace with the organization profile, memberships, and invitations.*
+
+![Platform Admin dashboard overview](docs/screenshots/platform-admin-overview.png)
+
+*Platform Admin dashboard with platform-wide summary cards and case distribution.*
 
 ![Authorized document preview](docs/screenshots/authorized-document-preview.png)
 
