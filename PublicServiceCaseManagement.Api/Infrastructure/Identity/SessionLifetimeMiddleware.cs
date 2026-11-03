@@ -31,9 +31,7 @@ public sealed class SessionLifetimeMiddleware(
 
         var maxAge = TimeSpan.FromSeconds(configured);
 
-        // A non-positive value disables the absolute cap (idle sliding expiry
-        // still applies). Only act on a request that already carries an
-        // authenticated cookie principal.
+        // A non-positive cap disables the absolute limit; sliding expiry still applies.
         if (maxAge > TimeSpan.Zero &&
             httpContext.User?.Identity?.IsAuthenticated == true)
         {

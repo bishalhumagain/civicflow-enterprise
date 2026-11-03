@@ -55,8 +55,6 @@ public sealed class CitizenCaseTrackingRlsTests
 
         await transaction.RollbackAsync();
 
-        // The owning organization can see the whole tenant, including internal
-        // notes and internal documents, but never another organization.
         await using var organizationTransaction =
             await connection.BeginTransactionAsync();
         await SetConfigAsync(
@@ -205,7 +203,6 @@ public sealed class CitizenCaseTrackingRlsTests
         await connection.OpenAsync();
         await AssertRoleIsSubjectToRlsAsync(connection);
 
-        // With no context the runtime role sees nothing.
         Assert.Equal(0, await CountAsync(connection, null,
             "select count(*) from cases"));
 
@@ -252,8 +249,6 @@ public sealed class CitizenCaseTrackingRlsTests
             ("organizationA", seed.OrganizationA),
             ("organizationB", seed.OrganizationB)));
 
-        // The platform policies are SELECT-only, so the existing tenant
-        // policies still govern every write path.
         Assert.Equal(6, await CountAsync(
             connection,
             transaction,
@@ -571,7 +566,6 @@ public sealed class CitizenCaseTrackingRlsTests
             }
             catch
             {
-                // Preserve the original failure, which the test asserts on.
             }
 
             throw;

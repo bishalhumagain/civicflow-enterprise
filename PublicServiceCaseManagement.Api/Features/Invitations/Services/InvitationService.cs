@@ -341,13 +341,7 @@ public sealed class InvitationService(
             return AcceptInvitationOutcome.Unavailable();
         }
 
-        // staff_members is a row-level-security tenant table (FORCE ROW LEVEL
-        // SECURITY with a WITH CHECK clause). Every write below has to run
-        // inside a transaction whose `civicflow.organization_id` setting
-        // matches the invitation's organization, or PostgreSQL rejects the
-        // insert and the accept endpoint returns 500. The surrounding
-        // OrganizationTransactionMiddleware commits the transaction once the
-        // request completes successfully.
+        // staff_members is RLS-protected, so writes must run in the invitation's organization transaction.
         await organizationTransactionContext.BeginAsync(
             invitation.OrganizationId,
             cancellationToken);
@@ -418,9 +412,7 @@ public sealed class InvitationService(
                 await userManager.UpdateAsync(user);
             }
 
-            // The organization collected a contact number while inviting. It
-            // fills a gap on the account, but never replaces a number the
-            // person set for themselves.
+            // Fill a missing contact number without overwriting one the user set.
             if (string.IsNullOrWhiteSpace(user.PhoneNumber) &&
                 !string.IsNullOrWhiteSpace(invitation.PhoneNumber))
             {
@@ -428,7 +420,6 @@ public sealed class InvitationService(
                 await userManager.UpdateAsync(user);
             }
 
-            // A credential change invalidates every existing session.
             await userManager.UpdateSecurityStampAsync(user);
         }
 
@@ -604,8 +595,7 @@ public sealed class InvitationService(
         }
         catch (Exception exception)
         {
-            // The invitation stays valid. The administrator sees a delivery
-            // failure in the grid and can retry with Resend.
+            // Keep the invitation valid so the administrator can resend it.
             invitation.MarkDeliveryFailed(exception.Message, now);
 
             await auditLogger.RecordAsync(

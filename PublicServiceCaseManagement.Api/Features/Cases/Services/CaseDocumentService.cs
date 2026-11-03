@@ -72,8 +72,7 @@ public sealed class CaseDocumentService(
             }
             catch
             {
-                // Preserve the original persistence failure. Storage cleanup is
-                // best-effort and should be observable through operational logs.
+                // Storage cleanup is best-effort; keep the original persistence error.
             }
 
             throw;

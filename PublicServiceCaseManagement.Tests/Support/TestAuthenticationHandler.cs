@@ -37,8 +37,6 @@ public sealed class TestAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        // A caller presenting a bearer token must not be authenticated by
-        // this scheme; the request is treated as unauthenticated (401).
         if (Request.Headers.Authorization.ToString()
             .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {

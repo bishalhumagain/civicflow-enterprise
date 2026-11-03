@@ -231,8 +231,6 @@ public sealed class ProfileService(
 
         if (profile is null)
         {
-            // Registration normally creates the row; create-on-update covers
-            // accounts that were provisioned without a citizen profile.
             await EnsureIdentifiersAreUniqueAsync(
                 null,
                 nidNumber,

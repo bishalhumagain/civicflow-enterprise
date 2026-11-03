@@ -69,8 +69,7 @@ export function rememberPortal(portal: SignInPortal): void {
     try {
         window.sessionStorage.setItem(PORTAL_STORAGE_KEY, portal)
     } catch {
-        // Storage can be unavailable in private browsing modes. The portal is
-        // then derived from the account roles on the next load.
+        return
     }
 }
 
@@ -78,7 +77,7 @@ export function forgetPortal(): void {
     try {
         window.sessionStorage.removeItem(PORTAL_STORAGE_KEY)
     } catch {
-        // Ignore storage failures; the portal is derived from roles anyway.
+        return
     }
 }
 
@@ -117,7 +116,7 @@ export function rememberWorkspaceView(view: WorkspaceView): void {
     try {
         window.localStorage.setItem(WORKSPACE_VIEW_STORAGE_KEY, view)
     } catch {
-        // Storage can be unavailable; the in-memory tab still works.
+        return
     }
 }
 
@@ -125,7 +124,7 @@ export function forgetWorkspaceView(): void {
     try {
         window.localStorage.removeItem(WORKSPACE_VIEW_STORAGE_KEY)
     } catch {
-        // Ignore storage failures; the default tab is still available.
+        return
     }
 }
 

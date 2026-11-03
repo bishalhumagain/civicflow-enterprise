@@ -100,8 +100,7 @@ public sealed class LocalFileStorage(
                 await temporaryStream.FlushAsync(cancellationToken);
             }
 
-            // Move only after the write stream has been disposed so this remains
-            // portable across platforms that do not permit moving open files.
+            // Move only after the write stream is disposed so the operation stays portable.
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             File.Move(temporaryPath, destinationPath);
 

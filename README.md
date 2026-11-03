@@ -175,7 +175,7 @@ erDiagram
 ```
 
 EF Core migrations are under
-`PublicServiceCaseManagement.Api/Infrastructure/Persistence/Migrations`.
+`PublicServiceCaseManagement.Api/Migrations`.
 The API does not apply migrations automatically at startup. Compose
 initialization creates separate PostgreSQL `civicflow_migrator` and
 `civicflow_runtime` roles; migrations use the former and the running API should
@@ -249,7 +249,7 @@ documented in [docs/INTEGRATION-VERIFICATION.md](docs/INTEGRATION-VERIFICATION.m
 | `PublicServiceCaseManagement.Tests/` | Backend unit, integration, and opt-in PostgreSQL tests. |
 | `civicflow-web/e2e/` | Playwright browser journeys and disposable database setup. |
 | `infra/postgres/init/` | PostgreSQL application-role initialization scripts. |
-| `docs/` | API, RLS, integration, local-development, and screenshot documentation. |
+| `docs/` | API, RLS, integration, local-development, validation, screenshot, and release documentation. |
 
 ## Screenshots
 
@@ -276,6 +276,21 @@ Capture instructions, role requirements, and the coverage rationale are in
 ![Authorized document preview](docs/screenshots/authorized-document-preview.png)
 
 *Authorized document preview opened from a synthetic case.*
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [API contract and authorization matrix](docs/API-AUTHORIZATION.md) | Endpoint inventory, request/response shapes, role rules, and error conventions. |
+| [User manual](docs/USER_MANUAL.md) | Role-specific workflows for citizens, staff, organization administrators, and platform administrators. |
+| [PostgreSQL RLS design](docs/RLS-DESIGN.md) | Protected tables, policy shape, database roles, and tenant-boundary verification. |
+| [Integration verification](docs/INTEGRATION-VERIFICATION.md) | Automated coverage, browser journeys, and the local verification sequence. |
+| [Local development](docs/LOCAL-DEVELOPMENT.md) | PostgreSQL, secrets, migrations, API and frontend commands, HTTPS, and tests. |
+| [Validation and formatting](docs/VALIDATION-AND-FORMATTING.md) | Shared input rules, normalization, upload checks, and display conventions. |
+| [Delivery roadmap](docs/DELIVERY-ROADMAP.md) | Implemented baseline, active delivery sequence, and deferred work. |
+| [Screenshot guide](docs/SCREENSHOTS.md) | Captures, required roles, coverage rationale, and capture checklist. |
+| [Documentation workflow](docs/DOCUMENTATION_WORKFLOW.md) | Maintenance rules and the checklist for documentation changes. |
+| [Release verification](docs/RELEASE-VERIFICATION.md) | Provenance metadata and the recommended signing workflow. |
 
 ## Known limitations and future improvements
 

@@ -94,7 +94,6 @@ public sealed class CitizenCaseTrackingIntegrationTests
             "/api/citizens/cases?pageSize=500");
         Assert.Equal(HttpStatusCode.BadRequest, invalidPageSize.StatusCode);
 
-        // A second citizen cannot see or open the first citizen's cases.
         var otherCitizenId = await SeedCitizenAsync(factory);
         using var otherCitizen = CreateCitizenClient(factory, otherCitizenId);
 
@@ -203,8 +202,6 @@ public sealed class CitizenCaseTrackingIntegrationTests
             detail.Updates,
             update => update.Kind == "InternalNote");
 
-        // Staff retain the complete record, including internal activity and
-        // the hidden status explanation.
         var staffUpdates = await staffClient.GetFromJsonAsync<
             IReadOnlyList<StaffUpdateResponse>>(
             $"/api/cases/{submitted.Id}/updates");
@@ -232,8 +229,6 @@ public sealed class CitizenCaseTrackingIntegrationTests
             entry => !entry.IsVisibleToCitizen &&
                      entry.Explanation is not null);
 
-        // The owner can respond; the case returns to review and the response
-        // becomes part of the shared timeline.
         var response = await citizen.PostAsJsonAsync(
             $"/api/citizens/cases/{submitted.Id}/responses",
             new { message = "The gate was locked, but the code is 1234." });
@@ -394,7 +389,6 @@ public sealed class CitizenCaseTrackingIntegrationTests
             explanationVisibleToCitizen: false);
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
 
-        // Submitted cases cannot jump directly to AwaitingInformation.
         var invalidInformationRequest = await AddUpdateAsync(
             staffClient,
             submitted.Id,

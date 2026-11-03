@@ -240,9 +240,6 @@ public sealed class AuthenticatedOrganizationResolverTests
 
         var httpContext = new DefaultHttpContext();
 
-        // When the caller is a "known user" the authenticated principal
-        // carries the seeded user id; otherwise it carries an unrelated id
-        // that does not exist in the database.
         var authenticatedUserId = knownUser
             ? user.Id
             : Guid.NewGuid();

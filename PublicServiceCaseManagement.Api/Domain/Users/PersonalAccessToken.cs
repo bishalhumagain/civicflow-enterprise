@@ -106,9 +106,6 @@ public sealed class PersonalAccessToken
         var publicId = Convert.ToHexString(
             RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
 
-        // Hex keeps the secret URL-safe and free of the "_" separator used
-        // by the token format, so the value can be embedded in a header or a
-        // query string without escaping.
         var secret = Convert.ToHexString(
             RandomNumberGenerator.GetBytes(20)).ToLowerInvariant();
 
@@ -142,7 +139,6 @@ public sealed class PersonalAccessToken
 
         var parts = plaintext.Split('_', 4);
 
-        // civicflow_pat_<publicId>_<secret>
         if (parts.Length != 4 ||
             !string.Equals(parts[0], "civicflow", StringComparison.Ordinal) ||
             !string.Equals(parts[1], "pat", StringComparison.Ordinal) ||

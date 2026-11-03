@@ -39,7 +39,7 @@ public sealed class AuthService(
 
         if (existing is not null)
         {
-            // Do not reveal that the account already exists.
+            // Return the same response whether or not the account exists.
             return new AuthOperationResult(true, GenericRegistrationMessage);
         }
 
@@ -120,8 +120,7 @@ public sealed class AuthService(
 
         if (user is null || !user.IsActive)
         {
-            // Fail as if the password were wrong to avoid account
-            // enumeration, while never leaking the deactivation state.
+            // Treat inactive accounts like invalid credentials to avoid enumeration.
             await auditLogger.AuthenticationFailedAsync(
                 email,
                 "invalid_or_inactive",
@@ -141,9 +140,7 @@ public sealed class AuthService(
 
             if (!IsAllowedForPortal(roles, portal))
             {
-                // PasswordSignInAsync already issued the session cookie, so it
-                // has to be dropped again. A wrong-portal attempt must never
-                // leave a usable session behind.
+                // Sign-in already issued a cookie; drop it so a rejected portal leaves no session.
                 await signInManager.SignOutAsync();
 
                 await auditLogger.AuthenticationFailedAsync(
@@ -233,9 +230,6 @@ public sealed class AuthService(
 
         if (portal == SignInPortal.Citizen)
         {
-            // The message has to name the portal the account can actually
-            // use, otherwise a super administrator would be sent to a portal
-            // that refuses them just as well.
             var target = roleSet.Contains(AppRoles.SuperAdmin)
                 ? "the platform administration portal"
                 : roleSet.Contains(AppRoles.Staff)
@@ -403,7 +397,7 @@ public sealed class AuthService(
                 DescribeFailures(result));
         }
 
-        // Invalidate any existing sessions after a credential change.
+        // Invalidate existing sessions after a credential change.
         await userManager.UpdateSecurityStampAsync(user);
 
         await auditLogger.AccountLifecycleAsync(
@@ -439,10 +433,7 @@ public sealed class AuthService(
 
         await userManager.UpdateSecurityStampAsync(user);
 
-        // The stamp rotation invalidates every existing session. Because this
-        // is a self-service change made from an already-authenticated browser,
-        // refresh the sign-in so the current session keeps working while all
-        // other sessions (still carrying the old stamp) are revoked.
+        // The stamp rotation revokes other sessions; refresh this one so the current browser stays signed in.
         await signInManager.RefreshSignInAsync(user);
 
         await auditLogger.AccountLifecycleAsync(

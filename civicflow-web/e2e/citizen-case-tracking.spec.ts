@@ -230,8 +230,6 @@ test('staff records public updates, a confidential note, an information request,
 
     await expect(detail.locator('.status-pill')).toHaveText('Under review')
 
-    // An invalid jump must surface the server rule instead of silently
-    // pretending the transition succeeded.
     await statusForm.locator('select').first().selectOption('Closed')
     await detail
       .getByRole('button', { name: 'Save changes' })
@@ -388,7 +386,6 @@ test('citizen sees only permitted timeline data and can answer the information r
   const requestEntry = updates.filter({ hasText: informationRequest })
   await expect(requestEntry).toContainText('Information requested')
 
-  // Internal notes and internal documents never reach the citizen response.
   await expect(detail.getByText(internalNote)).toHaveCount(0)
   await expect(detail.getByText(staffInternalDocumentName)).toHaveCount(0)
 
@@ -520,8 +517,6 @@ test('mutations are rejected when the anti-forgery token is invalid', async ({
 }) => {
   await openCitizenDashboard(page)
 
-  // Fetching a token also establishes the anti-forgery cookie; only the
-  // echoed request header is deliberately wrong in the mutation below.
   await getCsrfToken(page)
 
   const organizationsResponse = await page.request.get(

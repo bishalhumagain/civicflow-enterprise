@@ -115,8 +115,6 @@ public sealed class AuditTrailWriterTests
             new FailingAuditTrailWriter(),
             new StubActorResolver(Guid.Empty, string.Empty));
 
-        // The failure of the audit write must never break the operation it
-        // describes, so this call has to complete without throwing.
         await logger.RecordAsync(
             new AuditRecord
             {

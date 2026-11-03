@@ -14,10 +14,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // The API, domain, frontend, and documentation all require a
-            // minimum title of 3 and a minimum description of 10 characters.
-            // The original defensive constraint only rejected empty text, so
-            // tighten it to match the authoritative validation layer.
             migrationBuilder.Sql(
                 "ALTER TABLE \"cases\" " +
                 "DROP CONSTRAINT IF EXISTS \"CK_cases_Title_Length\";");

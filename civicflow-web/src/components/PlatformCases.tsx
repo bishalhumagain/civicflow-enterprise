@@ -79,8 +79,6 @@ export function PlatformCases() {
                 if (mounted) setOrganizations(loaded.items)
             })
             .catch(() => {
-                // The organization filter degrades to "All organizations";
-                // the case request below surfaces any real authorization error.
             })
 
         return () => {
@@ -96,8 +94,6 @@ export function PlatformCases() {
                 if (mounted) setStatistics(loaded)
             })
             .catch(() => {
-                // Summary cards are supplementary. The case table still
-                // reports its own load failures.
             })
 
         return () => {

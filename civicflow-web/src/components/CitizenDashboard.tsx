@@ -153,7 +153,6 @@ export function CitizenDashboard({
         }, 0)
 
         return () => window.clearTimeout(timer)
-        // The callback only clears the one-shot deep link in the parent.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialCaseId])
 

@@ -110,8 +110,6 @@ public sealed class CaseRoutingNotificationIntegrationTests
         await using var factory = new CivicFlowApiFactory(
             useAuthenticatedOrganizationContext: true,
             enableBusinessEndpoints: false);
-        // The OrganizationAdmin seed path does not create a staff row, so the
-        // case cannot be formally owned and the fallback notification applies.
         var organizationId = await factory.SeedAuthenticatedOrganizationAsync(
             OrganizationRole.OrganizationAdmin);
         var adminUserId = TestAuthenticationHandler.DefaultUserId;

@@ -245,9 +245,6 @@ function App() {
         (item) => item.id === organizationId,
     ) ?? null
 
-    // The API reports the roles the session actually carries. Every dashboard,
-    // navigation entry, and data request below is derived from them so the UI
-    // can never offer a surface the API would refuse.
     const citizenAccess = canUsePortal(currentUser, 'citizen')
     const organizationAccess = canUsePortal(currentUser, 'organization')
     const platformAdminAccess = canUsePortal(currentUser, 'platform-admin')
@@ -277,8 +274,6 @@ function App() {
             }
         }
 
-        // Citizens and organization staff use the self-service profile; platform
-        // administrators receive a platform-specific account summary.
         if (citizenAccess || organizationAccess || platformAdminAccess) {
             views.push('profile')
         }
@@ -294,9 +289,6 @@ function App() {
         return views
     }, [currentUser, citizenAccess, organizationAccess, platformAdminAccess])
 
-    // The view is derived from the roles the API reports, so a citizen can
-    // never land on an organization-only surface, even if a stale selection
-    // survives a sign-out or a role change.
     const activeView: WorkspaceView = availableViews.includes(viewSelection)
         ? viewSelection
         : (availableViews[0] ?? 'citizen-dashboard')
@@ -477,8 +469,6 @@ function App() {
         }
     }, [])
 
-    // The active view always has to stay inside the set the current roles allow,
-    // so a citizen can never land on an organization-only surface.
     useEffect(() => {
         if (!currentUser || !organizationAccess || !organizationId) return
 
@@ -744,7 +734,6 @@ function App() {
         }
     }, [currentUser, platformAdminAccess, activeView, retryVersion, directoryQuery])
 
-    // Load platform dashboard statistics
     useEffect(() => {
         if (!currentUser || !platformAdminAccess || activeView !== 'platform-dashboard') return
 
@@ -788,7 +777,6 @@ function App() {
         }
     }, [currentUser, platformAdminAccess, activeView, retryVersion])
 
-    // Load organization dashboard statistics
     useEffect(() => {
         if (!currentUser || !organizationAccess || !organizationId) return
         if (activeView !== 'organization-dashboard' && activeView !== 'cases') return
@@ -826,7 +814,6 @@ function App() {
         }
     }, [currentUser, organizationAccess, activeView, organizationId, retryVersion])
 
-    // Load application errors
     useEffect(() => {
         if (!currentUser || !platformAdminAccess || activeView !== 'platform-errors') return
 
@@ -865,7 +852,6 @@ function App() {
         }
     }, [currentUser, platformAdminAccess, activeView, retryVersion, errorPage, errorFilter])
 
-    // Organization activity is actor-scoped for staff; the API enforces access.
     const auditScope = activeView === 'platform-audit'
         ? 'platform'
         : activeView === 'activity'
@@ -1592,9 +1578,6 @@ function App() {
         )
     }
 
-    // The organization workspace is only reachable for staff accounts. Citizen
-    // and platform-administrator accounts that navigate to it are told why and
-    // are returned to their own portal.
     if (route === 'staff-login' && !organizationAccess) {
         return (
             <AuthPage
@@ -1622,9 +1605,6 @@ function App() {
         )
     }
 
-    // The platform administration portal is only reachable for super
-    // administrator accounts. Staff and citizen accounts that navigate to it
-    // are told why and are returned to their own portal.
     if (route === 'platform-admin-login' && !platformAdminAccess) {
         return (
             <AuthPage

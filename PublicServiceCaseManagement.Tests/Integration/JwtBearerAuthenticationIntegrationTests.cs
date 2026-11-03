@@ -108,9 +108,6 @@ public sealed class JwtBearerAuthenticationIntegrationTests
         var role = await roleManager.FindByNameAsync(AppRoles.Staff);
         Assert.NotNull(role);
 
-        // The seeded test user is inserted directly through the DbContext,
-        // so link the Identity role directly rather than using
-        // UserManager (which requires a populated security stamp).
         dbContext.Set<IdentityUserRole<Guid>>().Add(
             new IdentityUserRole<Guid>
             {
@@ -179,8 +176,6 @@ public sealed class JwtBearerAuthenticationIntegrationTests
 
         Assert.Contains(AppRoles.Staff, roles);
 
-        // The organization context is still resolved server-side from the
-        // database-backed membership, never from a claim in the token.
         var staff = await client.GetAsync("/api/staff");
         Assert.Equal(HttpStatusCode.OK, staff.StatusCode);
     }
@@ -351,7 +346,6 @@ public sealed class JwtBearerAuthenticationIntegrationTests
 
         Assert.InRange(expiresIn, 1, 60 * 60);
 
-        // The long-lived PAT is not repeated in the response.
         Assert.DoesNotContain(
             personalAccessToken,
             await exchange.Content.ReadAsStringAsync());
@@ -430,9 +424,6 @@ public sealed class JwtBearerAuthenticationIntegrationTests
 
         using var client = CreateBearerClient(factory, token);
 
-        // Logout is an authenticated unsafe request. A cookie caller needs
-        // the antiforgery token; a Bearer caller must not. The endpoint
-        // returns 204 once authentication and authorization succeed.
         var response = await client.PostAsync("/api/auth/logout", content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -461,8 +452,6 @@ public sealed class JwtBearerAuthenticationIntegrationTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, exchange.StatusCode);
 
-        // A bearer header must disable the ambient cookie rather than let a
-        // malformed token fall through to a valid cookie session.
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", "not-a-valid.jwt");
 

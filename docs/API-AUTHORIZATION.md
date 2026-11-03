@@ -63,7 +63,7 @@ self-service routes are exempt and remain available.
 | Citizen case intake | Submit to an active organization; list/read own submitted cases | No | No | No | No |
 | Organization directory | Active public-intake organizations only | Selected organization's staff list; no phone numbers | Selected organization's staff list; no phone numbers | Own organization's staff and phone numbers; Organizations view for administered organizations | Platform directory and organization administration |
 | Case reads | Own submitted cases only (summary and status history) | Only assigned Viewer cases | Only assigned staff cases | All cases in selected organization | No global case API; requires the endpoint's normal organization context |
-| Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign; delete with confirmation | No implicit case-wide bypass |
+| Case changes | No | Read-only | Assigned CaseWorker case details/status/documents only | Organization cases; assign/reassign | No implicit case-wide bypass |
 | Notifications | Own notifications only | Own notifications only | Own notifications only | Own notifications only | Own notifications only |
 | Background jobs | No | No | No | No | Global job summaries/details and state-eligible retry/cancel |
 | Memberships/invitations | No | No | No | Selected organization they administer; cannot grant `OrganizationAdmin`; invitations create `CaseWorker` memberships | Platform-authorized organization membership and invitation operations, including permitted admin provisioning |

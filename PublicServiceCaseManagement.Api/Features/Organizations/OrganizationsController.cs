@@ -191,9 +191,7 @@ public sealed class OrganizationsController(
         if (!await IsPlatformSuperAdminAsync(cancellationToken))
             return Forbid();
 
-        // The staff records of an organization are tenant isolated at the
-        // database level, so the deletion has to run inside that
-        // organization context.
+        // Staff rows are tenant isolated, so deletion must run in the organization transaction.
         await organizationTransactionContext.BeginAsync(
             id,
             cancellationToken);

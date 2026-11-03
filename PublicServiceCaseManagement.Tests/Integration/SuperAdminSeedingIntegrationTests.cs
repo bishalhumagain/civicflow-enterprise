@@ -79,7 +79,6 @@ public sealed class SuperAdminSeedingIntegrationTests
         Assert.Contains(AppRoles.SuperAdmin, me.Roles);
         Assert.Equal(nameof(PlatformRole.SuperAdmin), me.PlatformRole);
 
-        // The same credentials must not open the organization portal.
         using var organizationClient = CreateCookieClient(factory);
 
         var organizationLogin = await organizationClient.PostAsJsonAsync(
@@ -152,9 +151,6 @@ public sealed class SuperAdminSeedingIntegrationTests
 
         using var client = CreateCookieClient(factory);
 
-        // Simulate an account left behind by an older seeding rule: the
-        // password works, but the platform role, confirmation state, and role
-        // membership are wrong.
         using (var scope = factory.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider
@@ -252,7 +248,6 @@ public sealed class SuperAdminSeedingIntegrationTests
             var user = await userManager.FindByEmailAsync(email);
             Assert.NotNull(user);
 
-            // An operator changed the password through the normal flow.
             var remove = await userManager.RemovePasswordAsync(user!);
             Assert.True(remove.Succeeded);
 
@@ -262,8 +257,6 @@ public sealed class SuperAdminSeedingIntegrationTests
             Assert.True(add.Succeeded);
         }
 
-        // Restarting the seeder with the old configured password must not
-        // silently revert the operator's change.
         await IdentityDataSeeder.SeedAsync(factory.Services);
 
         using var clientWithNewPassword = CreateCookieClient(factory);

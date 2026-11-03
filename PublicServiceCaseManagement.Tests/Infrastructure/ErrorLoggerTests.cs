@@ -54,16 +54,11 @@ public sealed class ErrorLoggerTests
     {
         await using var dbContext = CreateContext();
 
-        // Simulate the change tracker holding an unsaved entity that a prior
-        // SaveChanges rejected. InMemory cannot enforce RLS, so we detach it
-        // manually via the error logger path: the logger should still persist
-        // its own row without re-attempting the rejected write.
         var organization = Organization.Create(
             "Pending Org",
             $"PENDING-{Guid.NewGuid():N}",
             DateTimeOffset.UtcNow);
         dbContext.Organizations.Add(organization);
-        // Do NOT call SaveChanges; leave the entity tracked and Added.
 
         var logger = new ErrorLogger(
             dbContext,
@@ -73,12 +68,9 @@ public sealed class ErrorLoggerTests
             new Exception("simulated RLS rejection"),
             organizationId: organization.Id);
 
-        // The ApplicationError must exist.
         var error = await dbContext.ApplicationErrors.SingleAsync();
         Assert.Equal("simulated RLS rejection", error.Message);
 
-        // The rejected organization insert must have been detached, not
-        // committed as part of the error-log SaveChanges.
         var stillTracked = await dbContext.Organizations
             .AnyAsync(item => item.Id == organization.Id);
         Assert.False(stillTracked);

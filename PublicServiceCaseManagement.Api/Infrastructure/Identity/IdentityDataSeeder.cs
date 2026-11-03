@@ -206,8 +206,7 @@ public static class IdentityDataSeeder
             }
         }
 
-        // Email equality alone is not proof of ownership: public registration
-        // permits an account to exist before its email has been verified.
+        // Email equality is not proof of ownership; registration can precede verification.
         await using var existingAccountTransaction =
             dbContext.Database.IsRelational()
                 ? await dbContext.Database.BeginTransactionAsync(
@@ -338,8 +337,6 @@ public static class IdentityDataSeeder
             return byNormalizedEmail;
         }
 
-        // Legacy rows can have an unset NormalizedEmail, which makes the
-        // Identity lookup miss the account that already owns the address.
         var lowerEmail = adminEmail.ToLowerInvariant();
 
         return await dbContext.ApplicationUsers

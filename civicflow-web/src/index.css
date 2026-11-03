@@ -8,8 +8,6 @@
   -moz-osx-font-smoothing: grayscale;
   color-scheme: light;
 
-  /* CivicFlow palette: teal blue, moonstone, powder blue, magic mint,
-     white smoke and warm beige. */
   --color-canvas: #f4f7f5;
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;

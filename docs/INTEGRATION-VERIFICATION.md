@@ -171,7 +171,7 @@ Covered by automated integration tests:
 
 ### PostgreSQL migrations and runtime-role restrictions
 
-`CitizenCaseTrackingRlsTests` (3 tests) runs against a disposable PostgreSQL database when both connection strings are supplied. It applies the real EF Core migrations with an administrative connection, then probes the policies through a non-superuser, non-`BYPASSRLS` runtime login. Verified results:
+`CitizenCaseTrackingRlsTests` (4 tests) runs against a disposable PostgreSQL database when both connection strings are supplied. It applies the real EF Core migrations with an administrative connection, then probes the policies through a non-superuser, non-`BYPASSRLS` runtime login. Verified results:
 
 - The migrations were applied and the citizen tracking migration entries (`AddCitizenCaseTrackingRls`, `AddCitizenCaseTrackingUpdates`, and `AddCitizenTrackingRls`) are present in `__EFMigrationsHistory`.
 - RLS is enabled and forced on `cases`, `case_status_history`, `case_updates`, `case_documents`, and `staff_members`.
@@ -259,20 +259,21 @@ Sign-in failures confirmed to return the machine-readable codes `email_not_confi
 
 ### Browser end-to-end verification
 
-The Playwright suite in `civicflow-web/e2e` runs nine serial Chromium journeys against a disposable PostgreSQL database:
+The Playwright suite in `civicflow-web/e2e` contains 11 serial Chromium journeys against a disposable PostgreSQL database:
 
 1. **Citizen submission and display** — a citizen signs in through the real cookie/CSRF flow, submits a request with an attachment to an active organization, sees the reference number, and opens the tracking detail with its status timeline and downloadable document.
 2. **Staff case work** — an organization administrator signs in, finds the case, records a citizen-visible status explanation, observes an invalid transition error, posts a public update, posts a confidential internal note, requests information, uploads a citizen-visible and an internal document, and verifies the staff-visible history.
 3. **Citizen confidentiality and response** — the citizen sees the public update, visible timeline, and visible document, never sees the internal note or internal document, downloads the visible attachment, answers the information request, observes the return to `UnderReview`, and exercises search, status filtering, sorting, and pagination across 12 generated requests.
 4. **Cross-citizen isolation and session expiry** — a second citizen cannot search, read, or mutate the first citizen's case through the API (all return `404`), cannot call a staff endpoint (`403`), and is returned to the landing page after the session is invalidated (`401`).
 5. **CSRF rejection** — a mutation with an invalid anti-forgery token returns `400` with the stable `antiforgery_invalid` code.
+6. **Organization case filtering** — an organization administrator filters the full organization case list by search, status, and sort order.
+7. **Platform case inspection** — a platform administrator reviews all cases and filters them by organization.
+8. **Registration field errors** — the registration form blocks blank, malformed, and short values with field-specific messages and preserves entered values.
+9. **Registration normalization** — padded names, mixed-case emails, phone numbers, NID, and citizenship numbers are normalized before the API call.
+10. **Password recovery validation** — the recovery form reports required and malformed email errors through an associated alert, moves focus to the invalid field, and submits the trimmed, lower-cased address.
+11. **Public intake validation and normalization** — the intake form reports organization, title, and details errors with accessible message IDs, submits normalized title and detail text through the multipart API, and keeps the submit button stable when a focused field blurs.
 
-6. **Input validation and accessible errors** — the registration form blocks blank, malformed, and short values with field-specific messages, normalizes padded names, mixed-case emails, phone numbers, NID, and citizenship numbers before calling the API, and preserves entered values.
-7. **Password recovery validation** — the recovery form reports required and malformed email errors through an associated alert, moves focus to the invalid field, and submits the trimmed, lower-cased address.
-8. **Public intake validation and normalization** — the intake form reports organization, title, and details errors with accessible message IDs and submits normalized title and detail text through the multipart API without padded whitespace.
-9. **Click stability** — public-intake action buttons keep focus stable so a blur-triggered validation message cannot move the target between pointer-down and click.
-
-Result of the recorded run: **9 passed** (7.8 seconds). The browser suite seeds confirmed users, a demo organization, staff membership, and citizen profiles directly into the disposable database; it does not use production data or a real mail provider.
+The suite seeds confirmed users, a demo organization, staff membership, and citizen profiles directly into the disposable database; it does not use production data or a real mail provider. Run it with `npm run test:e2e` and use that run's output for the current pass count.
 
 ---
 
@@ -351,7 +352,7 @@ Automated authentication tests replace `IEmailSender` with an in-memory capture 
 - Citizen tracking lists are paged and support search, status filtering, and deterministic sorting.
 - A browser journey verifies those flows through the real cookie/CSRF session, including session expiry and CSRF rejection.
 - Cross-organization case and document access is denied without data disclosure.
-- Case list/detail/update/delete operations remain organization scoped; delete confirmation and administrator authorization are independently asserted.
+- Case list/detail/update operations remain organization scoped; assignment authorization and the absence of a case-deletion route are independently asserted.
 - PostgreSQL migrations apply to a clean disposable database using `civicflow_migrator`.
 - Runtime database role can read application tables but cannot create schema objects or bypass the tested role boundary.
 - Migration role is not used by the running API.

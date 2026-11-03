@@ -172,11 +172,7 @@ builder.Services
 builder.Services
     .AddAuthentication(options =>
     {
-        // A policy scheme picks the real handler per request: a personal
-        // access token goes to the PAT handler, any other bearer value goes
-        // to the JWT handler, and requests without a bearer header use the
-        // Identity application cookie. This keeps authorization policies
-        // identical for browser and API clients.
+        // Resolve the handler per request: PAT bearer, JWT bearer, or cookie.
         options.DefaultScheme = "CivicFlowSmart";
         options.DefaultAuthenticateScheme = "CivicFlowSmart";
         options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
@@ -205,9 +201,7 @@ builder.Services
                 return IdentityConstants.ApplicationScheme;
             }
 
-            // Personal access tokens are opaque and are exchanged for a JWT
-            // at /api/auth/token. Every other bearer value is a JWT and is
-            // validated by the JWT handler (malformed values fail closed).
+            // PATs are opaque; every other bearer value is a JWT.
             return authorization.Contains(
                 PersonalAccessToken.TokenPrefix + "_",
                 StringComparison.Ordinal)
@@ -216,9 +210,6 @@ builder.Services
         };
     });
 
-// Resolve JwtOptions through DI here so the validation parameters always use
-// the same effective configuration (including test/override providers) as the
-// token issuer, regardless of when configuration sources are added.
 builder.Services
     .AddOptions<JwtBearerOptions>(
         JwtBearerDefaults.AuthenticationScheme)
@@ -249,10 +240,7 @@ builder.Services
 
         options.Events = new JwtBearerEvents
         {
-            // A JWT is short-lived, but authorization must still reflect the
-            // current account state. Re-read the active user and current
-            // roles so deactivation and role changes take effect immediately,
-            // matching the cookie and PAT schemes.
+            // Re-read the account so deactivation and role changes apply immediately.
             OnTokenValidated = async context =>
             {
                 var identifier = context.Principal?
@@ -344,10 +332,7 @@ builder.Services
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    // The __Host- prefix is only honoured over HTTPS. Outside Development we
-    // always require HTTPS, so the hardened prefix is used there; in
-    // Development the cookie falls back to a plain name so it works over the
-    // Vite proxy and in integration tests.
+    // __Host- requires HTTPS, so Development uses a plain name behind the Vite proxy.
     options.Cookie.Name = isDevelopment
         ? "civicflow.auth"
         : "__Host-civicflow";
@@ -385,12 +370,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
-// Revalidate the Identity security stamp on every request so an issued session
-// stops working the moment the stamp changes — password change/reset, account
-// deactivation, or a platform-role change — instead of lingering for the
-// default 30-minute validation window.
 builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 {
+    // Check every request so credential, role, and deactivation changes revoke live sessions.
     options.ValidationInterval = TimeSpan.Zero;
 });
 
@@ -521,10 +503,7 @@ builder.Services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenServi
 builder.Services.AddScoped<IJwtAccessTokenIssuer, JwtAccessTokenIssuer>();
 if (isDevelopment && !SmtpEmailSender.IsConfigured(builder.Configuration))
 {
-    // No SMTP relay is configured locally, so print the full message (and
-    // therefore any one-time verification, reset, or invitation link) to the
-    // API console. Registering the real sender here would make local
-    // registration and invitations fail without a mail server.
+    // Without SMTP, log one-time links to the console so local flows still work.
     builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 }
 else
@@ -533,8 +512,6 @@ else
         new SmtpEmailSender(builder.Configuration));
 }
 
-// The audit trail is scoped because it writes through the request scoped
-// database context and resolves the actor from the current HTTP context.
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IAuditTrailWriter, AuditTrailWriter>();
 builder.Services.AddScoped<ICurrentActorResolver, CurrentActorResolver>();
@@ -542,24 +519,17 @@ builder.Services.AddScoped<IAuditQueryService, AuditQueryService>();
 builder.Services.AddScoped<IPlatformDirectoryService, PlatformDirectoryService>();
 builder.Services.AddScoped<IPlatformCaseService, PlatformCaseService>();
 
-// Error logging
 builder.Services.AddScoped<IErrorLogger, ErrorLogger>();
 
-// Dashboard
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
 
-// Development-only trust rule for the Vite dev server. The configured browser
-// port is fixed in vite.config.ts, but local overrides can choose another one;
-// a fixed origin allowlist would then break login. Cookies are scoped to
-// localhost (shared across ports), so accept only first-party loopback HTTP(S)
-// origins — never a public host, wildcard, or arbitrary origin with
-// credentials. This predicate is never consulted outside Development.
 static bool IsTrustedLoopbackOrigin(string origin)
 {
+    // Development allows first-party loopback origins because the Vite port can vary.
     if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
         (uri.Scheme != Uri.UriSchemeHttp &&
          uri.Scheme != Uri.UriSchemeHttps))
@@ -603,9 +573,6 @@ builder.Services.AddCors(options =>
                 .AllowAnyMethod()
                 .AllowCredentials();
         }
-        // Non-development with no configured origins: no policy is registered,
-        // so cross-origin requests are refused. The SPA is served same-origin
-        // behind a reverse proxy in production, which needs no CORS.
     });
 });
 

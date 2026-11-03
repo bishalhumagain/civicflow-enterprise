@@ -131,7 +131,6 @@ public sealed class RoleScopedSignInIntegrationTests
         Assert.NotNull(body);
         Assert.Equal("not_an_organization_account", body!["code"]);
 
-        // The rejected attempt must not leave a session behind.
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await client.GetAsync("/api/auth/me")).StatusCode);
@@ -252,7 +251,6 @@ public sealed class RoleScopedSignInIntegrationTests
         Assert.NotNull(body);
         Assert.Equal("use_platform_admin_portal", body!["code"]);
 
-        // The rejected attempt must not leave a session behind.
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await client.GetAsync("/api/auth/me")).StatusCode);
@@ -359,7 +357,6 @@ public sealed class RoleScopedSignInIntegrationTests
             "/api/auth/login/organization",
             new { email, password = StrongPassword });
 
-        // The citizen profile endpoint is restricted to the citizen role.
         var response = await client.GetAsync("/api/citizens/me");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

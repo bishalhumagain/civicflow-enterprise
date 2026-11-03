@@ -87,7 +87,6 @@ public sealed class AntiforgeryIntegrationTests
 
         var response = await client.SendAsync(request);
 
-        // The middleware accepted the request; the endpoint itself returns 200.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -105,8 +104,6 @@ public sealed class AntiforgeryIntegrationTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
-        // The client retries on this stable code rather than the human message,
-        // so the contract must remain exact.
         using var json = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());
 
@@ -128,13 +125,9 @@ public sealed class AntiforgeryIntegrationTests
             BaseAddress = new Uri("http://localhost")
         };
 
-        // Establish the anti-forgery cookie the browser would carry across a
-        // session switch.
         var csrfResponse = await client.GetAsync("/api/auth/csrf");
         Assert.Equal(HttpStatusCode.OK, csrfResponse.StatusCode);
 
-        // Simulate a stale cached token: send a token that does not pair with
-        // the cookie the server holds, mirroring the after-switch-users bug.
         using var staleRequest = new HttpRequestMessage(
             HttpMethod.Post,
             "/api/auth/forgot-password")
@@ -156,8 +149,6 @@ public sealed class AntiforgeryIntegrationTests
             "antiforgery_invalid",
             errorJson.RootElement.GetProperty("code").GetString());
 
-        // Recovery: refresh the token (the client clears its cache and refetches)
-        // then replay the request. This is the path the frontend retry takes.
         var refreshedResponse = await client.GetAsync("/api/auth/csrf");
         Assert.Equal(HttpStatusCode.OK, refreshedResponse.StatusCode);
 

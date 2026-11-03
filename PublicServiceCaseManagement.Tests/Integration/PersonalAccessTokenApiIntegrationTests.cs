@@ -118,7 +118,6 @@ public sealed class PersonalAccessTokenApiIntegrationTests
         Assert.Equal("Reporting script", created.Name);
         Assert.NotNull(created.ExpiresAt);
 
-        // The plaintext must never be persisted; only a hash is stored.
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider
             .GetRequiredService<CivicFlowDbContext>();
@@ -133,7 +132,6 @@ public sealed class PersonalAccessTokenApiIntegrationTests
             PersonalAccessToken.Hash(created.Token),
             stored.TokenHash);
 
-        // Listing never returns the plaintext again.
         var listResponse = await client.GetAsync("/api/auth/tokens");
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
 

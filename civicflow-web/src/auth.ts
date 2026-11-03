@@ -206,8 +206,7 @@ async function looksLikeCsrfFailure(response: Response): Promise<boolean> {
   try {
     const body = await response.clone().json()
 
-    // Preferred: the server emits a stable, machine-readable code so wording
-    // changes in the human-readable message can never break recovery.
+    // Prefer the stable code; fall back to message text for older responses.
     if (
       body &&
       typeof body === 'object' &&
@@ -217,9 +216,6 @@ async function looksLikeCsrfFailure(response: Response): Promise<boolean> {
       return true
     }
 
-    // Fallback for older responses that only carried the message text. Match
-    // both the hyphenated and non-hyphenated spellings so a stale token is
-    // always refreshed instead of surfacing as a hard error.
     const text = JSON.stringify(body).toLowerCase()
     return (
       text.includes('antiforgery') ||
@@ -259,8 +255,7 @@ export async function login(
   password: string,
   portal: SignInPortal = 'citizen',
 ): Promise<AuthUser> {
-  // Drop any token cached from a previous user's session before signing in, so
-  // the new session never builds requests on a stale anti-forgery pair.
+  // Anti-forgery tokens are principal-bound, so drop any cached token before signing in.
   clearCsrfToken()
 
   const response = await authFetch(loginEndpoint(portal), {
@@ -288,9 +283,7 @@ export async function login(
     )
   }
 
-  // The pre-sign-in token was issued for the anonymous identity. Anti-forgery
-  // tokens are bound to the authenticated principal, so the first mutation
-  // after sign-in must request a fresh pair instead of triggering a retry.
+  // The pre-sign-in token belongs to the anonymous principal; fetch a fresh pair.
   clearCsrfToken()
 
   if (!canUsePortal(user, portal)) {

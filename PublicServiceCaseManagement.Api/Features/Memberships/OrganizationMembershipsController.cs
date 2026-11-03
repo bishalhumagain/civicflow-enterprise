@@ -177,8 +177,7 @@ public sealed class OrganizationMembershipsController(
         if (!businessEndpointAccess.IsEnabled)
             return NotFound();
 
-        // Moving a membership changes access in two organizations at once, so
-        // only a platform administrator may perform it.
+        // Moving a membership changes access in two organizations, so only a platform admin may do it.
         if (await organizationContext.GetPlatformRoleAsync(cancellationToken) !=
             PlatformRole.SuperAdmin)
             return Forbid();

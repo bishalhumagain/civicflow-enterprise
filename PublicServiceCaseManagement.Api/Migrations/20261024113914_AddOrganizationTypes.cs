@@ -57,10 +57,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 column: "Code",
                 unique: true);
 
-            // Any organization that existed before this migration has the
-            // Guid.Empty default value written by AddColumn above. Point them
-            // at the seeded Uncategorized row so the foreign key we are about
-            // to add does not fail on existing data.
             migrationBuilder.Sql(
                 "UPDATE organizations " +
                 "SET \"OrganizationTypeId\" = '00000000-0000-0000-0000-000000000001'::uuid " +

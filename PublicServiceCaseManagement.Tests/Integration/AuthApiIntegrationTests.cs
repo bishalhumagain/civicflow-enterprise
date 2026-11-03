@@ -347,7 +347,6 @@ public sealed class AuthApiIntegrationTests
                 password = StrongPassword
             });
 
-        // Enumeration-safe: the API still reports success.
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
     }
 

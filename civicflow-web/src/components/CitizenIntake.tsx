@@ -322,7 +322,6 @@ export function CitizenIntake({ onSubmitted, onTrackCase }: CitizenIntakeProps =
                   setLoadingOrganizations(true)
                   setRetryVersion((version) => version + 1)
                 }}
-                // Keep the click target stable when the focused field blurs.
                 onMouseDown={(event) => event.preventDefault()}
                 type="button"
               >
@@ -337,7 +336,6 @@ export function CitizenIntake({ onSubmitted, onTrackCase }: CitizenIntakeProps =
                 <button
                   className="secondary-button"
                   onClick={() => onTrackCase(submittedCaseId)}
-                  // Keep the click target stable when the focused field blurs.
                   onMouseDown={(event) => event.preventDefault()}
                   type="button"
                 >
@@ -352,9 +350,7 @@ export function CitizenIntake({ onSubmitted, onTrackCase }: CitizenIntakeProps =
           <button
             className="primary-button"
             disabled={loadingOrganizations || submitting || organizations.length === 0}
-            // Keep focus on the active field until the click completes. Without
-            // this, blurring a field renders its validation message mid-click,
-            // which moves the button and swallows the click that should submit.
+            // Keep focus stable so validation messages cannot move the button mid-click.
             onMouseDown={(event) => event.preventDefault()}
             type="submit"
           >

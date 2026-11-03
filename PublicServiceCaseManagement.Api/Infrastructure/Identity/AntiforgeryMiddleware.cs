@@ -28,10 +28,7 @@ public sealed class AntiforgeryMiddleware(RequestDelegate next)
             "Security:RequireAntiforgery",
             defaultValue: true);
 
-        // CSRF protects ambient cookie authentication. A Bearer request is
-        // not ambient: browsers cannot attach an Authorization header
-        // cross-origin without a CORS preflight, so API clients (PAT or JWT)
-        // must not be forced to obtain a browser CSRF token.
+        // Bearer requests are not ambient, so API clients do not need a CSRF token.
         var usesBearer = httpContext.Request.Headers.Authorization
             .ToString()
             .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
@@ -54,9 +51,7 @@ public sealed class AntiforgeryMiddleware(RequestDelegate next)
             httpContext.Response.StatusCode =
                 StatusCodes.Status400BadRequest;
 
-            // The `code` is a stable, machine-readable identifier that clients
-            // key off of to refresh the anti-forgery token and retry. The
-            // `error` string is human-facing only and must not be parsed.
+            // Clients retry on this stable code; the message is human-facing.
             await httpContext.Response.WriteAsJsonAsync(new
             {
                 code = AntiforgeryErrorCodes.InvalidToken,

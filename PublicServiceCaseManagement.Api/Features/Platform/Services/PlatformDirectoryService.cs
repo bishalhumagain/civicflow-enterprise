@@ -577,9 +577,7 @@ public sealed class PlatformDirectoryService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Rotating the security stamp invalidates any session cookie the
-        // account is still holding, so deactivating an account takes effect
-        // immediately rather than only blocking new sign-ins.
+        // Rotate the stamp so deactivation takes effect for live sessions too.
         await userManager.UpdateSecurityStampAsync(user);
     }
 
@@ -634,8 +632,7 @@ public sealed class PlatformDirectoryService(
         user.SetPlatformRole(role, timeProvider.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // A privilege change must not leave a stale session in place: rotating
-        // the stamp forces both cookie and bearer credentials to be re-evaluated.
+        // A privilege change must invalidate any live session.
         var stampResult = await userManager.UpdateSecurityStampAsync(user);
         if (!stampResult.Succeeded)
         {

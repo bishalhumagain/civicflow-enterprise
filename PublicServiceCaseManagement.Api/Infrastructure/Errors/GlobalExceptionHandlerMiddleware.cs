@@ -31,7 +31,6 @@ public sealed class GlobalExceptionHandlerMiddleware(RequestDelegate next)
         var userId = actor?.UserId;
         var organizationId = await organizationContext.GetOrganizationIdAsync();
 
-        // Log the error to database
         await errorLogger.LogErrorAsync(exception, userId, organizationId, JsonSerializer.Serialize(new
         {
             Path = context.Request.Path,
@@ -39,7 +38,6 @@ public sealed class GlobalExceptionHandlerMiddleware(RequestDelegate next)
             QueryString = context.Request.QueryString.ToString()
         }));
 
-        // Determine the user-friendly message
         var userMessage = GetUserFriendlyMessage(exception);
         var statusCode = GetStatusCode(exception);
 

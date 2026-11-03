@@ -57,8 +57,6 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
         })
       })
       .catch(() => {
-        // The public configuration is cosmetic. The app still works with the
-        // product defaults when the API is unreachable.
       })
       .finally(() => setLoaded(true))
 

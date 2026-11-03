@@ -37,7 +37,7 @@ function storeTheme(theme: Theme): void {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme)
   } catch {
-    // Persisting the preference is best-effort; the theme still applies.
+    return
   }
 }
 

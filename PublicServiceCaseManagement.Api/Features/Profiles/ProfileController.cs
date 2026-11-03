@@ -107,8 +107,7 @@ public sealed class ProfileController(
 
             if (organizationId.HasValue)
             {
-                // Staff records are tenant scoped, so the transaction has to
-                // run inside the organization the caller belongs to.
+                // Staff records are tenant scoped, so start the organization transaction.
                 await organizationTransactionContext.BeginAsync(
                     organizationId.Value,
                     cancellationToken);

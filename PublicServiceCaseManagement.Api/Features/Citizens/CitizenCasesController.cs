@@ -187,8 +187,6 @@ public sealed class CitizenCasesController(
             .Select(organization => organization.Name)
             .SingleOrDefaultAsync(cancellationToken) ?? "Service organization";
 
-        // The status transition itself is always part of the citizen timeline.
-        // The explanation is only projected when staff marked it citizen-visible.
         var statusHistory = await dbContext.CaseStatusHistories
             .AsNoTracking()
             .Where(history =>
@@ -203,8 +201,7 @@ public sealed class CitizenCasesController(
                 history.IsVisibleToCitizen ? history.Explanation : null))
             .ToListAsync(cancellationToken);
 
-        // Internal notes are filtered in the database query and never reach
-        // the citizen response, including their author identity.
+        // Internal notes are filtered in the query so they never reach citizens.
         var updates = await dbContext.CaseUpdates
             .AsNoTracking()
             .Where(update =>
@@ -319,9 +316,6 @@ public sealed class CitizenCasesController(
             documentResponse = ToDocumentResponse(document);
         }
 
-        // A citizen submission is triaged by an organization administrator: the
-        // case becomes owned by an admin (or, if no admin staff row exists yet,
-        // every active admin is notified) so someone always acts on it.
         await caseService.RouteToOrganizationAdministratorAsync(
             newCase.Id,
             organization.Id,

@@ -142,7 +142,6 @@ public sealed class SecurityHardeningIntegrationTests
 
         var response = await client.SendAsync(request);
 
-        // The loopback-only development rule must never reflect a public origin.
         Assert.False(response.Headers.TryGetValues(
             "Access-Control-Allow-Origin",
             out _));
@@ -162,14 +161,10 @@ public sealed class SecurityHardeningIntegrationTests
         await RegisterAndConfirmAsync(factory, client, email);
         await LoginAsync(client, email);
 
-        // A live session works before the change.
         Assert.Equal(
             HttpStatusCode.OK,
             (await client.GetAsync("/api/auth/me")).StatusCode);
 
-        // Simulate a password reset / privilege change / deactivation by
-        // rotating the security stamp. The account stays active so the only
-        // reason the next request can fail is the invalidated cookie.
         var userId = await ReadUserIdAsync(client);
 
         using (var scope = factory.Services.CreateScope())
@@ -181,9 +176,6 @@ public sealed class SecurityHardeningIntegrationTests
             await userManager.UpdateSecurityStampAsync(user!);
         }
 
-        // With per-request revalidation, the stale cookie is rejected at
-        // authentication — proven by 401 rather than reaching the active-user
-        // branch of /me.
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await client.GetAsync("/api/auth/me")).StatusCode);
@@ -261,16 +253,13 @@ public sealed class SecurityHardeningIntegrationTests
         var issued = DateTimeOffset.UtcNow;
         var cap = TimeSpan.FromHours(12);
 
-        // Fresh session: not expired.
         Assert.False(
             SessionLifetimeMiddleware.IsExpired(issued, issued.AddMinutes(1), cap));
 
-        // Beyond the hard cap: expired, regardless of sliding refresh.
         Assert.True(
             SessionLifetimeMiddleware.IsExpired(
                 issued, issued.AddHours(12).AddSeconds(1), cap));
 
-        // A non-positive cap disables the absolute check entirely.
         Assert.False(
             SessionLifetimeMiddleware.IsExpired(issued, issued.AddYears(5), TimeSpan.Zero));
     }
@@ -289,10 +278,6 @@ public sealed class SecurityHardeningIntegrationTests
         await RegisterAndConfirmAsync(factory, client, email);
         await LoginAsync(client, email);
 
-        // Minting a personal access token is a sensitive action, so the create
-        // endpoint is guarded by the fixed-window "auth" policy. A burst beyond
-        // the per-partition permit limit must eventually be rejected with 429,
-        // while a genuine earlier request still succeeds with 201.
         var sawCreated = false;
         var sawThrottled = false;
 

@@ -15,12 +15,7 @@ public sealed class ErrorLogger(
     {
         try
         {
-            // A prior SaveChanges on the same scoped context (for example an
-            // RLS rejection inside the invitation accept flow) leaves the
-            // change tracker holding the entities that just failed. Retrying
-            // SaveChanges here would replay those writes and throw again, so
-            // we detach everything tracked and let the ApplicationError row
-            // be the only pending change.
+            // Detach failed writes so the error row can be saved without replaying them.
             foreach (var entry in dbContext.ChangeTracker.Entries().ToList())
             {
                 entry.State = EntityState.Detached;
@@ -45,9 +40,6 @@ public sealed class ErrorLogger(
         }
         catch (Exception loggingException)
         {
-            // If error logging fails, we don't want to cause an infinite loop.
-            // Record the original exception and the logging failure through
-            // the standard logger so operators can see what happened.
             logger.LogError(
                 loggingException,
                 "Failed to persist application error {OriginalMessage}",

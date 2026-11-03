@@ -39,7 +39,6 @@ public sealed class PersonalAccessTokenAuthenticationHandler(
 
         if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            // No bearer token: let other schemes (cookie) handle the request.
             return AuthenticateResult.NoResult();
         }
 
@@ -49,7 +48,6 @@ public sealed class PersonalAccessTokenAuthenticationHandler(
                 PersonalAccessToken.TokenPrefix + "_",
                 StringComparison.Ordinal))
         {
-            // A non-PAT bearer value is not ours to validate.
             return AuthenticateResult.NoResult();
         }
 

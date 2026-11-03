@@ -38,9 +38,6 @@ public sealed class AuditLogger(
         }
         catch (Exception exception)
         {
-            // A failing audit write must never take down the operation it
-            // describes. The failure is reported loudly so it can be
-            // investigated, but the request itself still completes.
             logger.LogError(
                 exception,
                 "AUDIT_PERSIST_FAILED action={Action} category={Category}",

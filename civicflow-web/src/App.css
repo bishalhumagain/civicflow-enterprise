@@ -7,13 +7,10 @@
 .notification-center{position:relative}.notification-toggle{display:flex;align-items:center;gap:7px}.notification-count{display:grid;place-items:center;min-width:18px;height:18px;border-radius:10px;background:#dc2626;color:#fff;padding:0 4px;font-size:10px}.notification-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:20;width:min(420px,calc(100vw - 32px));max-height:70vh;overflow:auto;padding:14px;border:1px solid #e8edf3;border-radius:10px;background:#fff;box-shadow:0 12px 32px #1018281f}.notification-panel>header,.notification-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px}.notification-panel>header{padding-bottom:10px;border-bottom:1px solid #eef1f5}.notification-list{list-style:none;padding:0;margin:0}.notification-list li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eef1f5;font-size:12px}.notification-list p{margin:5px 0;color:#667085;line-height:1.45}.notification-list small{color:#98a2b3}.notification-unread{background:#f8fbff}.notification-pagination{padding-top:12px;color:#667085;font-size:10px}.notification-pagination span:last-child{display:flex;gap:5px}.notification-pagination button{border:1px solid #dfe5ec;background:#fff;border-radius:5px;padding:5px 7px;font-size:10px}.notification-pagination button:disabled{opacity:.45}.background-jobs-page{padding:20px}.background-jobs-page .section-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.background-jobs-page .section-heading h1{margin:3px 0;font-size:20px}.background-jobs-page .section-heading label{display:grid;gap:5px;color:#667085;font-size:11px}.background-jobs-page select{border:1px solid #dfe5ec;border-radius:6px;padding:8px;background:#fff}.background-jobs-page td span,.background-jobs-page td small{display:block;font-size:10px;color:#667085;margin-top:4px}.background-jobs-page td strong{font-size:11px}.background-jobs-page td .secondary-button{font-size:10px;padding:6px 8px}
 .info-banner{margin-bottom:16px;border:1px solid #cbdaf5;background:#edf4ff;color:#1d4ed8;border-radius:7px;padding:10px 12px;font-size:11px}
 
-/* Directory Member Improvements */
 .directory-member-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}.directory-member-content strong{font-size:13px;color:#172033}.directory-member-content span{font-size:11px;color:#667085}.directory-member-content .role-badge{align-self:flex-start}.directory-member .avatar{font-size:12px;font-weight:700;letter-spacing:0.5px;display:grid;place-items:center}.directory-card .data-grid-toolbar{margin-bottom:16px}
 
-/* Notification Center Redesign */
 .notification-center{position:relative}.notification-toggle{display:flex;align-items:center;gap:8px}.notification-count{display:grid;place-items:center;min-width:18px;height:18px;border-radius:10px;background:#dc2626;color:#fff;padding:0 4px;font-size:10px}.notification-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:20;width:min(420px,calc(100vw - 32px));max-height:70vh;overflow:auto;padding:18px;border:1px solid #e8edf3;border-radius:10px;background:#fff;box-shadow:0 12px 32px #1018281f}.notification-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}.notification-header h2{margin:0;font-size:16px}.notification-header p{margin:4px 0 0;font-size:11px}.notification-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}.notification-item{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px;border:1px solid #edf0f4;border-radius:8px;font-size:12px}.notification-item.notification-unread{background:#f8fbff;border-color:#dbeafe}.notification-content{flex:1;min-width:0}.notification-content strong{display:block;font-size:13px;color:#172033;margin-bottom:4px}.notification-content p{margin:4px 0;color:#667085;line-height:1.45}.notification-content small{color:#98a2b3}.notification-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}.notification-pagination{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid #eef1f5}.notification-pagination span{color:#667085;font-size:11px}.notification-pagination .pagination{display:flex;gap:8px}
 
-/* Landing Page */
 .landing-page{min-height:100vh;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);color:#172033;display:flex;flex-direction:column}
 .landing-header{padding:28px 40px}
 .landing-brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px;letter-spacing:-.4px}
@@ -40,7 +37,6 @@
 .landing-footer{padding:20px 40px;text-align:center;color:#98a2b3;font-size:11px}
 .landing-footer p{margin:0}
 
-/* Toast */
 .toast-container{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:10px;z-index:1000}
 .toast{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:#1f2937;color:#fff;box-shadow:0 12px 30px #10182829;font-size:12px;max-width:360px}
 .toast-success{background:#166534}
@@ -49,13 +45,11 @@
 .toast-info{background:#1f2937}
 .toast button{border:0;background:none;color:#fff;cursor:pointer;font-size:16px;line-height:1}
 
-/* Responsive buttons */
 .primary-button,.secondary-button,.auth-button{cursor:pointer;transition:filter .15s ease,box-shadow .15s ease}
 .primary-button:hover:not(:disabled),.secondary-button:hover:not(:disabled),.auth-button:hover:not(:disabled){filter:brightness(.98)}
 .primary-button:disabled,.secondary-button:disabled,.auth-button:disabled{opacity:.6;cursor:not-allowed}
 .auth-button{white-space:nowrap}
 
-/* Responsive layout */
 @media(max-width:1100px){
   .app-shell{grid-template-columns:260px 1fr}
   .case-layout{grid-template-columns:1fr}
@@ -96,7 +90,6 @@
 @media(max-width:1050px){.citizen-stat-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:480px){.citizen-stat-grid{grid-template-columns:1fr}}
 
-/* Shared workspace design system and analytics */
 .app-shell{background:var(--color-canvas);color:var(--color-text)}
 .sidebar,.topbar{background:var(--color-surface);border-color:var(--color-border)}
 .sidebar{flex:none;box-shadow:1px 0 0 rgb(16 24 40 / 2%)}
@@ -252,7 +245,6 @@ td:first-child{color:var(--color-text)}
   .landing-card{padding:20px}
 }
 
-/* Self-service profile (citizen + organization staff) */
 .profile-layout{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:16px;margin-top:8px}
 .profile-form{padding:22px;display:grid;gap:14px}
 .profile-form .section-heading{margin-bottom:0}
@@ -284,7 +276,6 @@ td:first-child{color:var(--color-text)}
 
 .case-edit-form{display:grid;gap:12px;margin:12px 0 20px;padding:16px;border:1px solid #e8edf3;border-radius:10px;background:#fbfcfe}.case-edit-form label{display:grid;gap:6px;color:#667085;font-size:11px}.case-edit-form input,.case-edit-form textarea{width:100%;box-sizing:border-box;border:1px solid #dfe5ec;border-radius:7px;padding:10px;font:inherit;color:#172033;background:#fff}.case-edit-form textarea{min-height:96px;resize:vertical}.case-edit-form .secondary-button{justify-self:start}.case-details-title{margin:12px 0 6px;font-size:18px;letter-spacing:-.25px}.case-danger-zone{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px;padding:16px;border:1px solid #f1d6d6;border-radius:10px;background:#fffafa}.case-danger-zone strong{font-size:12px;color:#8e2f32}.case-danger-zone p{margin:5px 0 0;font-size:10px;line-height:1.5;color:#8d6667}.danger-button{border:1px solid #c93c41;border-radius:7px;padding:9px 13px;background:#c93c41;color:#fff;font:inherit;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}.danger-button:hover:not(:disabled){background:#ad2c32}.danger-button:disabled{opacity:.55;cursor:not-allowed}.case-confirmation-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#17203380;backdrop-filter:blur(2px)}.case-confirmation{width:min(100%,420px);box-sizing:border-box;padding:26px;border:1px solid #e8edf3;border-radius:14px;background:#fff;box-shadow:0 24px 80px #10182840;text-align:center}.case-confirmation-icon{display:grid;place-items:center;width:40px;height:40px;margin:0 auto 14px;border-radius:50%;background:#fff1f1;color:#bd3439;font-size:22px;font-weight:800}.case-confirmation h2{margin:0 0 10px;font-size:19px;color:#172033}.case-confirmation p{margin:0;color:#667085;font-size:12px;line-height:1.6}.case-confirmation-actions{display:flex;justify-content:center;gap:9px;margin-top:22px}.case-confirmation-actions .secondary-button,.case-confirmation-actions .danger-button{min-height:36px}
 
-/* Keep shared accessibility and mobile overrides after legacy page rules. */
 .workspace-label,.organization-switcher small,.profile small,.assignee small,.breadcrumb,.stat-card small,.detail-header,.detail-section h3,dt,.timeline small,.footer-note,.notification-list small,.notification-pagination,.landing-eyebrow,.landing-footer,.field-hint{color:var(--color-text-muted)}
 .status-pill.assigned{background:#eaf1ff;color:#1747a6}
 .status-pill.awaiting-information{background:#fff2e8;color:#934413}
@@ -300,7 +291,6 @@ td:first-child{color:var(--color-text)}
 .case-row-button:focus-visible{outline:3px solid var(--color-focus);outline-offset:2px;border-radius:3px}
 @media(max-width:760px){.main-content{width:100%;padding:0}}
 
-/* Shared icon, tooltip, and native-select treatment. */
 .nav-icon,.app-icon{display:block;flex:none;width:18px;height:18px}
 .nav-icon{border:0;border-radius:0;font-size:initial}
 .notification-toggle{display:inline-flex;align-items:center;gap:8px}
@@ -321,10 +311,6 @@ select option{padding:8px;background:var(--color-surface);color:var(--color-text
 .recovery-footer .app-icon{width:15px;height:15px}
 @media(max-width:480px){.recovery-actions{display:grid}.recovery-actions button{width:100%;justify-content:center}}
 
-/* --------------------------------------------------------------------------
-   CivicFlow visual system
-   Centralized palette, themes, controls, and containment refinements.
-   -------------------------------------------------------------------------- */
 body {
   background:
     radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 34rem),
@@ -942,7 +928,6 @@ td .secondary-button + .primary-button {
   color: var(--color-text-muted);
 }
 
-/* Internal separators and fields must follow the active theme too. */
 th,
 td,
 .case-toolbar,
@@ -992,7 +977,6 @@ td {
 }
 
 
-/* One chevron per select: later background shorthands must not tile the icon. */
 select:not([multiple]) {
   appearance: none;
   background-color: var(--color-surface);
@@ -1007,7 +991,6 @@ select:not([multiple]) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a9bcbd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
-/* Consistent workspace page headers and list panels. */
 .page-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .page-filter{display:grid;gap:6px;color:var(--color-text-muted);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 .page-filter select{min-width:180px;text-transform:none;letter-spacing:0;font-weight:500}
@@ -1024,7 +1007,6 @@ select:not([multiple]) {
 .jobs-table-card>.auth-error{margin:16px}
 .jobs-table-card>.empty-state{padding:34px}
 
-/* Account menu in the top bar. */
 .profile-menu{position:relative}
 .profile-menu-trigger{display:inline-flex;align-items:center;gap:10px;min-height:44px;max-width:280px;padding:5px 9px 5px 5px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface);color:var(--color-text);cursor:pointer;font:inherit;text-align:left}
 .profile-menu-trigger:hover{background:var(--color-surface-subtle)}
@@ -1052,7 +1034,6 @@ select:not([multiple]) {
 .profile-theme-option[aria-pressed=true]{border-color:var(--color-primary);background:var(--color-primary-soft);color:var(--color-primary)}
 @media(max-width:720px){.profile-menu-copy{display:none}.profile-menu-trigger{padding-right:7px}.page-actions{width:100%;justify-content:flex-start}.page-heading{align-items:flex-start;gap:14px;flex-direction:column}.list-toolbar{flex-direction:column;align-items:flex-start}.page-filter select{min-width:0;width:100%}}
 
-/* Citizen case tracking. */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .case-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .case-card-header h3{min-width:0;margin:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
@@ -1104,7 +1085,6 @@ select:not([multiple]) {
 .citizen-empty-state{display:grid;justify-items:center;gap:14px;padding:36px 20px}
 .citizen-empty-state p{margin:0}
 
-/* Staff status transitions, updates, and visibility labels. */
 .status-change-form,.case-update-form{display:grid;gap:12px;margin:0 0 16px;padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface-subtle)}
 .status-change-form label,.case-update-form label{display:grid;gap:6px;color:var(--color-text-muted);font-size:11px;font-weight:700}
 .status-change-form select,.case-update-form select{width:100%;margin-bottom:0}
@@ -1136,7 +1116,6 @@ select:not([multiple]) {
   .success-message .secondary-button{margin-left:0}
 }
 
-/* Platform case directory and cross-organization dashboard. */
 .platform-organization-chart{margin:0 0 16px}
 .platform-organization-chart .status-chart-row{grid-template-columns:minmax(140px,220px) minmax(60px,1fr) 52px}
 .platform-case-layout{grid-template-columns:minmax(0,1fr) minmax(320px,360px);align-items:start}
@@ -1157,7 +1136,6 @@ select:not([multiple]) {
   .platform-organization-chart .status-chart-row{grid-template-columns:minmax(96px,120px) minmax(30px,1fr) 40px;gap:8px}
 }
 
-/* Shared public authentication and access-message pages. */
 .auth-main {
   max-width: 760px;
   padding-top: clamp(16px, 4vw, 40px);
@@ -1334,7 +1312,6 @@ select:not([multiple]) {
   }
 }
 
-/* Shared data-grid structure */
 .data-grid {
   min-width: 0;
 }
@@ -1935,7 +1912,6 @@ select:not([multiple]) {
   }
 }
 
-/* Shared page rhythm and alignment. */
 .main-content {
   min-height: 100vh;
 }
@@ -1951,11 +1927,7 @@ select:not([multiple]) {
   min-width: 0;
 }
 
-/*
- * Keep every top-level section on the same left edge as the page heading and
- * the tab strip. Individual sections must not be centred or given their own
- * narrower max-width, otherwise cards drift away from the tabs above them.
- */
+/* Keep top-level sections aligned with the page heading and tab strip. */
 .content > .page-heading,
 .content > .dashboard-heading,
 .content > .stat-grid,

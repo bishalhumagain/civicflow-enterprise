@@ -57,8 +57,6 @@ public sealed class AddCitizenTrackingRls : Migration
             );
             """);
 
-        // Citizen responses insert timeline rows in the citizen transaction
-        // context, so the write check must allow the owner's own case.
         migrationBuilder.Sql(
             """
             alter policy case_status_history_organization_isolation
@@ -123,10 +121,6 @@ public sealed class AddCitizenTrackingRls : Migration
             );
             """);
 
-        // A citizen response notifies the assigned staff member. Resolving the
-        // staff row happens after the response was authorized against the
-        // citizen's own case, so the policy grants read access to exactly that
-        // assigned row and keeps all staff writes organization-only.
         migrationBuilder.Sql(
             """
             alter policy staff_members_organization_isolation

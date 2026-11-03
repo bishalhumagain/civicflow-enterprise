@@ -210,7 +210,6 @@ public sealed class InvitationApiIntegrationTests
             response.StatusCode == HttpStatusCode.Created,
             $"status={response.StatusCode} body={body}");
 
-        // The raw token only exists inside the delivered email.
         var message = factory.EmailSender.LastFor(email);
         Assert.NotNull(message);
 
@@ -246,8 +245,6 @@ public sealed class InvitationApiIntegrationTests
             organizationId,
             inviteeEmail);
 
-        // The invitation must not contain a password, and the stored record
-        // must only hold a hash of the token.
         using (var scope = factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider
@@ -276,7 +273,6 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
 
-        // The invitee can now sign in with the password they chose.
         var login = await inviteeClient.PostAsJsonAsync(
             "/api/auth/login/organization",
             new { email = inviteeEmail, password = InviteePassword });
@@ -446,7 +442,6 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.BadRequest, weak.StatusCode);
 
-        // A rejected password must not consume the invitation.
         var retry = await inviteeClient.PostAsJsonAsync(
             "/api/auth/invitations/accept",
             new { token, password = InviteePassword });
@@ -755,8 +750,6 @@ public sealed class InvitationApiIntegrationTests
         var (adminEmail, organizationId) =
             await CreateOrganizationAdminAsync(factory);
 
-        // An account that already exists (for example a former member of
-        // another organization) but is not a member here yet.
         await EnsureRolesAsync(factory);
 
         var existingEmail = $"existing-{Guid.NewGuid():N}@example.com";
@@ -953,9 +946,6 @@ public sealed class InvitationApiIntegrationTests
             organizationId,
             inviteeEmail);
 
-        // Reset the spy so we only observe the accept request, not the
-        // admin's earlier invitation-create request (which does not need a
-        // tenant transaction).
         spy.BeginOrganizationCalls.Clear();
 
         using var inviteeClient = CreateCookieClient(factory);
@@ -966,8 +956,6 @@ public sealed class InvitationApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
 
-        // The accept path must have opened a tenant transaction on the
-        // invitation's organization before writing to staff_members.
         Assert.Contains(organizationId, spy.BeginOrganizationCalls);
         Assert.Empty(spy.BeginCitizenCalls);
     }

@@ -241,10 +241,7 @@ public sealed class CaseService(
                 cancellationToken);
         }
 
-        // Staff members assigned to the case — either as the working assignee
-        // or in a read-only viewer role — are watchers, so a status change must
-        // notify them too. Recipients are resolved from the assigned staff
-        // member's matching active membership users by email.
+        // Notify the assignee and any viewers so status changes reach every watcher.
         if (caseEntity.AssignedToStaffMemberId is { } assignedStaffMemberId)
         {
             var assignedStaffEmail = await dbContext.StaffMembers
@@ -461,10 +458,7 @@ public sealed class CaseService(
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        // A newly-created citizen case is owned initially by an organization
-        // administrator, who then assigns it to the right team member. Prefer a
-        // staff member that corresponds to an active OrganizationAdmin, chosen
-        // deterministically (earliest created) so repeat routing is stable.
+        // Prefer the earliest OrganizationAdmin staff row so repeat routing is stable.
         var adminEmails = await (
             from membership in dbContext.OrganizationMemberships
             join user in dbContext.ApplicationUsers
@@ -494,8 +488,6 @@ public sealed class CaseService(
 
         if (adminStaffMemberId is { } staffMemberId)
         {
-            // AssignAsync records the assignment history and notifies the admin
-            // (resolved from their matching membership user by email).
             return await AssignAsync(
                 caseId,
                 organizationId,
@@ -505,9 +497,7 @@ public sealed class CaseService(
                 role: CaseAssignmentRole.CaseWorker);
         }
 
-        // No admin has a staff-member row yet, so the case cannot be formally
-        // owned by one. Still notify every active administrator so triage
-        // begins, and leave the case unassigned until an admin assigns it.
+        // No admin staff row exists, so notify every active admin and leave the case unassigned.
         foreach (var adminUserId in await (
             from membership in dbContext.OrganizationMemberships
             join user in dbContext.ApplicationUsers

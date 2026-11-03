@@ -115,9 +115,6 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
                 ? backgroundJobsEnabled ?? "false"
                 : "false");
 
-        // Anti-forgery is disabled for the general integration-test factory
-        // because the test authentication scheme bypasses the browser cookie
-        // flow. Dedicated tests re-enable it to prove CSRF protection works.
         builder.UseSetting(
             "Security:RequireAntiforgery",
             requireAntiforgery ? "true" : "false");
@@ -207,8 +204,6 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
     {
         await dbContext.Database.EnsureCreatedAsync();
 
-        // In-memory databases created by EnsureCreated do not run the
-        // migration seeders, so make sure the role catalogue exists.
         var roleManager = Services
             .CreateScope()
             .ServiceProvider
@@ -237,8 +232,6 @@ public class CivicFlowApiFactory : WebApplicationFactory<Program>
         string fullName,
         DateTimeOffset now)
     {
-        // The test authentication handler always authenticates as the
-        // well-known default user id, so align seeded users with it.
         var user = ApplicationUser.Create(
             fullName,
             $"integration-{Guid.NewGuid():N}@example.com",

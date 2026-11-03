@@ -260,13 +260,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 table: "identity_user_roles",
                 column: "RoleId");
 
-            // Backfill existing (previously Keycloak-managed) user rows so they
-            // remain valid ASP.NET Core Identity accounts. They keep their
-            // Guid primary key, which organization memberships and citizen
-            // profiles already reference. No local password exists for them,
-            // so PasswordHash stays null and they must use the password
-            // recovery flow; they are treated as email-confirmed because
-            // Keycloak already verified them.
             migrationBuilder.Sql(
                 """
                 UPDATE application_users
@@ -280,7 +273,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 WHERE "UserName" IS NULL;
                 """);
 
-            // Seed the role catalogue used by the authorization policies.
             migrationBuilder.Sql(
                 """
                 INSERT INTO identity_roles ("Id", "Name", "NormalizedName", "ConcurrencyStamp")
@@ -291,9 +283,6 @@ namespace PublicServiceCaseManagement.Api.Migrations
                 ON CONFLICT ("NormalizedName") DO NOTHING;
                 """);
 
-            // Existing platform administrators become superadmins; everyone
-            // else is treated as a citizen until an administrator assigns a
-            // staff role. This preserves least privilege.
             migrationBuilder.Sql(
                 """
                 INSERT INTO identity_user_roles ("UserId", "RoleId")
